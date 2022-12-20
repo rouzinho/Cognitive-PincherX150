@@ -1,0 +1,5 @@
+<launch>
+    <node name="dmp" pkg="dmp" type="dmp_server" respawn="false" output="screen"/>
+    <include file="$(find proprioception_pincher)/launch/robot_proprioception.launch" />
+    <node name="motion" pkg="motion" type="motion_px.py" output="screen"/>
+</launch>

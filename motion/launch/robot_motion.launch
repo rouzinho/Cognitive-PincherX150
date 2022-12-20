@@ -1,0 +1,75 @@
+<launch>
+  
+<arg name="robot_model"                       default="px150"/>
+  <arg name="robot_name"                        default="$(arg robot_model)"/>
+  <arg name="base_link_frame"                   default="base_link"/>
+  <arg name="show_ar_tag"                       default="false"/>
+  <arg name="use_world_frame"                   default="true"/>
+  <arg name="external_urdf_loc"                 default=""/>
+  <arg name="external_srdf_loc"                 default=""/>
+  <arg name="mode_configs"                      default="$(find interbotix_xsarm_moveit_interface)/config/modes.yaml"/>
+  <arg name="use_moveit_rviz"                   default="true"/>
+  <arg name="rviz_frame"                        default="world"/>
+  <arg name="use_gazebo"                        default="false"/>
+  <arg name="use_actual"                        default="false"/>
+  <arg name="use_fake"                          default="true"/>
+  <arg name="dof"                               default="5"/>
+  <arg name="world_name"                        default="$(find interbotix_xsarm_gazebo)/worlds/xsarm_gazebo.world"/>
+  <arg name="use_cpp_interface"                 default="false"/>
+  <arg name="moveit_interface_gui"              default="false"/>
+  <arg name="use_python_interface"              default="true"/>
+
+  <!--<arg name="arm_operating_mode"          default="position"/>
+  <arg name="arm_profile_velocity"        default="131"/>
+  <arg name="arm_profile_acceleration"    default="25"/>
+  <arg name="use_pid_cntlrs"              default="false"/>-->
+
+
+  <!--<include file="$(find interbotix_moveit)/launch/interbotix_moveit.launch">
+    <arg name="robot_name"                value="$(arg robot_name)"/>
+    <arg name="arm_operating_mode"        value="$(arg arm_operating_mode)"/>
+    <arg name="arm_profile_velocity"      value="$(arg arm_profile_velocity)"/>
+    <arg name="arm_profile_acceleration"  value="$(arg arm_profile_acceleration)"/>
+    <arg name="use_pid_cntlrs"            value="$(arg use_pid_cntlrs)"/>
+    <arg name="use_gazebo"                value="$(arg use_gazebo)"/>
+    <arg name="use_actual"                value="$(arg use_actual)"/>
+    <arg name="use_fake"                  value="$(arg use_fake)"/>
+    <arg name="dof"                       value="$(arg dof)"/>
+  </include>-->
+
+  <group if="$(arg use_cpp_interface)">
+
+    <node
+      name="moveit_interface_node"
+      pkg="interbotix_moveit_interface"
+      type="moveit_interface_node"
+      respawn="false"
+      output="screen"
+      ns="$(arg robot_name)"/>
+
+    <node if="$(arg moveit_interface_gui)"
+      name="moveit_interface_gui"
+      pkg="interbotix_moveit_interface"
+      type="moveit_interface_gui"
+      output="screen"
+      ns="$(arg robot_name)"/>
+
+  </group>
+
+  <!--<node name="dmp" pkg="dmp" type="dmp_server" respawn="false" output="screen"/>-->
+  <include file="$(find proprioception_pincher)/launch/robot_proprioception.launch" />
+
+  <node if="$(arg use_python_interface)"
+    name="motion"
+    pkg="motion"
+    type="motion_px.py"
+    respawn="false"
+    output="screen"
+    ns="$(arg robot_name)">
+    <rosparam command="load"                      file="$(find interbotix_xsarm_moveit_interface)/config/$(arg robot_model).yaml"/>
+    <param name="robot_model"                     value="$(arg robot_model)"/>
+    <remap from="/attached_collision_object"      to="/$(arg robot_name)/attached_collision_object"/>
+    <remap from="/collision_object"               to="/$(arg robot_name)/collision_object"/>
+  </node>
+
+</launch>
