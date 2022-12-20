@@ -1,0 +1,304 @@
+#include <ros/ros.h>
+// PCL specific includes
+#include <tf2_ros/buffer.h>
+#include <tf2/transform_datatypes.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2/convert.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/transforms.h>
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/console/time.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <geometry_msgs/Point.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+//#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+#include <image_transport/subscriber_filter.h>
+#include <message_filters/subscriber.h>
+#include <sensor_msgs/Image.h>
+#include <ros/header.h>
+
+static const std::string OPENCV_WINDOW = "Image window";
+static const std::string OPENCV_WINDOW_BIS = "Image";
+
+class DepthImage
+{
+  private:
+    ros::NodeHandle nh_;
+    image_transport::ImageTransport it_;
+    ros::Subscriber sub_point_cloud;
+    geometry_msgs::TransformStamped transformStamped;
+    bool tf_in;
+    tf2_ros::TransformListener tfListener;
+    tf2_ros::Buffer tfBuffer;
+    Eigen::Matrix4d robot_frame;
+    float crop_min_x;
+    float crop_min_y;
+    float crop_max_x;
+    float crop_max_y;
+    float crop_max_z;
+    float crop_min_z;
+    bool first;
+
+  public:
+    DepthImage():
+    tfListener(tfBuffer),
+    it_(nh_)
+    {
+      sub_point_cloud = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &DepthImage::pointCloudCb,this);
+      tf_in = false;
+      crop_max_x = 5000;
+      crop_max_y = 5000;
+      crop_min_x = -5000;
+      crop_min_y = -5000;
+      crop_min_z = -5000;
+      crop_max_z = 5000;
+      first = true;
+    }
+    ~DepthImage()
+    {
+    }
+
+    void pointCloudCb(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      if(!tf_in)
+      {
+        listenTransform();
+      }
+      
+      pcl::PCLPointCloud2 pcl_pc2;
+      pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
+      pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+      pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+      genDepthFromPcl(cloud_transformed);
+
+    }
+
+    void listenTransform()
+    {
+      if(!tf_in)
+      {
+        try
+        {
+          transformStamped = tfBuffer.lookupTransform("px150/base_link", "camera_depth_optical_frame",ros::Time(0));
+        } 
+        catch (tf2::TransformException &ex) 
+        {
+          ROS_WARN("%s", ex.what());
+          ros::Duration(1.0).sleep();
+        }
+        tf_in = true;
+        Eigen::Isometry3d mat = tf2::transformToEigen(transformStamped);
+        robot_frame = mat.matrix();
+      }
+    }
+
+    void getExtremeValues(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+    {
+      float min_x = 0;
+      float max_x = 0;
+      float min_y = 0;
+      float max_y = 0;
+      float min_z = 0;
+      float max_z = 0;
+      float px;
+      float py;
+      float pz;
+      std::vector<float> min_max_values;
+      for (int i=0; i< cloud->points.size();i++)
+      {
+        if (cloud->points[i].z == cloud->points[i].z)
+        {
+            px = cloud->points[i].x * 1000.0;// *1000.0;
+            py = cloud->points[i].y * 1000.0;// *1000.0*-1; //revert image because it's upside down for display
+            pz = cloud->points[i].z *1000.0;
+            if(px < min_x)
+            {
+              min_x = px;
+            }
+            if(px > max_x)
+            {
+              max_x = px;
+            }
+            if(py < min_y)
+            {
+              min_y = py;
+            }
+            if(py > max_y)
+            {
+              max_y = py;
+            }
+            if(pz < min_z)
+            {
+              min_z = pz;
+            }
+            if(pz > max_z)
+            {
+              max_z = pz;
+            }
+        }
+      }
+      if(min_x > crop_min_x)
+      {
+        crop_min_x = min_x;
+      }
+      if(min_y > crop_min_y)
+      {
+        crop_min_y = min_y;
+      }
+      if(max_x < crop_max_x)
+      {
+        crop_max_x = max_x;
+      }
+      if(max_y < crop_max_y)
+      {
+        crop_max_y = max_y;
+      }
+      if(min_z > crop_min_z)
+      {
+        crop_min_z = min_z;
+      }
+      if(max_z < crop_max_z)
+      {
+        crop_max_z = max_z;
+      }
+    }
+
+    void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
+    {
+      cv::Mat cv_image = cv::Mat(512, 512, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
+      
+      const float bad_point = std::numeric_limits<float>::quiet_NaN();
+      sensor_msgs::ImagePtr msg_dm;
+      getExtremeValues(cloud);
+      int pixel_pos_x;
+      int pixel_pos_y;
+      float pixel_pos_z;
+      float px;
+      float py;
+      float pz;
+      float test;
+      double ax = (static_cast<double>(512))/(crop_max_x-crop_min_x); //1024 image width
+      double bx = 0 - (ax*crop_min_x);
+      double ay = (static_cast<double>(512))/(crop_max_y-crop_min_y); //1024 image height
+      double by = 0 - (ay*crop_min_y);
+      double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
+      double bz = 0 - (az*crop_min_z);
+
+      for (int i=0; i< cloud->points.size();i++)
+      {
+        px = cloud->points[i].x * 1000.0;
+        py = cloud->points[i].y * 1000.0;//revert image because it's upside down for display
+        pz = cloud->points[i].z *1000.0;
+        pixel_pos_x = (int) (ax * px + bx);
+        pixel_pos_y = (int) (ay * py + by);
+        pixel_pos_z = (az * pz + bz);
+        pixel_pos_z = pixel_pos_z/1000.0;
+        if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
+        {
+          cloud->points[i].z = bad_point;
+        }
+        if (cloud->points[i].z == cloud->points[i].z)
+        {
+            
+            cv_image.at<float>(pixel_pos_y,pixel_pos_x) = pixel_pos_z;
+            //test = cv_image.at<float>(pixel_pos_y,pixel_pos_x); 
+            //std::cout<<"d : "<<pixel_pos_z<<"\n";
+            if(pixel_pos_z > 0.7) //0.7
+            {
+              //std::cout<<pixel_pos_z<<"\n";
+              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 1.0;
+            }
+            else
+            {
+              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 0.0;
+            }     
+        }
+      }
+
+      //msg_dm = cv_bridge::CvImage(std_msgs::Header(), sensor_msgs::image_encodings::TYPE_32FC1, cv_image).toImageMsg();
+      cv::Mat rot;
+      cv::Mat res;
+      cv::Mat fil;
+      cv::Mat final_image;
+      cv::rotate(cv_image, rot, cv::ROTATE_90_CLOCKWISE);
+      //crop image
+      cv::Rect myROI(0, 132, 512, 380);
+      cv::Mat croppedImage = rot(myROI);
+
+      //define filter
+      cv::Mat kernel2 = cv::Mat::ones(5,5, CV_64F);
+      kernel2 = kernel2 / 20;
+      //convert to gray
+      cv::cvtColor(croppedImage,res,cv::COLOR_GRAY2RGB);
+      res.convertTo(res, CV_8UC3, 255.0);
+      //filter
+      filter2D(res, fil, -1 , kernel2, cv::Point(-1, -1), 0, 4);
+      cv::Mat tmp_img = cv::Mat(fil.rows, fil.cols, CV_8UC3,cv::Scalar(std::numeric_limits<float>::max()));
+      //fill blank
+      for(int i = 0; i < fil.rows;i++)
+      {
+        for(int j = 0; j < fil.cols;j++)
+        {
+          //float t = res.at<float>(j,i);
+          cv::Vec3b t = fil.at<cv::Vec3b>(i,j);
+          if(t[0] != 0 || t[1] != 0 || t[2] != 0)
+          {
+            cv::Vec3b s;
+            tmp_img.at<cv::Vec3b>(i,j)[0] = 255;
+            tmp_img.at<cv::Vec3b>(i,j)[1] = 255;
+            tmp_img.at<cv::Vec3b>(i,j)[2] = 255;
+          }
+          //std::cout<<t<<"\n";
+        }
+      }
+      //resize to good size
+      cv::resize(tmp_img, final_image, cv::Size(64, 64), cv::INTER_LANCZOS4);
+
+
+      if(first == true)
+      {
+        cv::imwrite("test_resize2.jpg", final_image);
+        first = false;
+      }
+      cv::imshow(OPENCV_WINDOW, final_image);
+      cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
+      cv::waitKey(1);
+    }
+
+    void print4x4Matrix (const Eigen::Matrix4d & matrix)
+    {
+      printf ("Rotation matrix : \n");
+      printf ("    | %6.3f %6.3f %6.3f | \n", matrix (0, 0), matrix (0, 1), matrix (0, 2));
+      printf ("R = | %6.3f %6.3f %6.3f | \n", matrix (1, 0), matrix (1, 1), matrix (1, 2));
+      printf ("    | %6.3f %6.3f %6.3f | \n", matrix (2, 0), matrix (2, 1), matrix (2, 2));
+      printf ("Translation vector :\n");
+      printf ("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix (0, 3), matrix (1, 3), matrix (2, 3));
+    }
+
+
+};
+
+
+int main(int argc, char** argv)
+{
+  ros::init(argc, argv, "depth_perceptions");
+  DepthImage di;
+  ros::spin();
+
+  return 0;
+}
