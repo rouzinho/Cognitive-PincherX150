@@ -10,6 +10,7 @@
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <pcl/filters/crop_box.h>
 #include <pcl_ros/transforms.h>
 #include <iostream>
 #include <fstream>
@@ -32,6 +33,7 @@
 
 static const std::string OPENCV_WINDOW = "Image window";
 static const std::string OPENCV_WINDOW_BIS = "Image";
+typedef pcl::PointXYZRGB PointT;
 
 class DepthImage
 {
@@ -39,6 +41,7 @@ class DepthImage
     ros::NodeHandle nh_;
     image_transport::ImageTransport it_;
     ros::Subscriber sub_point_cloud;
+    ros::Subscriber sub_point_cloud_object;
     geometry_msgs::TransformStamped transformStamped;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
@@ -58,6 +61,7 @@ class DepthImage
     it_(nh_)
     {
       sub_point_cloud = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &DepthImage::pointCloudCb,this);
+      sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -75,15 +79,42 @@ class DepthImage
     {
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
       if(!tf_in)
       {
         listenTransform();
       }
+      //std::cout<<cloud_msg->header.frame_id<<"/n";
       
       pcl::PCLPointCloud2 pcl_pc2;
       pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
       pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
       pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+
+      //print4x4Matrix(robot_frame);
+      getExtremeValues(cloud_transformed);
+      //genDepthFromPcl(cloud_transformed);
+
+    }
+
+    void pointCloudObjectCb(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
+      if(!tf_in)
+      {
+        listenTransform();
+      }
+      //std::cout<<cloud_msg->header.frame_id<<"/n";
+      
+      pcl::PCLPointCloud2 pcl_pc2;
+      pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
+      pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+      pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+
+      //print4x4Matrix(robot_frame);
+      //getExtremeValues(cloud_transformed);
       genDepthFromPcl(cloud_transformed);
 
     }
@@ -94,7 +125,7 @@ class DepthImage
       {
         try
         {
-          transformStamped = tfBuffer.lookupTransform("px150/base_link", "camera_depth_optical_frame",ros::Time(0));
+          transformStamped = tfBuffer.lookupTransform("px150/base_link", "rgb_camera_link",ros::Time(0));
         } 
         catch (tf2::TransformException &ex) 
         {
@@ -124,7 +155,7 @@ class DepthImage
         if (cloud->points[i].z == cloud->points[i].z)
         {
             px = cloud->points[i].x * 1000.0;// *1000.0;
-            py = cloud->points[i].y * 1000.0;// *1000.0*-1; //revert image because it's upside down for display
+            py = cloud->points[i].y * 1000.0*-1;// *1000.0*-1; //revert image because it's upside down for display
             pz = cloud->points[i].z *1000.0;
             if(px < min_x)
             {
@@ -180,11 +211,11 @@ class DepthImage
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      cv::Mat cv_image = cv::Mat(512, 512, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
+      cv::Mat cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
       
       const float bad_point = std::numeric_limits<float>::quiet_NaN();
       sensor_msgs::ImagePtr msg_dm;
-      getExtremeValues(cloud);
+      //getExtremeValues(cloud);
       int pixel_pos_x;
       int pixel_pos_y;
       float pixel_pos_z;
@@ -192,9 +223,9 @@ class DepthImage
       float py;
       float pz;
       float test;
-      double ax = (static_cast<double>(512))/(crop_max_x-crop_min_x); //1024 image width
+      double ax = (static_cast<double>(1024))/(crop_max_x-crop_min_x); //1024 image width
       double bx = 0 - (ax*crop_min_x);
-      double ay = (static_cast<double>(512))/(crop_max_y-crop_min_y); //1024 image height
+      double ay = (static_cast<double>(1024))/(crop_max_y-crop_min_y); //1024 image height
       double by = 0 - (ay*crop_min_y);
       double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
       double bz = 0 - (az*crop_min_z);
@@ -202,7 +233,7 @@ class DepthImage
       for (int i=0; i< cloud->points.size();i++)
       {
         px = cloud->points[i].x * 1000.0;
-        py = cloud->points[i].y * 1000.0;//revert image because it's upside down for display
+        py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
         pz = cloud->points[i].z *1000.0;
         pixel_pos_x = (int) (ax * px + bx);
         pixel_pos_y = (int) (ay * py + by);
@@ -218,7 +249,7 @@ class DepthImage
             cv_image.at<float>(pixel_pos_y,pixel_pos_x) = pixel_pos_z;
             //test = cv_image.at<float>(pixel_pos_y,pixel_pos_x); 
             //std::cout<<"d : "<<pixel_pos_z<<"\n";
-            if(pixel_pos_z > 0.7) //0.7
+            if(pixel_pos_z > 0.0) //0.7
             {
               //std::cout<<pixel_pos_z<<"\n";
               cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 1.0;
@@ -235,19 +266,18 @@ class DepthImage
       cv::Mat res;
       cv::Mat fil;
       cv::Mat final_image;
-      cv::rotate(cv_image, rot, cv::ROTATE_90_CLOCKWISE);
-      //crop image
-      cv::Rect myROI(0, 132, 512, 380);
-      cv::Mat croppedImage = rot(myROI);
+      cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
 
       //define filter
       cv::Mat kernel2 = cv::Mat::ones(5,5, CV_64F);
       kernel2 = kernel2 / 20;
       //convert to gray
-      cv::cvtColor(croppedImage,res,cv::COLOR_GRAY2RGB);
+      cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
       res.convertTo(res, CV_8UC3, 255.0);
       //filter
-      filter2D(res, fil, -1 , kernel2, cv::Point(-1, -1), 0, 4);
+
+      cv::bilateralFilter(res, fil, 15, 75, 75);
+      //filter2D(res, fil, -1 , kernel2, cv::Point(-1, -1), 0, 4);
       cv::Mat tmp_img = cv::Mat(fil.rows, fil.cols, CV_8UC3,cv::Scalar(std::numeric_limits<float>::max()));
       //fill blank
       for(int i = 0; i < fil.rows;i++)
@@ -267,16 +297,16 @@ class DepthImage
         }
       }
       //resize to good size
-      cv::resize(tmp_img, final_image, cv::Size(64, 64), cv::INTER_LANCZOS4);
+      //cv::resize(tmp_img, final_image, cv::Size(64, 64), cv::INTER_LANCZOS4);
 
 
       if(first == true)
       {
-        cv::imwrite("test_resize2.jpg", final_image);
+        cv::imwrite("test_resize2.jpg", res);
         first = false;
       }
-      cv::imshow(OPENCV_WINDOW, final_image);
-      cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
+      cv::imshow(OPENCV_WINDOW, rot);
+      //cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
       cv::waitKey(1);
     }
 
