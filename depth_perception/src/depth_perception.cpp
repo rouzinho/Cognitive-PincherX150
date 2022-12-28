@@ -54,6 +54,11 @@ class DepthImage
     float crop_max_z;
     float crop_min_z;
     bool first;
+    cv::Mat cv_image;
+    cv::Mat res;
+    cv::Mat fil;
+    int count;
+    int threshold;
 
   public:
     DepthImage():
@@ -69,7 +74,10 @@ class DepthImage
       crop_min_y = -5000;
       crop_min_z = -5000;
       crop_max_z = 5000;
-      first = true;
+      first = false;
+      cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
+      count = 0;
+      threshold = 25;
     }
     ~DepthImage()
     {
@@ -209,10 +217,109 @@ class DepthImage
       }
     }
 
+    cv::Mat fillDepthMapBlanks(cv::Mat img)
+    {
+      int k;
+      int l;
+      bool found = false;
+      bool black = false;
+      bool again = true;
+      float angle = 0;
+      bool rot = true;
+      while(again == true)
+      {
+        for(int i = 0; i < img.rows;i++)
+        {
+          for(int j = 0; j < img.cols;j++)
+          {
+            if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2)
+            {
+              if(img.at<float>(i,j+1) > 3e16)
+              {
+                if(img.at<float>(i,j+2) > 0 && img.at<float>(i,j+2) < 2)
+                {
+                  k = i;
+                  l = j+1;
+                  black = true;
+                }
+              }
+            }
+            if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
+            {
+              if(img.at<float>(i+1,j) > 3e16)
+              {
+                if(img.at<float>(i+2,j) > 0 && img.at<float>(i+2,j) < 2)
+                {
+                  k = i+1;
+                  l = j;
+                  black = true;
+                }
+              }
+            }
+            if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
+            {
+              if(img.at<float>(i+1,j+1) > 3e16)
+              {
+                if(img.at<float>(i+2,j+2) > 0 && img.at<float>(i+2,j+2) < 2)
+                {
+                  k = i+1;
+                  l = j+1;
+                  black = true;
+                }
+              }
+            }
+            //std::cout<<" d : "<<img.at<float>(i,j)<<"\n";
+            if(black == true)
+            {
+              //std::cout<<" k : "<<i<<" l : "<<j<<"\n";
+            if(img.at<float>(k,l-1) < 3e16 && img.at<float>(k,l+1) < 3e16)
+            {
+              float av = (img.at<float>(k,l-1) + img.at<float>(k,l+1)) / 2;
+              img.at<float>(k,l) = av;
+              found = true;
+            }
+            if(img.at<float>(k-1,l) < 3e16 && img.at<float>(k+1,l) < 3e16 && found == false)
+            {
+              float av = (img.at<float>(k-1,l) + img.at<float>(k+1,l)) / 2;
+              img.at<float>(k,l) = av;
+              found = true;
+            }
+            if(img.at<float>(k-1,l-1) < 3e16 && img.at<float>(k+1,l+1) < 3e16 && found == false)
+            {
+              float av = (img.at<float>(k-1,l-1) + img.at<float>(k+1,l+1)) / 2;
+              img.at<float>(k,l) = av;
+              found = true;
+            }
+            if(img.at<float>(k-1,l+1) < 3e16 && img.at<float>(k+1,l-1) < 3e16 && found == false)
+            {
+              float av = (img.at<float>(k-1,l+1) + img.at<float>(k+1,l-1)) / 2;
+              img.at<float>(k,l) = av;
+              found = true;
+            }
+            found = false;
+            black = false;
+            }
+          }
+        }
+        if(angle <= 350)
+        {
+          angle = angle + 90;
+          cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
+        }
+        else
+        {
+          again = false;
+          //cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
+        }
+      }
+      return img;
+    }
+
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      cv::Mat cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
-      
+      //cv::Mat cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
+      cv::Mat rot;
+      cv::Mat final_image;
       const float bad_point = std::numeric_limits<float>::quiet_NaN();
       sensor_msgs::ImagePtr msg_dm;
       //getExtremeValues(cloud);
@@ -229,83 +336,54 @@ class DepthImage
       double by = 0 - (ay*crop_min_y);
       double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
       double bz = 0 - (az*crop_min_z);
-
-      for (int i=0; i< cloud->points.size();i++)
+      if(count < threshold)
       {
-        px = cloud->points[i].x * 1000.0;
-        py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
-        pz = cloud->points[i].z *1000.0;
-        pixel_pos_x = (int) (ax * px + bx);
-        pixel_pos_y = (int) (ay * py + by);
-        pixel_pos_z = (az * pz + bz);
-        pixel_pos_z = pixel_pos_z/1000.0;
-        if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
+        for (int i=0; i< cloud->points.size();i++)
         {
-          cloud->points[i].z = bad_point;
-        }
-        if (cloud->points[i].z == cloud->points[i].z)
-        {
-            
-            cv_image.at<float>(pixel_pos_y,pixel_pos_x) = pixel_pos_z;
-            //test = cv_image.at<float>(pixel_pos_y,pixel_pos_x); 
-            //std::cout<<"d : "<<pixel_pos_z<<"\n";
-            if(pixel_pos_z > 0.0) //0.7
-            {
-              //std::cout<<pixel_pos_z<<"\n";
-              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 1.0;
-            }
-            else
-            {
-              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 0.0;
-            }     
-        }
-      }
-
-      //msg_dm = cv_bridge::CvImage(std_msgs::Header(), sensor_msgs::image_encodings::TYPE_32FC1, cv_image).toImageMsg();
-      cv::Mat rot;
-      cv::Mat res;
-      cv::Mat fil;
-      cv::Mat final_image;
-      cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
-
-      //define filter
-      cv::Mat kernel2 = cv::Mat::ones(5,5, CV_64F);
-      kernel2 = kernel2 / 20;
-      //convert to gray
-      cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
-      res.convertTo(res, CV_8UC3, 255.0);
-      //filter
-
-      cv::bilateralFilter(res, fil, 15, 75, 75);
-      //filter2D(res, fil, -1 , kernel2, cv::Point(-1, -1), 0, 4);
-      cv::Mat tmp_img = cv::Mat(fil.rows, fil.cols, CV_8UC3,cv::Scalar(std::numeric_limits<float>::max()));
-      //fill blank
-      for(int i = 0; i < fil.rows;i++)
-      {
-        for(int j = 0; j < fil.cols;j++)
-        {
-          //float t = res.at<float>(j,i);
-          cv::Vec3b t = fil.at<cv::Vec3b>(i,j);
-          if(t[0] != 0 || t[1] != 0 || t[2] != 0)
+          px = cloud->points[i].x * 1000.0;
+          py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
+          pz = cloud->points[i].z *1000.0;
+          pixel_pos_x = (int) (ax * px + bx);
+          pixel_pos_y = (int) (ay * py + by);
+          pixel_pos_z = (az * pz + bz);
+          pixel_pos_z = pixel_pos_z/1000.0;
+          if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
           {
-            cv::Vec3b s;
-            tmp_img.at<cv::Vec3b>(i,j)[0] = 255;
-            tmp_img.at<cv::Vec3b>(i,j)[1] = 255;
-            tmp_img.at<cv::Vec3b>(i,j)[2] = 255;
+            cloud->points[i].z = bad_point;
+            cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 0.0;
           }
-          //std::cout<<t<<"\n";
+          if (cloud->points[i].z == cloud->points[i].z)
+          {
+            {
+              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = pixel_pos_z;
+            }    
+          }
         }
+        cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
+        //convert to gray
+        cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
+        res.convertTo(res, CV_8UC3, 255.0);
+        cv::medianBlur(res,fil,(9,9));
+        //cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
       }
-      //resize to good size
-      //cv::resize(tmp_img, final_image, cv::Size(64, 64), cv::INTER_LANCZOS4);
-
-
+      if(count > threshold && first == false)
+      {
+        cv_image = fillDepthMapBlanks(cv_image);
+        cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
+        //convert to gray
+        cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
+        res.convertTo(res, CV_8UC3, 255.0);
+        cv::medianBlur(res,fil,(9,9));
+        //cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
+        first = true;
+      }
       if(first == true)
       {
-        cv::imwrite("test_resize2.jpg", res);
-        first = false;
+        cv::imwrite("good3.jpg", fil);
       }
-      cv::imshow(OPENCV_WINDOW, rot);
+      count++;
+
+      cv::imshow(OPENCV_WINDOW, fil);
       //cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
       cv::waitKey(1);
     }
