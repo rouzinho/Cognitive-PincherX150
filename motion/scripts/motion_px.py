@@ -24,6 +24,7 @@ from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
+#from trajectory_msgs.msg import JointSingleCommand
 from interbotix_xs_msgs.msg import *
 from std_msgs.msg import Time
 from std_msgs.msg import Header
@@ -71,10 +72,12 @@ class Motion(object):
     self.pub = rospy.Publisher('/px150/gripper_controller/command', JointTrajectory, queue_size=1,latch=True)
     self.pub_traj = rospy.Publisher("/px150/commands/joint_trajectory", JointTrajectoryCommand, queue_size=1, latch=True)
     self.pub_group = rospy.Publisher("/px150/commands/joint_group", JointGroupCommand, queue_size=1, latch=True)
+    self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
     rospy.Subscriber('/motion/joint_states', JointState, self.late_joint_states)
     rospy.Subscriber('/motion_pincher/path_ee', Pose, self.callback_path)
     rospy.Subscriber('/motion_pincher/proprioception', Pose, self.callback_proprioception)
+    rospy.Subscriber('/pressure', UInt16, self.get_pressure)
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
@@ -104,6 +107,7 @@ class Motion(object):
     self.K_gain = 100              
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 4
+    self.stop = False
 
   def callback_path(self,data):
     print("GOT POSE")
@@ -148,14 +152,20 @@ class Motion(object):
       self.count = 0
       self.move = True
 
+  def get_pressure(self,msg):
+    if msg.data < 200:
+      self.stop = True
+    else:
+      self.stop = False
+
   def joint_states(self,msg):
     self.js = msg
     self.js_positions = msg.position
+    self.gripper_state = msg.position[6]
 
   def late_joint_states(self,msg):
     if self.record == True:
       self.writeBagEE(self.name_ee,msg)
-
 
   def callback_proprioception(self,msg):
     self.ee_pose.position.x = msg.position.x
@@ -303,6 +313,21 @@ class Motion(object):
     joints, found = self.bot.arm.set_ee_pose_matrix(T_sd, custom_guess=None, execute=False, moving_time=None, accel_time=None, blocking=True)
     return joints, found
 
+  def openGripper(self):
+    self.bot.gripper.open(2.0)
+
+  def close_gripper(self):
+    jsc = JointSingleCommand()
+    jsc.name = "gripper"
+    jsc.cmd = -50.0
+    self.pub_gripper.publish(jsc)
+    while not self.stop and self.gripper_state > 0.015:
+      pass
+    jsc.cmd = 0
+    self.pub_gripper.publish(jsc)
+
+
+
   def test_interface(self):
     self.bot.arm.go_to_home_pose()
     #self.writeBagEE(self.name_ee,self.js)
@@ -343,7 +368,9 @@ if __name__ == '__main__':
   motion_planning = Motion()
   first = True
   rospy.sleep(2.0)
-  motion_planning.poseToJoints(0.3,-0.1,0.02,0.0,0.8)  
+  motion_planning.openGripper()
+  motion_planning.close_gripper()
+  #motion_planning.poseToJoints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
     if first:
