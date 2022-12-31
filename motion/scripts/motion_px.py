@@ -245,6 +245,12 @@ class Motion(object):
     finally:
       bag.close()
 
+  def readDMPBag(self,name):
+    bag = rosbag.Bag(self.name_dmp)
+    for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
+      print(msg)
+    bag.close()
+
   def getDMP(self,name):
     bag = rosbag.Bag(name)
     for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
@@ -276,8 +282,8 @@ class Motion(object):
     x_dot_0 = [0.0,0.0,0.0,0.0,0.0]   
     t_0 = 0                
     seg_length = -1          #Plan until convergence to goal
-    tau = resp.tau/4       #Desired plan should take twice as long as demo
-    dt = 1.0
+    tau = resp.tau / 1.5       # /4 is good enough
+    dt = 1.0 
     integrate_iter = 5       #dt is rather large, so this is > 1  
     planned_dmp = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, seg_length, tau, dt, integrate_iter)
     
@@ -285,7 +291,7 @@ class Motion(object):
     path = self.shrinkDMP(planned_dmp.plan.points,goal)
     print("path length", len(path))
     for i in path:
-      self.bot.arm.set_joint_positions(i)
+      self.bot.arm.set_joint_positions(i,moving_time=0.4,accel_time=0.1)
       print(j)
       j+=1
 
@@ -362,23 +368,23 @@ class Motion(object):
     rospy.sleep(1.0)
 
   def sleep_pose(self):
-    self.bot.arm.go_to_sleep_pose()
+    self.bot.arm.go_to_sleep_pose(moving_time=2.0,accel_time=0.3)
 
 if __name__ == '__main__':
   motion_planning = Motion()
   first = True
   rospy.sleep(2.0)
-  motion_planning.openGripper()
-  motion_planning.close_gripper()
+  #motion_planning.openGripper()
+  #motion_planning.close_gripper()
   #motion_planning.poseToJoints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
     if first:
       #motion_planning.test_interface()
       #motion_planning.makeDMP()
-      #motion_planning.init_position()
-      #motion_planning.playMotionDMP()
-      #motion_planning.sleep_pose()
+      motion_planning.init_position()
+      motion_planning.playMotionDMP()
+      motion_planning.sleep_pose()
       #motion_planning.makeDMP()
       #motion_planning.test_interface()
       #motion_planning.init_position()
