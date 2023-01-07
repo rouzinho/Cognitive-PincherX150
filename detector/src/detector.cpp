@@ -12,8 +12,22 @@
 #include <message_filters/sync_policies/approximate_time.h>
 // open3d_conversions
 #include "open3d_conversions/open3d_conversions.h"
+#include <tf2_ros/buffer.h>
+#include <tf2/transform_datatypes.h>
+#include <tf2_sensor_msgs/tf2_sensor_msgs.h>
+#include <tf2_ros/transform_listener.h>
+#include <tf2/convert.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl/filters/crop_box.h>
+#include <pcl_ros/transforms.h>
+#include <math.h>
+#include <std_msgs/Bool.h>
 
 using namespace message_filters;
+using namespace std;
 
 class Detector
 {
@@ -22,15 +36,30 @@ class Detector
         ros::Subscriber sub_ori;
         ros::Subscriber sub_fin;
         ros::Publisher pub_tf;
+        ros::Subscriber sub_activate;
         open3d::geometry::PointCloud cloud_origin;
+        open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
-        open3d::visualization::Visualizer vis;
+        geometry_msgs::TransformStamped transformStamped;
+        bool tf_in;
+        tf2_ros::TransformListener tfListener;
+        tf2_ros::Buffer tfBuffer;
+        Eigen::Matrix4d robot_frame;
         int count;
         bool first;
         bool second;
+        bool ori_one;
+        bool fin_one;
+        float roll;
+        float pitch;
+        float yaw;
         open3d::pipelines::registration::RegistrationResult icp_coarse;
         open3d::pipelines::registration::RegistrationResult icp_fine;
         double rmse;
+        Eigen::Matrix4d_u transform;
+        sensor_msgs::PointCloud2 msg;
+        sensor_msgs::PointCloud2 cloud_tf;
+        sensor_msgs::PointCloud2 cloud_pcl_backup;
         //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_ori;
         //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_fin;
         
@@ -39,23 +68,22 @@ class Detector
         //boost::shared_ptr<Sync> sync;
 
     public:
-        
 
-    Detector()
+    Detector():
+    tfListener(tfBuffer)
     {
         sub_ori = nh_.subscribe("/original", 1, &Detector::callbackOriginal, this);
         sub_fin = nh_.subscribe("/final", 1, &Detector::callbackFinal, this);
+        sub_activate = nh_.subscribe("/outcome/activate", 1, &Detector::activateCb,this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/cloud_icp",1);
         count = 0;
         first = true;
         second = false;
         rmse = 1.0;
-        //vis.CreateVisualizerWindow("Open3D");
-        //vis.Run();
-        //sub_ori.subscribe(nh_, "/original", 1);
-        //sub_fin.subscribe(nh_, "/final", 1);
-        //sync.reset(new Sync(MySyncPolicy(10), sub_ori, sub_fin));      
-        //sync->registerCallback(boost::bind(&Detector::callbackICP, this, _1, _2));
+        transform = Eigen::Matrix4d_u(4,4);
+        tf_in = false;
+        ori_one = false;
+        fin_one = false;
     }
 
     virtual ~Detector()
@@ -64,39 +92,114 @@ class Detector
 
     void callbackOriginal(const sensor_msgs::PointCloud2ConstPtr& cloud_ori)
     {
-        //std::cout<<"received original\n";
-        cloud_origin.Clear();
-        open3d_conversions::rosToOpen3d(cloud_ori, cloud_origin);
-        //ROS_INFO("Recieved pointcloud with sequence number: %d", cloud_data->header.seq);
-        // Do something with the Open3D pointcloud
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+        if(!tf_in)
+        {
+            listenTransform();
+        }
+        pcl::PCLPointCloud2 pcl_pc2;
+        pcl_conversions::toPCL(*cloud_ori, pcl_pc2);
+        pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+        pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+        pcl::toROSMsg(*cloud_transformed,cloud_tf);
+        sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf));
+        cloud_backup.Clear();
+        open3d_conversions::rosToOpen3d(cl, cloud_backup);
+        //cout<<cloud_ori->header.frame_id<<"\n";
     }
 
     void callbackFinal(const sensor_msgs::PointCloud2ConstPtr& cloud_fin)
     {
-        //std::cout<<cloud_fin->header.frame_id<<"\n";
-        //open3d::geometry::PointCloud cloud_final;
-        cloud_final.Clear();
-        open3d_conversions::rosToOpen3d(cloud_fin, cloud_final);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        sensor_msgs::PointCloud2 cloud_tf2;
+
+        if(!tf_in)
+        {
+            listenTransform();
+        }
         if(!cloud_origin.IsEmpty())
         {
-            performICP(cloud_origin,cloud_final);
+            if(!fin_one)
+            {
+                fin_one = true;
+                cout<<"second image\n";
+                pcl::PCLPointCloud2 pcl_pc2;
+                pcl_conversions::toPCL(*cloud_fin, pcl_pc2);
+                pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+                pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+                pcl::toROSMsg(*cloud_transformed,cloud_tf2);
+                sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf2));
+                cloud_final.Clear();
+                open3d_conversions::rosToOpen3d(cl, cloud_final);
+                performICP(cloud_origin,cloud_final);   
+            }
         }
+        pub_tf.publish(msg);
+    }
+
+    void activateCb(const std_msgs::BoolConstPtr& msg)
+    {
+        sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf));
+        if(msg->data == true)
+        {
+            count++;
+        }
+        if(count == 1)
+        {
+            cloud_origin.Clear();
+            open3d_conversions::rosToOpen3d(cl, cloud_origin);
+        }
+        if(count == 2)
+        {
+            cloud_final.Clear();
+            open3d_conversions::rosToOpen3d(cl, cloud_final);
+            performICP(cloud_origin,cloud_final); 
+            count == 0;
+        }
+      
+    }
+
+    void listenTransform()
+    {
+      if(!tf_in)
+      {
+        try
+        {
+          transformStamped = tfBuffer.lookupTransform("px150/base_link", "rgb_camera_link",ros::Time(0));
+        } 
+        catch (tf2::TransformException &ex) 
+        {
+          ROS_WARN("%s", ex.what());
+          ros::Duration(1.0).sleep();
+        }
+        tf_in = true;
+        Eigen::Isometry3d mat = tf2::transformToEigen(transformStamped);
+        robot_frame = mat.matrix();
+      }
     }
 
     void performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
     {
         
         int stop = false;
+        
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr = std::make_shared<open3d::geometry::PointCloud>(cloud_ori);
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr_fin = std::make_shared<open3d::geometry::PointCloud>(cloud_fin);
         std::shared_ptr<open3d::geometry::PointCloud> cloud_fixed = cloud_ptr;
         bool t = true;
-
+        rmse = 1.0;
         double th = 0.3;
-        double th_fine = 0.07;
+        double th_fine = 0.06;
+        double th_ultra = 0.04;
+        Eigen::Matrix3d d;
+        Eigen::Vector3d ea;
         cloud_ptr->EstimateNormals();
         cloud_ptr_fin->EstimateNormals();
-        if(rmse > 0.0031)
+        
+        while(rmse > 0.003)
         {
             if(first)
             {
@@ -111,21 +214,56 @@ class Detector
                 {
                     icp_fine = open3d::pipelines::registration::RegistrationICP(*cloud_ptr,*cloud_ptr_fin,th_fine,icp_coarse.transformation_,open3d::pipelines::registration::TransformationEstimationPointToPoint(),open3d::pipelines::registration::ICPConvergenceCriteria(1e-6,1e-6,200));
                     second = false;
+                    std::cout<<"SECOND : "<<icp_fine.fitness_<<" inlier RMSE : "<<icp_fine.inlier_rmse_<<" correspondence set size : "<<icp_fine.correspondence_set_.size()<<std::endl;
+
                 }
                 else
                 {
-                    icp_fine = open3d::pipelines::registration::RegistrationICP(*cloud_ptr,*cloud_ptr_fin,th_fine,icp_fine.transformation_,open3d::pipelines::registration::TransformationEstimationPointToPoint(),open3d::pipelines::registration::ICPConvergenceCriteria(1e-6,1e-6,200));
+                    icp_fine = open3d::pipelines::registration::RegistrationICP(*cloud_ptr,*cloud_ptr_fin,th_ultra,icp_fine.transformation_,open3d::pipelines::registration::TransformationEstimationPointToPoint(),open3d::pipelines::registration::ICPConvergenceCriteria(1e-6,1e-6,200));
                     std::cout<<"FINE    fitness : "<<icp_fine.fitness_<<" inlier RMSE : "<<icp_fine.inlier_rmse_<<" correspondence set size : "<<icp_fine.correspondence_set_.size()<<std::endl;
                     rmse = icp_fine.inlier_rmse_;
+                    transform = icp_coarse.transformation_ * icp_fine.transformation_;
                 }
+                print4x4Matrix(icp_fine.transformation_);
                 
+                d.array() = 0.0;
+                d(0,0) = icp_fine.transformation_(0,0);
+                d(0,1) = icp_fine.transformation_(0,1);
+                d(0,2) = icp_fine.transformation_(0,2);
+                d(1,0) = icp_fine.transformation_(1,0);
+                d(1,1) = icp_fine.transformation_(1,1);
+                d(1,2) = icp_fine.transformation_(1,2);
+                d(2,0) = icp_fine.transformation_(2,0);
+                d(2,1) = icp_fine.transformation_(2,1);
+                d(2,2) = icp_fine.transformation_(2,2);
+                ea = d.eulerAngles(2, 1, 0); 
+                roll = (ea[0] * 180) / M_PI ;
+                pitch = (ea[1] * 180) / M_PI;
+                yaw = (ea[2] * 180) / M_PI;
+                if(roll > 100)
+                {
+                    ros::Duration(1.0).sleep();
+                    cloud_ptr_fin = std::make_shared<open3d::geometry::PointCloud>(cloud_backup);
+                    first = true;
+                    second = true;
+                    rmse = 0;
+                    fin_one = false;
+                }
             }
+            
+            //cout << "to Euler angles:" << endl;
+            //cout << ea << endl << endl;
+            cout << roll << "  " <<pitch<<"  "<<yaw<<"\n";
+            cout<<"fin one : "<<fin_one<<"\n";
+            
         }
-        
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr_final = std::make_shared<open3d::geometry::PointCloud>(cloud_ptr->Transform(icp_fine.transformation_));
-        sensor_msgs::PointCloud2 msg;
-        open3d_conversions::open3dToRos(*cloud_ptr_final,msg,"camera_depth_optical_frame");
-        pub_tf.publish(msg);
+        open3d_conversions::open3dToRos(*cloud_ptr_final,msg,"px150/base_link");
+        //cout<<"icp coarse \n";
+        //print4x4Matrix(icp_coarse.transformation_);
+        //cout<<"icp fine \n";
+        
+        
     }
 
     void print4x4Matrix (const Eigen::Matrix4d_u & matrix)
