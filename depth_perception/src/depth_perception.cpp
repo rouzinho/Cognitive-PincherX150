@@ -152,7 +152,6 @@ class DepthImage
       {
         start = false;
       }
-
     }
 
     void listenTransform()
