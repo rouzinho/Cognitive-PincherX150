@@ -3,6 +3,7 @@ import re
 import sys
 import copy
 from turtle import right
+import matplotlib.pyplot as plt
 
 #from torch._C import T
 import rospy
@@ -14,6 +15,7 @@ import geometry_msgs.msg
 #import roslib
 #import rospy
 import numpy as np
+import cv2
 from math import pi
 import math
 #from std_msgs.msg import Bool
@@ -36,34 +38,91 @@ is_cuda = torch.cuda.is_available()
 
 # If we have a GPU available, we'll set our device to GPU. We'll use this device variable later in our code.
 if is_cuda:
-    device = torch.device("cpu")
+    device = torch.device("cuda")
     print("GPU is available")
 else:
     device = torch.device("cpu")
     print("GPU not available, CPU used")
 
+class Trim(nn.Module):
+    def __init__(self, *args):
+        super().__init__()
+
+    def forward(self, x):
+        return x[:, :, :128, :128]
+
 class AutoEncoder(torch.nn.Module):
     def __init__(self):
         super().__init__()
         self.encoder = torch.nn.Sequential(
-            torch.nn.Linear(2, 4),
-            torch.nn.Sigmoid(),
-            torch.nn.Linear(4, 2),
-            torch.nn.Sigmoid(),
-            #torch.nn.Linear(3, 2),
-            #torch.nn.Sigmoid(),
-            torch.nn.Linear(2, 1)
-            #torch.nn.Tanh()
+            #128 * 128 * 1
+            nn.Conv2d(1, 4, 3, stride=2, padding=1),
+            nn.BatchNorm2d(4),
+            nn.ReLU(True),
+            nn.Conv2d(4, 8, 3, stride=2, padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            #64 * 64 * 16
+            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            #32*32 * 32
+            nn.Conv2d(16, 32, 3, stride=2, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(True),
+            nn.Conv2d(32, 64, 3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(True),
+            nn.Flatten(),
+            nn.Linear(4*4*64,512),
+            nn.ReLU(True),
+            nn.Linear(512,256),
+            nn.ReLU(True),
+            nn.Linear(256,128),
+            nn.ReLU(True),
+            nn.Linear(128,64),
+            nn.ReLU(True),
+            nn.Linear(64,32),
+            nn.ReLU(True),
+            nn.Linear(32,16),
+            nn.Tanh(),
+            nn.Linear(16,8),
         )
         self.decoder = torch.nn.Sequential(
-            torch.nn.Linear(1, 2),
-            torch.nn.Sigmoid(),
-            torch.nn.Linear(2, 4),
-            torch.nn.Sigmoid(),
-            #torch.nn.Linear(4, 3),
-            #torch.nn.Sigmoid(),
-            torch.nn.Linear(4, 2),
-            torch.nn.Sigmoid()
+            nn.Linear(8,16),
+            nn.Tanh(),
+            nn.Linear(16,32),
+            nn.ReLU(True),
+            nn.Linear(32,64),
+            nn.ReLU(True),
+            nn.Linear(64,128),
+            nn.ReLU(True),
+            nn.Linear(128,256),
+            nn.ReLU(True),
+            nn.Linear(256,512),
+            nn.ReLU(True),
+            nn.Linear(512,4*4*64),
+            nn.ReLU(True),
+            nn.Unflatten(1, (64, 4, 4)),
+            #8 * 8 * 64
+            nn.ConvTranspose2d(64, 32, 3, stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(32, 16, 3, stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            #16*16*128
+            nn.ConvTranspose2d(16, 8, 3, stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            #32 * 32 * 64
+            nn.ConvTranspose2d(8, 4, 3, stride=2,padding=1,output_padding=1),
+            nn.BatchNorm2d(4),
+            nn.ReLU(True),
+            #64 * 64 * 32
+            nn.ConvTranspose2d(4, 1, 3, stride=2,padding=1,output_padding=1),
+            #Trim(),
+            nn.Sigmoid(),
         )
         self.training = []
         self.test = []
@@ -77,7 +136,7 @@ class AutoEncoder(torch.nn.Module):
         decoded = self.decoder(x)
         return decoded
 
-class CompressGoal(object):
+class CompressState(object):
     def __init__(self):
         self.ae = AutoEncoder()
         rospy.init_node('autoencoder', anonymous=True)
@@ -95,6 +154,8 @@ class CompressGoal(object):
         norm = self.reScaleTensor(res)
         print(norm)
 
+    def printModel(self):
+        print(self.ae)
 
     def scaleData(self,dat):
         #scale origine point position
@@ -239,18 +300,39 @@ class CompressGoal(object):
         current_cost = 0
         current_test = 0
         last_cost = 15
-        learning_rate = 1e-2
-        epochs = 80
+        learning_rate = 1e-1
+        epochs = 2000
         data_input = []
 
         self.ae.to(device)
-        criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.ae.parameters(),lr=learning_rate)
+        criterion = torch.nn.BCELoss()
+        #optimizer = torch.optim.Adam(self.ae.parameters(),lr=learning_rate)
+        optimizer = torch.optim.Adadelta(self.ae.parameters(),lr=learning_rate)
         #get inputs and targets
-        
+
+        img = cv2.imread('/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg')
+        t = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        res = np.float32(t)
+        res = res*(1/255.0)
+        res = res[np.newaxis,...]
+        print(res.shape)
+        sample = torch.from_numpy(res)
+        target = sample
+        target = target.long()
+        sample = sample.unsqueeze(0)
+        sample = sample.to(device)
         for i in range(0,epochs):
+            self.ae.train()
             current_cost = 0
-            random.shuffle(self.training)
+            optimizer.zero_grad()
+            enc, dec = self.ae(sample)
+            cost = criterion(dec,sample)
+            cost.backward()
+            optimizer.step()
+            current_cost = current_cost + cost.item()
+            print("Epoch: {}/{}...".format(i, epochs),
+                                "Cross Entropy Training : ",current_cost)
+            """random.shuffle(self.training)
             for j in range(0,len(self.training)):
                 self.ae.train()
                 sample = self.training[j]
@@ -274,7 +356,7 @@ class CompressGoal(object):
                     #optimizer.step()
                     current_test = current_test + cost.item()
                 print("Epoch: {}/{}...".format(i, epochs),
-                                    "MSE Test: ",current_test)
+                                    "MSE Test: ",current_test)"""
             
         name = "autoenc.pt"
 
@@ -295,48 +377,24 @@ class CompressGoal(object):
 
 
 if __name__ == "__main__":
-    cg = CompressGoal()
-    torch.manual_seed(12)
-    cg.buildDataSet()
-    cg.trainModel()
-    #cg.loadModel()
-    #t = torch.tensor([[0.65,0.25]])
-    #enc, dec = cg.getRepresentation(t)
-    #print(dec)
-    #up = cg.scaleData(0.2,0,0.15,0.0,1.4,0) #up
-    #cg.addTensorToMemory(up)
-    #down = cg.scaleData(0.2,0,-0.15,0.0,1.4,0) #down
-    #cg.addTensorToMemory(down)
-    #right = cg.scaleData(0.2,0,0,0.15,1.4,0) #to the right
-    #cg.addTensorToMemory(right)
-    """ll = [0.2,0,0,-0.15,1.4,0]
-    uu = [0.2,0,0.15,0.0,1.4,0]
-    rr = [0.2,0,0,0.15,1.4,0]
-    dd = [0.2,0,-0.15,0.0,1.4,0]
-    left = cg.scaleData(ll) #to the left
-    rig = cg.scaleData(rr)
-    up = cg.scaleData(uu)
-    down = cg.scaleData(dd)
-    cg.addTensorToMemory(left)
-    cg.addTensorToMemory(rig)
-    cg.addTensorToMemory(up)
-    cg.addTensorToMemory(down)
-    #cg.trainModel()
-    cg.loadModel()
-    l = cg.getTensor(left)
-    r = cg.getTensor(rig)
-    u = cg.getTensor(up)
-    d = cg.getTensor(down)
-    enc, dec = cg.getRepresentation(l)
-    print("LEFT ENCODED : ",enc)
-    enc, dec = cg.getRepresentation(r)
-    print("RIGHT ENCODED : ",enc)
-    enc, dec = cg.getRepresentation(u)
-    print("UP ENCODED : ",enc)
-    enc, dec = cg.getRepresentation(d)
-    print("DOWN ENCODED : ",enc)"""
-    #t_left = dec.cpu().detach().numpy()
-    #tmp = cg.reScaleTensor(t_left)
-    #print("tensor decoded : ",tmp)
-    #while not rospy.is_shutdown():
-    #    rospy.spin()
+    torch.manual_seed(58)
+    cs = CompressState()
+    cs.trainModel()
+    #cs.loadModel()
+    img = cv2.imread('/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg')
+    t = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    res = np.float32(t)
+    res = res*(1/255.0)
+    res = res[np.newaxis,...]
+    
+    sample = torch.from_numpy(res)
+    target = sample
+    target = target.long()
+    sample = sample.unsqueeze(0)
+    sample = sample.to(device)
+    enc, dec = cs.getRepresentation(sample)
+    dec = torch.squeeze(dec)
+    
+    test = dec.cpu().detach().numpy()
+    plt.imshow(test)
+    plt.show()
