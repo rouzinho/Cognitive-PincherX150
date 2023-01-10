@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2_sensor_msgs
   pcl_conversions
   pcl_ros
+  visualization_msgs
 )
 
 ## System dependencies are found with CMake's conventions
@@ -117,6 +118,7 @@ catkin_package(
     CATKIN_DEPENDS roscpp
                    sensor_msgs
                    std_msgs
+                   visualization_msgs
                    roslib
                    open3d_conversions
     DEPENDS Open3D

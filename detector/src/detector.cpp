@@ -18,6 +18,10 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <geometry_msgs/Vector3Stamped.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <visualization_msgs/Marker.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -36,11 +40,16 @@ class Detector
         ros::Subscriber sub_ori;
         ros::Subscriber sub_fin;
         ros::Publisher pub_tf;
+        ros::Publisher pub_outcome;
         ros::Subscriber sub_activate;
+        ros::Subscriber sub_object;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
         geometry_msgs::TransformStamped transformStamped;
+        geometry_msgs::PoseStamped pose_object;
+        geometry_msgs::PoseStamped first_pose;
+        geometry_msgs::PoseStamped second_pose;
         bool tf_in;
         tf2_ros::TransformListener tfListener;
         tf2_ros::Buffer tfBuffer;
@@ -60,6 +69,7 @@ class Detector
         sensor_msgs::PointCloud2 msg;
         sensor_msgs::PointCloud2 cloud_tf;
         sensor_msgs::PointCloud2 cloud_pcl_backup;
+        bool activate;
         //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_ori;
         //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_fin;
         
@@ -72,10 +82,19 @@ class Detector
     Detector():
     tfListener(tfBuffer)
     {
-        sub_ori = nh_.subscribe("/original", 1, &Detector::callbackOriginal, this);
-        sub_fin = nh_.subscribe("/final", 1, &Detector::callbackFinal, this);
-        sub_activate = nh_.subscribe("/outcome/activate", 1, &Detector::activateCb,this);
-        pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/cloud_icp",1);
+        sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
+        sub_activate = nh_.subscribe("/icp_detector/activate", 1, &Detector::activateCallback,this);
+        sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
+        pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/icp_detector/cloud_icp",1);
+        pub_outcome = nh_.advertise<geometry_msgs::Pose>("/icp_detector/outcome",1);
+        pose_object.pose.position.x = 0.0;
+        pose_object.pose.position.y = 0.0;
+        pose_object.pose.position.z = 0.0;
+        pose_object.pose.orientation.x = 0.0;
+        pose_object.pose.orientation.y = 0.0;
+        pose_object.pose.orientation.z = 0.0;
+        pose_object.pose.orientation.w = 1.0;
+        cloud_origin.Clear();
         count = 0;
         first = true;
         second = false;
@@ -84,13 +103,14 @@ class Detector
         tf_in = false;
         ori_one = false;
         fin_one = false;
+        activate = false;
     }
 
     virtual ~Detector()
     {
     }
 
-    void callbackOriginal(const sensor_msgs::PointCloud2ConstPtr& cloud_ori)
+    void callbackPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_ori)
     {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -107,59 +127,53 @@ class Detector
         sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf));
         cloud_backup.Clear();
         open3d_conversions::rosToOpen3d(cl, cloud_backup);
-        //cout<<cloud_ori->header.frame_id<<"\n";
-    }
-
-    void callbackFinal(const sensor_msgs::PointCloud2ConstPtr& cloud_fin)
-    {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        sensor_msgs::PointCloud2 cloud_tf2;
-
-        if(!tf_in)
+        if(count == 1 && activate == true)
         {
-            listenTransform();
+            cout<<"Recording first pointcloud\n";
+            cloud_origin.Clear();
+            open3d_conversions::rosToOpen3d(cl, cloud_origin);
+            first_pose = pose_object;
+            activate = false;
         }
-        if(!cloud_origin.IsEmpty())
+        if(count == 2 && activate == true)
         {
-            if(!fin_one)
-            {
-                fin_one = true;
-                cout<<"second image\n";
-                pcl::PCLPointCloud2 pcl_pc2;
-                pcl_conversions::toPCL(*cloud_fin, pcl_pc2);
-                pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
-                pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
-                pcl::toROSMsg(*cloud_transformed,cloud_tf2);
-                sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf2));
-                cloud_final.Clear();
-                open3d_conversions::rosToOpen3d(cl, cloud_final);
-                performICP(cloud_origin,cloud_final);   
-            }
+            cout<<"Recording second pointcloud\n";
+            cloud_final.Clear();
+            open3d_conversions::rosToOpen3d(cl, cloud_final);
+            second_pose = pose_object;
+            activate = false;
+            count = 0;
+            Eigen::Vector3f r = performICP(cloud_origin,cloud_final);
+            geometry_msgs::Pose object_outcome = getOutcome(first_pose,second_pose,r);
+            pub_outcome.publish(object_outcome);
         }
         pub_tf.publish(msg);
     }
 
-    void activateCb(const std_msgs::BoolConstPtr& msg)
+    void activateCallback(const std_msgs::BoolConstPtr& msg)
     {
-        sensor_msgs::PointCloud2ConstPtr cl(new sensor_msgs::PointCloud2(cloud_tf));
         if(msg->data == true)
         {
             count++;
+            activate = true;
         }
-        if(count == 1)
+    }
+
+    void objectCallback(const visualization_msgs::MarkerConstPtr& msg)
+    {
+        geometry_msgs::PoseStamped tmp;
+        tmp.header = msg->header;
+        tmp.pose.position.x = msg->pose.position.x;
+        tmp.pose.position.y = msg->pose.position.y;
+        tmp.pose.position.z = msg->pose.position.z;
+        tmp.pose.orientation.x = 0.0;
+        tmp.pose.orientation.y = 0.0;
+        tmp.pose.orientation.z = 0.0;
+        tmp.pose.orientation.w = 1.0;
+        if(tf_in)
         {
-            cloud_origin.Clear();
-            open3d_conversions::rosToOpen3d(cl, cloud_origin);
+            tf2::doTransform(tmp,pose_object,transformStamped);
         }
-        if(count == 2)
-        {
-            cloud_final.Clear();
-            open3d_conversions::rosToOpen3d(cl, cloud_final);
-            performICP(cloud_origin,cloud_final); 
-            count == 0;
-        }
-      
     }
 
     void listenTransform()
@@ -181,9 +195,24 @@ class Detector
       }
     }
 
-    void performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
+    geometry_msgs::Pose getOutcome(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, Eigen::Vector3f rot)
     {
-        
+        float t_x = second.pose.position.x - first.pose.position.x;
+        float t_y = second.pose.position.y - first.pose.position.y;
+        geometry_msgs::Pose res;
+        res.position.x = t_x;
+        res.position.y = t_y;
+        res.position.z = 0.0;
+        res.orientation.x = rot[0];
+        res.orientation.y = rot[1];
+        res.orientation.z = rot[2];
+        res.orientation.w = 0.0;
+
+        return res;
+    }
+
+    Eigen::Vector3f performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
+    {
         int stop = false;
         
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr = std::make_shared<open3d::geometry::PointCloud>(cloud_ori);
@@ -198,6 +227,7 @@ class Detector
         Eigen::Vector3d ea;
         cloud_ptr->EstimateNormals();
         cloud_ptr_fin->EstimateNormals();
+        Eigen::Vector3f rot(0,0,0);
         
         while(rmse > 0.003)
         {
@@ -240,30 +270,31 @@ class Detector
                 roll = (ea[0] * 180) / M_PI ;
                 pitch = (ea[1] * 180) / M_PI;
                 yaw = (ea[2] * 180) / M_PI;
-                if(roll > 100)
+                if(roll > 170)
                 {
+                    cout<<"roll over limit !\n";
                     ros::Duration(1.0).sleep();
                     cloud_ptr_fin = std::make_shared<open3d::geometry::PointCloud>(cloud_backup);
                     first = true;
                     second = true;
-                    rmse = 0;
-                    fin_one = false;
+                    rmse = 1.0;
+                    cout<<"starting over !\n";
                 }
             }
-            
+            Eigen::Vector3d r(yaw,pitch,roll);
+            rot[0] = yaw;
+            rot[1] = pitch;
+            rot[2] = roll;
             //cout << "to Euler angles:" << endl;
             //cout << ea << endl << endl;
-            cout << roll << "  " <<pitch<<"  "<<yaw<<"\n";
-            cout<<"fin one : "<<fin_one<<"\n";
-            
+            //cout << roll << "  " <<pitch<<"  "<<yaw<<"\n";
         }
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr_final = std::make_shared<open3d::geometry::PointCloud>(cloud_ptr->Transform(icp_fine.transformation_));
         open3d_conversions::open3dToRos(*cloud_ptr_final,msg,"px150/base_link");
         //cout<<"icp coarse \n";
         //print4x4Matrix(icp_coarse.transformation_);
         //cout<<"icp fine \n";
-        
-        
+        return rot;
     }
 
     void print4x4Matrix (const Eigen::Matrix4d_u & matrix)
