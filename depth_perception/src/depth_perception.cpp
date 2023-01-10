@@ -397,7 +397,7 @@ class DepthImage
           res.convertTo(res, CV_8U, 255.0);
           cv::medianBlur(res,fil,(9,9));
           //fil.convertTo(fil, CV_32F, 1/255.0);
-          cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
+          cv::resize(res, fil, cv::Size(64, 64), cv::INTER_LANCZOS4);
           int c = getFilesCount();
           std::string s = std::to_string(c);
           std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
