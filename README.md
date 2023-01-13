@@ -28,6 +28,7 @@ The code uses the PCL Library.
 Proper ROS C++ object rotation/translation detector. The code captures 2 different point clouds from the azure kinect camera and perform  an ICP 
 algorithm (Iterative Closest Point). The result provide the rotation between the original and the final capture. The ICP isn't providing correct
 results for translation, so a simple translation is computed between initial and final pose.
+The library used is Open3d (better icp results than PCL)
 
 ## Motion
 Proper python ROS package to easily control the PincherX150. It can go to custom poses and use the Dynamic Motion Primitives package
