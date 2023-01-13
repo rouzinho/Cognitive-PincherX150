@@ -29,6 +29,7 @@
 #include <image_transport/subscriber_filter.h>
 #include <message_filters/subscriber.h>
 #include <sensor_msgs/Image.h>
+#include <std_msgs/Header.h>
 #include <ros/header.h>
 #include <std_msgs/Bool.h>
 #include <stdio.h>
@@ -53,6 +54,7 @@ class DepthImage
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
     Eigen::Matrix4d robot_frame;
+    std_msgs::Header header;
     float crop_min_x;
     float crop_min_y;
     float crop_max_x;
@@ -63,8 +65,10 @@ class DepthImage
     cv::Mat cv_image;
     cv::Mat res;
     cv::Mat fil;
+    cv::Mat cv_nf;
     int count;
     int threshold;
+    int size_neural_field;
     bool start;
 
   public:
@@ -83,9 +87,11 @@ class DepthImage
       crop_min_y = -5000;
       crop_min_z = -5000;
       crop_max_z = 5000;
+      size_neural_field = 100;
       first = true;
       cv_image = cv::Mat(1024, 1024, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
       fil = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
+      cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(0));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
       count = 0;
       threshold = 25;
@@ -122,6 +128,7 @@ class DepthImage
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
+      header = cloud_msg->header;
       if(!tf_in)
       {
         listenTransform();
@@ -348,7 +355,6 @@ class DepthImage
       cv::Mat rot;
       cv::Mat final_image;
       const float bad_point = std::numeric_limits<float>::quiet_NaN();
-      sensor_msgs::ImagePtr msg_dm;
       int pixel_pos_x;
       int pixel_pos_y;
       float pixel_pos_z;
@@ -390,14 +396,19 @@ class DepthImage
         }
         else
         {
+          //cv::Mat cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(0));
+          cv::Mat fil_nf = cv::Mat(1024, 1024, CV_8U,cv::Scalar(0));
           cv_image = fillDepthMapBlanks(cv_image);
           cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
           //convert to gray
           cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
           res.convertTo(res, CV_8U, 255.0);
           cv::medianBlur(res,fil,(9,9));
-          //fil.convertTo(fil, CV_32F, 1/255.0);
+          fil.convertTo(fil_nf, CV_32FC1, 1/255.0);
           cv::resize(res, fil, cv::Size(64, 64), cv::INTER_LANCZOS4);
+          cv::resize(fil_nf, cv_nf, cv::Size(100, 100), cv::INTER_LANCZOS4);
+          sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
+          pub_state.publish(dobject_nf);
           int c = getFilesCount();
           std::string s = std::to_string(c);
           std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
