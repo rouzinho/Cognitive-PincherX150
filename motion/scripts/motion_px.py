@@ -31,6 +31,7 @@ from std_msgs.msg import Header
 from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
 from sensor_msgs.msg import JointState
+from motion.msg import PoseRPY
 import os.path
 from os import path
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
@@ -75,7 +76,7 @@ class Motion(object):
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
     rospy.Subscriber('/motion/joint_states', JointState, self.late_joint_states)
-    rospy.Subscriber('/motion_pincher/path_ee', Pose, self.callback_path)
+    rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/proprioception', Pose, self.callback_proprioception)
     rospy.Subscriber('/pressure', UInt16, self.get_pressure)
     self.gripper_state = 0.0
@@ -109,48 +110,9 @@ class Motion(object):
     self.num_bases = 4
     self.stop = False
 
-  def callback_path(self,data):
-    print("GOT POSE")
-    print(self.count)
-    if self.count == 1:
-      self.pose_goal.position.x = data.position.x
-      self.pose_goal.position.y = data.position.y
-      self.pose_goal.position.z = data.position.z
-      #self.pose_goal.orientation.x = data.orientation.x
-      #self.pose_goal.orientation.y = data.orientation.y
-      #self.pose_goal.orientation.z = data.orientation.z
-      #self.pose_goal.orientation.w = data.orientation.w
-      self.count += 1
-      self.path.append(copy.deepcopy(self.pose_goal))
-    if self.count == 0:
-      #first approach to not tackle to object
-      self.path = []
-      #but first set the first point as start state
-      self.pose_goal.position.x = self.ee_pose.position.x
-      self.pose_goal.position.y = self.ee_pose.position.y
-      self.pose_goal.position.z = self.ee_pose.position.z
-      #self.pose_goal.orientation.x = self.ee_pose.orientation.x
-      #self.pose_goal.orientation.y = self.ee_pose.orientation.y
-      #self.pose_goal.orientation.z = self.ee_pose.orientation.z
-      #self.pose_goal.orientation.w = self.ee_pose.orientation.w
-      self.path.append(copy.deepcopy(self.pose_goal))
-      #then move on to the approach
-      self.pose_goal.position.x = data.position.x
-      self.pose_goal.position.y = data.position.y
-      self.pose_goal.position.z = 0.1
-      #self.pose_goal.orientation.x = data.orientation.x
-      #self.pose_goal.orientation.y = data.orientation.y
-      #self.pose_goal.orientation.z = data.orientation.z
-      #self.pose_goal.orientation.w = data.orientation.w
-      self.path.append(copy.deepcopy(self.pose_goal))
-      #going down to the desired pose
-      self.pose_goal.position.z = 0.03
-      self.path.append(copy.deepcopy(self.pose_goal))
-      self.count += 1
-    if self.count == 2:
-      print("DECIDE TO MOVE")
-      self.count = 0
-      self.move = True
+  def callback_pose(self,msg):
+    self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
+    self.init_position()
 
   def get_pressure(self,msg):
     if msg.data < 200:
@@ -383,8 +345,8 @@ if __name__ == '__main__':
       #motion_planning.test_interface()
       #motion_planning.makeDMP()
       motion_planning.init_position()
-      motion_planning.playMotionDMP()
-      motion_planning.sleep_pose()
+      #motion_planning.playMotionDMP()
+     # motion_planning.sleep_pose()
       #motion_planning.makeDMP()
       #motion_planning.test_interface()
       #motion_planning.init_position()
