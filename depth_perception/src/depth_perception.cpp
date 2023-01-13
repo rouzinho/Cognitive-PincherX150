@@ -91,7 +91,7 @@ class DepthImage
       first = true;
       cv_image = cv::Mat(1024, 1024, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
       fil = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
-      cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(0));
+      cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
       count = 0;
       threshold = 25;
@@ -405,7 +405,7 @@ class DepthImage
           res.convertTo(res, CV_8U, 255.0);
           cv::medianBlur(res,fil,(9,9));
           fil.convertTo(fil_nf, CV_32FC1, 1/255.0);
-          cv::resize(res, fil, cv::Size(64, 64), cv::INTER_LANCZOS4);
+          cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
           cv::resize(fil_nf, cv_nf, cv::Size(100, 100), cv::INTER_LANCZOS4);
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
