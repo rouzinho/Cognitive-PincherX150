@@ -91,7 +91,7 @@ class DepthImage
       first = true;
       cv_image = cv::Mat(1024, 1024, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
       fil = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
-      cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
+      //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
       count = 0;
       threshold = 25;
@@ -396,17 +396,21 @@ class DepthImage
         }
         else
         {
-          //cv::Mat cv_nf = cv::Mat(100, 100, CV_32FC1,cv::Scalar(0));
-          cv::Mat fil_nf = cv::Mat(1024, 1024, CV_8U,cv::Scalar(0));
+          cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
+          cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+          cv::Mat r_nf;
           cv_image = fillDepthMapBlanks(cv_image);
           cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
           //convert to gray
           cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
           res.convertTo(res, CV_8U, 255.0);
           cv::medianBlur(res,fil,(9,9));
-          fil.convertTo(fil_nf, CV_32FC1, 1/255.0);
+
+          cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
+          cv::resize(r_nf, fil_nf, cv::Size(100, 100), cv::INTER_LANCZOS4);
+          fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
+
           cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
-          cv::resize(fil_nf, cv_nf, cv::Size(100, 100), cv::INTER_LANCZOS4);
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
           int c = getFilesCount();
@@ -415,13 +419,22 @@ class DepthImage
           cv::imwrite(name_state, fil);
           first = false;
           start = false;
+          /*for(int i = 0; i < cv_nf.rows; i++)
+          {
+            for(int j = 0; j < cv_nf.cols; j++)
+            {
+                float t = cv_nf.at<float>(i,j);
+                std::cout<<t<<" ";
+            }
+            std::cout<<"\n";
+          }*/
         }
         count++;
       }
 
-      cv::imshow(OPENCV_WINDOW, fil);
+      //cv::imshow(OPENCV_WINDOW, cv_nf);
       //cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
-      cv::waitKey(1);
+      //cv::waitKey(1);
     }
 
     int getFilesCount()
@@ -443,7 +456,7 @@ class DepthImage
         std::cout<<"no directory to save state\n";
       }
       i = i - 2;
-      std::cout<<"number of files : "<<i;
+      //std::cout<<"number of files : "<<i;
 
       return i;
     }
