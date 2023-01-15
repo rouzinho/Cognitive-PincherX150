@@ -39,3 +39,5 @@ use (e.g repeat the same motion with a different end pose).
 python ROS package used to record End Effector position. The package publishes the EE position ata chosen rate, which is convenient for later use
 with Dynamic Motion Primitives (e.g the more points recorded means the more waypoints generated for the trajectory). So lower rate is much better. 
 
+## cluster_message
+Message definition for state, outcome and action tensors. The package gather them and build a cluster_msg that will feed the VAE
