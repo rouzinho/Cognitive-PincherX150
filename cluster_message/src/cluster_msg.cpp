@@ -21,13 +21,15 @@ class ClusterMessage
    ros::Subscriber sub_action;
    ros::Subscriber sub_outcome;
    ros::Publisher pub_datas;
+   bool action;
+   bool outcome;
 
   public:
    ClusterMessage()
    {
       sub_state = nh_.subscribe("/perception/state", 1, &ClusterMessage::stateCallback,this);
-      sub_action = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::stateCallback,this);
-      sub_outcome = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::stateCallback,this);
+      sub_action = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::actionCallback,this);
+      sub_outcome = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::outcomeCallback,this);
       pub_datas = nh_.advertise<cluster_message::ClusterMessage>("/vae/inputs",1);
    }
    ~ClusterMessage()
@@ -36,16 +38,23 @@ class ClusterMessage
 
    void stateCallback(const cluster_message::StateConstPtr& msg)
    {
+      if(action && outcome)
+      {
+         //get state
+         //form cluster input and publish 
+      }
 
    }
 
    void actionCallback(const cluster_message::ActionConstPtr& msg)
    {
+      action = true;
 
    }
 
    void outcomeCallback(const cluster_message::OutcomeConstPtr& msg)
    {
+      outcome = true;
 
    }
 };
