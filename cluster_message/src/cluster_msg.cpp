@@ -21,6 +21,8 @@ class ClusterMessage
    ros::Subscriber sub_action;
    ros::Subscriber sub_outcome;
    ros::Publisher pub_datas;
+   std::vector<float> v_action;
+   std::vector<float> v_outcome;
    bool action;
    bool outcome;
 
@@ -31,6 +33,8 @@ class ClusterMessage
       sub_action = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::actionCallback,this);
       sub_outcome = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::outcomeCallback,this);
       pub_datas = nh_.advertise<cluster_message::ClusterMessage>("/vae/inputs",1);
+      v_action.resize(0);
+      v_outcome.resize(0);
    }
    ~ClusterMessage()
    {
@@ -49,13 +53,21 @@ class ClusterMessage
    void actionCallback(const cluster_message::ActionConstPtr& msg)
    {
       action = true;
-
+      v_action.resize(0);
+      for(int i = 0; i < msg->action.size(); i++)
+      {
+         v_action.push_back(msg->action[i]);
+      }
    }
 
    void outcomeCallback(const cluster_message::OutcomeConstPtr& msg)
    {
       outcome = true;
-
+      v_outcome.resize(0);
+      for(int i = 0; i < msg->outcome.size(); i++)
+      {
+         v_outcome.push_back(msg->outcome[i]);
+      }
    }
 };
     
