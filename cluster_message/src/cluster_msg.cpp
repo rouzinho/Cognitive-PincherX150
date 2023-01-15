@@ -24,6 +24,7 @@ class ClusterMessage
    std::vector<float> v_state;
    std::vector<float> v_action;
    std::vector<float> v_outcome;
+   std::vector<float> v_cluster;
    bool action;
    bool outcome;
 
@@ -37,6 +38,7 @@ class ClusterMessage
       v_state.resize(0);
       v_action.resize(0);
       v_outcome.resize(0);
+      v_cluster.resize(0);
    }
    ~ClusterMessage()
    {
@@ -52,8 +54,22 @@ class ClusterMessage
 
       if(action && outcome)
       {
-         //get state
-         //form cluster input and publish 
+         int size_cl = v_state.size() + v_action.size() + v_outcome.size();
+         cluster_message::ClusterMessage cl_input;
+         cl_input.input.resize(0);
+         for(int i = 0; i < v_state.size(); i++)
+         {
+            cl_input.input.push_back(v_state[i]);
+         }
+         for(int i = 0; i < v_action.size(); i++)
+         {
+            cl_input.input.push_back(v_action[i]);
+         }
+         for(int i = 0; i < v_outcome.size(); i++)
+         {
+            cl_input.input.push_back(v_outcome[i]);
+         }
+         pub_datas.publish(cl_input);
          action = false;
          outcome = false;
       }
