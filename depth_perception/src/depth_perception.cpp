@@ -432,7 +432,7 @@ class DepthImage
         count++;
       }
 
-      //cv::imshow(OPENCV_WINDOW, cv_nf);
+      //cv::imshow(OPENCV_WINDOW, fil);
       //cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
       //cv::waitKey(1);
     }
