@@ -407,7 +407,7 @@ class DepthImage
           cv::medianBlur(res,fil,(9,9));
 
           cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
-          cv::resize(r_nf, fil_nf, cv::Size(100, 100), cv::INTER_LANCZOS4);
+          cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
           fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
 
           cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
