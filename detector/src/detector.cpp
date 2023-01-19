@@ -77,7 +77,7 @@ class Detector
     tfListener(tfBuffer)
     {
         sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
-        sub_activate = nh_.subscribe("/icp_detector/activate", 1, &Detector::activateCallback,this);
+        sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<geometry_msgs::Pose>("/outcome_detector/outcome",1);
