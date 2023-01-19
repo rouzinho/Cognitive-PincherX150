@@ -70,12 +70,6 @@ class Detector
         sensor_msgs::PointCloud2 cloud_tf;
         sensor_msgs::PointCloud2 cloud_pcl_backup;
         bool activate;
-        //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_ori;
-        //message_filters::Subscriber<sensor_msgs::PointCloud2> sub_fin;
-        
-        //typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, sensor_msgs::PointCloud2> MySyncPolicy;
-        //typedef Synchronizer<MySyncPolicy> Sync;
-        //boost::shared_ptr<Sync> sync;
 
     public:
 
@@ -229,7 +223,7 @@ class Detector
         cloud_ptr_fin->EstimateNormals();
         Eigen::Vector3f rot(0,0,0);
         
-        while(rmse > 0.003)
+        while(rmse > 0.006)
         {
             if(first)
             {
@@ -270,7 +264,7 @@ class Detector
                 roll = (ea[0] * 180) / M_PI ;
                 pitch = (ea[1] * 180) / M_PI;
                 yaw = (ea[2] * 180) / M_PI;
-                if(roll > 170)
+                if(roll > 180)
                 {
                     cout<<"roll over limit !\n";
                     ros::Duration(1.0).sleep();
@@ -280,6 +274,17 @@ class Detector
                     rmse = 1.0;
                     cout<<"starting over !\n";
                 }
+                else
+                {
+                    if(roll > 170 && roll < 180)
+                    {
+                        roll = 0.0;
+                    }
+                    if(roll > 95)
+                    {
+                        roll = 180 - roll;
+                    }
+                }
             }
             Eigen::Vector3d r(yaw,pitch,roll);
             rot[0] = yaw;
@@ -287,7 +292,8 @@ class Detector
             rot[2] = roll;
             //cout << "to Euler angles:" << endl;
             //cout << ea << endl << endl;
-            //cout << roll << "  " <<pitch<<"  "<<yaw<<"\n";
+            cout <<"roll : "<<roll<<"\n";
+            cout <<"rmse : "<<rmse<<"\n";
         }
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr_final = std::make_shared<open3d::geometry::PointCloud>(cloud_ptr->Transform(icp_fine.transformation_));
         open3d_conversions::open3dToRos(*cloud_ptr_final,msg,"px150/base_link");
