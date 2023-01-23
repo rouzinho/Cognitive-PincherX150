@@ -28,6 +28,10 @@ class Node(object):
         self.weights[0,1] = data[1]
         self.weights[0,2] = data[2]
 
+    def initNodeData(self,data):
+        for i in range(0,len(data)):
+            self.weights[0,i] = data[i]
+
     def initNodeColor(self,number):
         if number == 0:
             self.weights[0,0] = 0
@@ -117,11 +121,12 @@ class Som(object):
         self.neighbour_rad = -1.0
         self.influence = 0
         self.current_time = 0
-        self.fig = plt.figure()
-        self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
-        self.map = np.random.random((s, s, num_features))
-        self.im = plt.imshow(self.map,interpolation='none')
-        self.cluster_map = np.zeros((self.size,self.size,1))
+        if num_features != 2:
+            self.fig = plt.figure()
+            self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
+            self.map = np.random.random((s, s, num_features))
+            self.im = plt.imshow(self.map,interpolation='none')
+            self.cluster_map = np.zeros((self.size,self.size,1))
 
     def callbackNode(self,msg):
         tmp = self.getWeightsNode(int(msg.position.x),int(msg.position.y))
@@ -246,6 +251,41 @@ class Som(object):
             a = self.getNumpySOM()
             self.im.set_array(a)
 
+    def trainSOMDatasetMotion(self):
+        dat = self.load_dataset_motion()
+        s_dat = len(dat)
+        j = 0
+        while self.current_time < self.epoch:
+            n = Node(self.num_features)
+            if j < s_dat:
+                n.initNodeData(dat[j])
+                j += 1
+            if j >= s_dat:
+                j = 0
+            tmp = self.getBestMatchUnit(n)
+            self.calculateNewWeights(n)
+            self.neighbourRadius(self.current_time)
+            self.reduceLR(self.current_time)
+            self.current_time = self.current_time + 1
+            #a = self.getNumpySOM()
+            #self.im.set_array(a)
+        x, y = self.arrange2D()
+        plt.scatter(x, y)
+        plt.show()
+        
+        
+
+    def arrange2D(self):
+        x = []
+        y = []
+        for i in range(0,self.size):
+            for j in range(0,self.size):
+                tmp = self.network[i][j].getWeights()
+                tmp = tmp[0]
+                x.append(tmp[0])
+                y.append(tmp[1])
+        return x, y
+
     def trainSOMColor(self):
         j = 1
         while self.current_time < self.epoch:
@@ -316,7 +356,7 @@ class Som(object):
             print("file doesn't exist")
 
     #build datas for pitch roll and grasp
-    def build_dataset(self):
+    def build_dataset_pose(self):
         file = open("dataset.txt","w+")
         for i in range(5,100,5):
             for j in range(5,100,5):
@@ -327,7 +367,17 @@ class Som(object):
                     file.write("\n")
         file.close()
 
-    def load_dataset(self):
+    def build_dataset_motion(self):
+        file = open("dataset_motion.txt","a")
+        for i in range(2,22,2):
+            for j in range(2,22,2):
+                dat = str(-(i/100)) +" "+ str(-(j/100))
+                #tmp = str(dat)
+                file.write(dat)
+                file.write("\n")
+        file.close()
+
+    def load_dataset_pose(self):
         datas = []
         f_open = open("dataset.txt","r")
         for line in f_open:
@@ -339,24 +389,37 @@ class Som(object):
 
         return datas
 
+    def load_dataset_motion(self):
+        datas = []
+        f_open = open("dataset_motion.txt","r")
+        for line in f_open:
+            arr = line.split()
+            tmp = [float(arr[0]),float(arr[1])]
+            datas.append(tmp)
+        f_open.close()
+        random.shuffle(datas)
+
+        return datas
+
 
 
 if __name__ == "__main__":
     #name = "som.npy"
-    som = Som(3,20,100)
-    #som.build_dataset()
+    som = Som(2,30,400)
+    #som.build_dataset_motion()
     #som.load_dataset()
+    #som.load_dataset_motion()
     som.init_network()
     #som.loadSOM("simple_50_som.npy")
-
-    som.trainSOMColor()
-    som.defineClusters()
-    som.printClusters()
+    som.trainSOMDatasetMotion()
+    #som.trainSOMColor()
+    #som.defineClusters()
+    #som.printClusters()
     #som.saveSOM("simple_50_som")
     #som.loadSOM("trained_dataset_5.npy")
     #anim = animation.FuncAnimation(som.fig, som.animateSOM, init_func=som.init,frames=1000, interval=1, blit=True)
     #som.getOneDimensionalData()
     #som.getCluster()
-    plt.show()
+    #plt.show()
     while not rospy.is_shutdown():
         rospy.spin()
