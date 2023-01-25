@@ -419,15 +419,6 @@ class DepthImage
           cv::imwrite(name_state, fil);
           first = false;
           start = false;
-          /*for(int i = 0; i < cv_nf.rows; i++)
-          {
-            for(int j = 0; j < cv_nf.cols; j++)
-            {
-                float t = cv_nf.at<float>(i,j);
-                std::cout<<t<<" ";
-            }
-            std::cout<<"\n";
-          }*/
         }
         count++;
       }
@@ -435,6 +426,12 @@ class DepthImage
       //cv::imshow(OPENCV_WINDOW, fil);
       //cv::imshow(OPENCV_WINDOW_BIS, croppedImage);
       //cv::waitKey(1);
+    }
+
+    bool stateChanged(cv::Mat img)
+    {
+      bool suc = false;
+      return suc;
     }
 
     int getFilesCount()
