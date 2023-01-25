@@ -11,12 +11,9 @@ The packages are currently implemented and others will follow in due time. A qui
 Package implementing a convolutional autoencoder that takes as input a 128*128 one channel depth image.
 The code is done with Pytorch and use ros, and the ROS structure package will be implemented later.
 
-## DSOM
-Python package implementing the DSOM algorithm, which is basically online learning with SOM according to an elasticity parameter.
-The code also use ROS but the package structure will be implemented later.
-
-## SOM
-Python SOM implementation with generation of dataset for robotics application.
+## som
+ROS Python package implementing the DSOM algorithm, which is basically online learning with SOM according to an elasticity parameter.
+Also include SOM implementation with generation of dataset for robotics application.
 
 ## depth_perception
 Proper ROS C++ implementation of an object depth map. The inputs are PointClouds coming from an Azure kinect and filtered by the perception module 
