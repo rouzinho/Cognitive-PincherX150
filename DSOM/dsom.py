@@ -22,8 +22,8 @@ class DSom(object):
         self.shape = (s,s,num_features)
         self.grid = np.ones(self.shape)*0.5
         self.epoch = ep
-        self.learning_rate = 0.7
-        self.elasticity = 0.5
+        self.learning_rate = 0.3
+        self.elasticity = 1.0
         self.current_time = 0
         self.neighbour_rad = -1.0
         self.influence = 0
@@ -195,7 +195,7 @@ class DSom(object):
             self.current_time = self.current_time + 1
             
             #print(self.current_time)
-        if color == 7:
+        if color == 4:
             self.im.set_array(self.grid)
 
     def init(self):
@@ -279,9 +279,9 @@ if __name__ == "__main__":
     som.trainSOMColor(2)
     som.trainSOMColor(3)
     som.trainSOMColor(4)
-    som.trainSOMColor(5)
-    som.trainSOMColor(6)
-    som.trainSOMColor(7)
+    #som.trainSOMColor(5)
+    #som.trainSOMColor(6)
+    #som.trainSOMColor(7)
     #som.defineClusters()
     #som.printClusters()
     #som.saveSOM("simple_50_som")
