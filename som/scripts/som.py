@@ -406,7 +406,7 @@ class Som(object):
 
 
 if __name__ == "__main__":
-    name_dataset = ""
+    name_dataset = ""  
     training = rospy.get_param("/som/train_som")
     data_set = rospy.get_param("/som/dataset")
     ep = rospy.get_param("/som/epochs")
