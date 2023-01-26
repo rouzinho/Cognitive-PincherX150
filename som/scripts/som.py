@@ -232,8 +232,8 @@ class Som(object):
             print("")
 
 
-    def trainSOMDataset(self):
-        dat = self.load_dataset()
+    def trainSOMDatasetPose(self,name_ds):
+        dat = self.load_dataset_pose(name_ds)
         s_dat = len(dat)
         j = 0
         while self.current_time < self.epoch:
@@ -251,8 +251,8 @@ class Som(object):
             a = self.getNumpySOM()
             self.im.set_array(a)
 
-    def trainSOMDatasetMotion(self):
-        dat = self.load_dataset_motion()
+    def trainSOMDatasetMotion(self,name_ds):
+        dat = self.load_dataset_motion(name_ds)
         s_dat = len(dat)
         j = 0
         while self.current_time < self.epoch:
@@ -271,10 +271,8 @@ class Som(object):
             #self.im.set_array(a)
         x, y = self.arrange2D()
         plt.scatter(x, y)
-        plt.show()
+        #plt.show()
         
-        
-
     def arrange2D(self):
         x = []
         y = []
@@ -377,9 +375,9 @@ class Som(object):
                 file.write("\n")
         file.close()
 
-    def load_dataset_pose(self):
+    def load_dataset_pose(self,name):
         datas = []
-        f_open = open("/home/altair/interbotix_ws/src/som/dataset/dataset.txt","r")
+        f_open = open(name,"r")
         for line in f_open:
             arr = line.split()
             tmp = [float(arr[0]),float(arr[1]),float(arr[2])]
@@ -389,9 +387,9 @@ class Som(object):
 
         return datas
 
-    def load_dataset_motion(self):
+    def load_dataset_motion(self,name):
         datas = []
-        f_open = open("/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt","r")
+        f_open = open(name,"r")
         for line in f_open:
             arr = line.split()
             tmp = [float(arr[0]),float(arr[1])]
@@ -404,14 +402,32 @@ class Som(object):
 
 
 if __name__ == "__main__":
-    #name = "som.npy"
-    som = Som(2,30,2000)
-    #som.build_dataset_motion()
-    #som.load_dataset()
-    #som.load_dataset_motion()
+    name_dataset = ""
+    num_feat = 0
+    size_map = 0
+    training = rospy.get_param("/som/train_som")
+    data_set = rospy.get_param("/som/dataset")
+    ep = rospy.get_param("/som/epochs")
+    model_name = rospy.get_param("/som/model")
+    if data_set == "motion":
+        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"
+        num_feat = 2
+        size_map = 30    
+    if data_set == "pose":
+        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
+        num_feat = 3
+        size_map = 100
+    som = Som(num_feat,size_map,ep)
     som.init_network()
     #som.loadSOM("simple_50_som.npy")
-    som.trainSOMDatasetMotion()
+    if training == True and data_set == "motion":
+        som.trainSOMDatasetMotion(name_dataset)
+        som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
+    if training == True and data_set == "pose":
+        som.trainSOMDatasetPose(name_dataset)
+        som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
+    if training == False:
+        som.loadSOM(model_name)
     #som.trainSOMColor()
     #som.defineClusters()
     #som.printClusters()
@@ -420,6 +436,6 @@ if __name__ == "__main__":
     #anim = animation.FuncAnimation(som.fig, som.animateSOM, init_func=som.init,frames=1000, interval=1, blit=True)
     #som.getOneDimensionalData()
     #som.getCluster()
-    #plt.show()
-    while not rospy.is_shutdown():
-        rospy.spin()
+    plt.show()
+    #while not rospy.is_shutdown():
+    #    rospy.spin()
