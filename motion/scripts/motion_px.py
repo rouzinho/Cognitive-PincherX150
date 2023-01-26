@@ -72,7 +72,7 @@ class Motion(object):
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
-    rospy.Subscriber('/motion/joint_states', JointState, self.late_joint_states)
+    rospy.Subscriber('/proprioception/joint_states', JointState, self.late_joint_states)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/proprioception', Pose, self.callback_proprioception)
     rospy.Subscriber('/pressure', UInt16, self.get_pressure)
