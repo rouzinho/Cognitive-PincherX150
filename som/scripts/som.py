@@ -83,9 +83,8 @@ class Node(object):
         return self.weights
 
     def setWeights(self,datas):
-        self.weights[0,0] = datas[0]
-        self.weights[0,1] = datas[1]
-        self.weights[0,2] = datas[2]
+        for i in range(0,len(datas)):
+            self.weights[0,i] = datas[i]
 
     def initNodeCoor(self,i,j):
         self.x = i
@@ -250,6 +249,7 @@ class Som(object):
             self.current_time = self.current_time + 1
             a = self.getNumpySOM()
             self.im.set_array(a)
+            print(self.current_time)
 
     def trainSOMDatasetMotion(self,name_ds):
         dat = self.load_dataset_motion(name_ds)
@@ -344,12 +344,16 @@ class Som(object):
         tmp = self.getNumpySOM()
         np.save(name,tmp)
     
-    def loadSOM(self,name):
+    def loadSOM(self,name,mode):
         if os.path.exists(name):
             dat = np.load(name)
             self.setNumpySOM(dat)
-            t = self.getNumpySOM()
-            self.im.set_array(t)
+            if mode == "pose":
+                t = self.getNumpySOM()
+                self.im.set_array(t)
+            else:
+                x, y = self.arrange2D()
+                plt.scatter(x, y)
         else:
             print("file doesn't exist")
 
@@ -403,20 +407,16 @@ class Som(object):
 
 if __name__ == "__main__":
     name_dataset = ""
-    num_feat = 0
-    size_map = 0
     training = rospy.get_param("/som/train_som")
     data_set = rospy.get_param("/som/dataset")
     ep = rospy.get_param("/som/epochs")
     model_name = rospy.get_param("/som/model")
+    size_map = rospy.get_param("/som/size")
+    num_feat = rospy.get_param("/som/num_feat")
     if data_set == "motion":
-        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"
-        num_feat = 2
-        size_map = 30    
+        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"  
     if data_set == "pose":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
-        num_feat = 3
-        size_map = 100
     som = Som(num_feat,size_map,ep)
     som.init_network()
     #som.loadSOM("simple_50_som.npy")
@@ -427,7 +427,7 @@ if __name__ == "__main__":
         som.trainSOMDatasetPose(name_dataset)
         som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
     if training == False:
-        som.loadSOM(model_name)
+        som.loadSOM(model_name,data_set)
     #som.trainSOMColor()
     #som.defineClusters()
     #som.printClusters()

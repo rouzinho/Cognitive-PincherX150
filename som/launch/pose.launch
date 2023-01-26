@@ -1,0 +1,9 @@
+<launch>
+   <param name="~train_som" type="bool" value="false" />
+   <param name="~dataset" type="str" value="pose" />
+   <param name="~epochs" type="int" value="15000" />
+   <param name="~size" type="int" value="40" />
+   <param name="~num_feat" type="int" value="3" />
+   <param name="~model" type="str" value="$(find som)/models/model_pose.npy" />   
+   <node name="som" pkg="som" type="som.py" output="screen"/>
+</launch>
