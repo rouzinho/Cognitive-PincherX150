@@ -32,6 +32,8 @@ from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
 from sensor_msgs.msg import JointState
 from motion.msg import PoseRPY
+from motion.msg import GripperOrientation
+from motion.msg import VectorAction
 import os.path
 from os import path
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
@@ -74,29 +76,22 @@ class Motion(object):
     rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.late_joint_states)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
+    rospy.Subscriber('/motion_pincher/position_start', Pose, self.callback_xy)
+    rospy.Subscriber('/motion_pincher/gripper_orientation', GripperOrientation, self.callback_gripper)
+    rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
     rospy.Subscriber('/motion_pincher/proprioception', Pose, self.callback_proprioception)
-    rospy.Subscriber('/pressure', UInt16, self.get_pressure)
+    rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.get_pressure)
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
     self.stop = False
-    ## Get the name of the robot - this will be used to properly define the end-effector link when adding a box
-    #self.baselink = rospy.get_param("px150/baselink")
-    #self.endlink = rospy.get_param("px150/ee_arm_link")
-    #print(self.baselink)
-    self.pose_goal = geometry_msgs.msg.Pose()
     self.init_pose = geometry_msgs.msg.Pose()
-    self.pose_home = geometry_msgs.msg.Pose()
-    self.current_pose = geometry_msgs.msg.Pose()
-    self.ee_pose = geometry_msgs.msg.Pose()
+    self.gripper_orientation = GripperOrientation()
+    self.action = VectorAction()
     self.move = False
     self.move_dmp = False
-    self.home = False
     self.activate_dmp = False
-    self.goal_dmp = geometry_msgs.msg.Pose()
-    self.count = 0
     self.path = []
-    self.ee_is_on_path = False
     self.name_ee = "/home/altair/interbotix_ws/rosbags/forward.bag"
     self.name_dmp = "/home/altair/interbotix_ws/rosbags/forward_dmp.bag"
     self.record = False
@@ -111,6 +106,21 @@ class Motion(object):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
     self.init_position()
 
+  def callback_xy(self,msg):
+    self.init_pose.position.x = msg.position.x
+    self.init_pose.position.y = msg.position.y
+    self.init_pose.position.z = msg.position.z
+
+  def callback_gripper(self,msg):
+    self.gripper_orientation.roll = msg.roll
+    self.gripper_orientation.pitch = msg.pitch
+    self.gripper_orientation.grasp = msg.grasp
+
+  def callback_vector_action(self,msg):
+    self.action.x = msg.x
+    self.action.y = msg.y
+    self.action.z = 0.0
+
   def get_pressure(self,msg):
     if msg.data < 200:
       self.stop = True
@@ -122,21 +132,9 @@ class Motion(object):
     self.js_positions = msg.position
     self.gripper_state = msg.position[6]
 
-  def late_joint_states(self,msg):
+  def callback_proprioception(self,msg):
     if self.record == True:
       self.writeBagEE(self.name_ee,msg)
-
-  def callback_proprioception(self,msg):
-    self.ee_pose.position.x = msg.position.x
-    self.ee_pose.position.y = msg.position.y
-    self.ee_pose.position.z = msg.position.z
-    self.ee_pose.orientation.x = msg.orientation.x
-    self.ee_pose.orientation.y = msg.orientation.y
-    self.ee_pose.orientation.z = msg.orientation.z
-    self.ee_pose.orientation.w = msg.orientation.w
-    #if self.move == True:
-      #self.writeBagEE(self.name_ee,msg)
-      #print(self.ee_pose)
 
   def makeLFDRequest(self,traj):
     demotraj = DMPTraj()        
