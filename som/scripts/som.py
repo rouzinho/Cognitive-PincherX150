@@ -1,6 +1,7 @@
 #! /usr/bin/python3
 import numpy as np
 import rospy
+from geometry_msgs.msg import Point
 from geometry_msgs.msg import Pose
 import random
 import math
@@ -10,6 +11,8 @@ from matplotlib import animation
 import os.path
 from scipy.cluster.hierarchy import dendrogram, linkage
 import geometry_msgs.msg
+from motion.msg import GripperOrientation
+from motion.msg import VectorAction
 
 class Node(object):
     def __init__(self,num_features):
@@ -103,11 +106,12 @@ class Node(object):
 
 
 class Som(object):
-    def __init__(self,num_features,s,ep):
+    def __init__(self,name,num_features,s,ep,mode):
         super(Som, self).__init__()
-        rospy.init_node('som', anonymous=True)
-        rospy.Subscriber("/som/node_value", Pose, self.callbackNode)
-        self.pub_node = rospy.Publisher('/som/action', Pose, queue_size=1)
+        rospy.init_node("som", anonymous=True)
+        n_sub = name + "node_coord"
+        rospy.Subscriber(n_sub, Point, self.callbackNode)
+        #self.pub_node = rospy.Publisher('/som/action', Pose, queue_size=1)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -120,6 +124,11 @@ class Som(object):
         self.neighbour_rad = -1.0
         self.influence = 0
         self.current_time = 0
+        self.mode = mode
+        if self.mode == "motion":
+            self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
+        else:
+            self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation', GripperOrientation, queue_size=1)
         if num_features != 2:
             self.fig = plt.figure()
             self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
@@ -128,12 +137,18 @@ class Som(object):
             self.cluster_map = np.zeros((self.size,self.size,1))
 
     def callbackNode(self,msg):
-        tmp = self.getWeightsNode(int(msg.position.x),int(msg.position.y))
-        data = geometry_msgs.msg.Pose()
-        data.position.x = tmp[0,0]
-        data.position.y = tmp[0,1]
-        data.position.z = tmp[0,2]
-        self.pub_node.publish(data)
+        tmp = self.getWeightsNode(int(msg.x),int(msg.y))
+        if self.mode == "motion":
+            va = VectorAction()
+            va.x = tmp[0,0]
+            va.y = tmp[0,1]
+            self.pub_node.publish(va)
+        else:
+            go = GripperOrientation()
+            go.roll = tmp[0,0]
+            go.pitch = tmp[0,1]
+            go.grasp = tmp[0,2]
+            self.pub_node.publish(go)
 
 
     def init_network(self):
@@ -407,17 +422,19 @@ class Som(object):
 
 if __name__ == "__main__":
     name_dataset = ""  
-    training = rospy.get_param("/som/train_som")
-    data_set = rospy.get_param("/som/dataset")
-    ep = rospy.get_param("/som/epochs")
-    model_name = rospy.get_param("/som/model")
-    size_map = rospy.get_param("/som/size")
-    num_feat = rospy.get_param("/som/num_feat")
+    ns = rospy.get_namespace()
+    name_init = ns + "som/"
+    training = rospy.get_param(name_init+"train_som")
+    data_set = rospy.get_param(name_init+"dataset")
+    ep = rospy.get_param(name_init+"epochs")
+    model_name = rospy.get_param(name_init+"model")
+    size_map = rospy.get_param(name_init+"size")
+    num_feat = rospy.get_param(name_init+"num_feat")
     if data_set == "motion":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"  
     if data_set == "pose":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
-    som = Som(num_feat,size_map,ep)
+    som = Som(name_init,num_feat,size_map,ep,data_set)
     som.init_network()
     #som.loadSOM("simple_50_som.npy")
     if training == True and data_set == "motion":
@@ -428,14 +445,7 @@ if __name__ == "__main__":
         som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
     if training == False:
         som.loadSOM(model_name,data_set)
-    #som.trainSOMColor()
-    #som.defineClusters()
-    #som.printClusters()
-    #som.saveSOM("simple_50_som")
-    #som.loadSOM("trained_dataset_5.npy")
-    #anim = animation.FuncAnimation(som.fig, som.animateSOM, init_func=som.init,frames=1000, interval=1, blit=True)
-    #som.getOneDimensionalData()
-    #som.getCluster()
     plt.show()
-    #while not rospy.is_shutdown():
-    #    rospy.spin()
+    while not rospy.is_shutdown():
+        pass
+    rospy.spin()
