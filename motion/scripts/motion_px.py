@@ -56,7 +56,7 @@ def makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh,
     print("Starting DMP planning...")
     rospy.wait_for_service('get_dmp_plan')
     try:
-        gdp = rospy.ServiceProxy('get_dmp_plan', GetDMPPlan)
+        gdp = rospy.ServiceProxy('get_dmp_plan', get_dmpPlan)
         resp = gdp(x_0, x_dot_0, t_0, goal, goal_thresh, 
                    seg_length, tau, dt, integrate_iter)
     except rospy.ServiceException:
@@ -73,14 +73,16 @@ class Motion(object):
     #rate = rospy.Rate(100)
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
-    rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
-    rospy.Subscriber('/proprioception/joint_states', JointState, self.late_joint_states)
+    rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
+    rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
-    rospy.Subscriber('/motion_pincher/position_start', Pose, self.callback_xy)
+    rospy.Subscriber('/motion_pincher/start_position', Pose, self.callback_xy)
     rospy.Subscriber('/motion_pincher/gripper_orientation', GripperOrientation, self.callback_gripper)
     rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
-    rospy.Subscriber('/motion_pincher/proprioception', Pose, self.callback_proprioception)
-    rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.get_pressure)
+    rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.callback_pressure)
+    rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
+    rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
+
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
@@ -88,6 +90,9 @@ class Motion(object):
     self.init_pose = geometry_msgs.msg.Pose()
     self.gripper_orientation = GripperOrientation()
     self.action = VectorAction()
+    self.bool_init_p = False
+    self.bool_grip_or = False
+    self.bool_act = False
     self.move = False
     self.move_dmp = False
     self.activate_dmp = False
@@ -107,34 +112,50 @@ class Motion(object):
     self.init_position()
 
   def callback_xy(self,msg):
-    self.init_pose.position.x = msg.position.x
-    self.init_pose.position.y = msg.position.y
-    self.init_pose.position.z = msg.position.z
+    if self.bool_init_p == False:
+      self.init_pose.position.x = msg.position.x
+      self.init_pose.position.y = msg.position.y
+      self.init_pose.position.z = msg.position.z
+      self.bool_init_p = True
 
   def callback_gripper(self,msg):
-    self.gripper_orientation.roll = msg.roll
-    self.gripper_orientation.pitch = msg.pitch
-    self.gripper_orientation.grasp = msg.grasp
+    if self.bool_grip_or == False:
+      self.gripper_orientation.roll = msg.roll
+      self.gripper_orientation.pitch = msg.pitch
+      self.gripper_orientation.grasp = msg.grasp
+      self.bool_grip_or = True
 
   def callback_vector_action(self,msg):
-    self.action.x = msg.x
-    self.action.y = msg.y
-    self.action.z = 0.0
+    if self.bool_act == False:
+      self.action.x = msg.x
+      self.action.y = msg.y
+      self.action.z = 0.0
+      self.bool_act = True
 
-  def get_pressure(self,msg):
+  def callback_pressure(self,msg):
     if msg.data < 200:
       self.stop = True
     else:
       self.stop = False
 
-  def joint_states(self,msg):
+  def callback_joint_states(self,msg):
     self.js = msg
     self.js_positions = msg.position
     self.gripper_state = msg.position[6]
 
   def callback_proprioception(self,msg):
     if self.record == True:
-      self.writeBagEE(self.name_ee,msg)
+      self.write_joints_bag(self.name_ee,msg)
+
+  def callback_new_state(self,msg):
+    if msg.data == True:
+      self.bool_init_p = False
+      self.bool_grip_or = False
+      self.bool_act = False
+
+  def callback_retry(self,msg):
+    if msg.data == True:
+      self.bool_init_p = False
 
   def makeLFDRequest(self,traj):
     demotraj = DMPTraj()        
@@ -160,7 +181,7 @@ class Motion(object):
                 
     return resp;
 
-  def writeBagEE(self,n,pos):
+  def write_joints_bag(self,n,pos):
     name = n
     exist = path.exists(name)
     opening = ""
@@ -174,7 +195,7 @@ class Motion(object):
     finally:
       bag.close()
 
-  def formDatasJS(self):
+  def form_data_joint_states(self):
     name = self.name_ee
     tot = []
     bag = rosbag.Bag(name)
@@ -188,7 +209,7 @@ class Motion(object):
     return tot
 
   #write the DMP in a bag
-  def writeDMPBag(self,data,n):
+  def write_dmp_bag(self,data,n):
     name = n
     exist = path.exists(name)
     opening = ""
@@ -202,13 +223,13 @@ class Motion(object):
     finally:
       bag.close()
 
-  def readDMPBag(self,name):
+  def read_dmp_bag(self,name):
     bag = rosbag.Bag(self.name_dmp)
     for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
       print(msg)
     bag.close()
 
-  def getDMP(self,name):
+  def get_dmp(self,name):
     bag = rosbag.Bag(name)
     for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
       resp = msg
@@ -217,18 +238,18 @@ class Motion(object):
     return resp
 
   def makeDMP(self):
-    traj = self.formDatasJS()
+    traj = self.form_data_joint_states()
     resp = self.makeLFDRequest(traj)
     print(resp)
-    self.writeDMPBag(resp,self.name_dmp)
+    self.write_dmp_bag(resp,self.name_dmp)
 
-  def playMotionDMP(self):
+  def play_motion_dmp(self):
     tmp = self.js_positions
     print(tmp)
     curr = []
     for i in range(0,5):
       curr.append(tmp[i])
-    resp = self.getDMP(self.name_dmp)
+    resp = self.get_dmp(self.name_dmp)
     #print("Get DMP :")
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
@@ -245,7 +266,7 @@ class Motion(object):
     planned_dmp = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, seg_length, tau, dt, integrate_iter)
     
     j = 0
-    path = self.shrinkDMP(planned_dmp.plan.points,goal)
+    path = self.shrink_dmp(planned_dmp.plan.points,goal)
     print("path length", len(path))
     for i in path:
       self.bot.arm.set_joint_positions(i,moving_time=0.4,accel_time=0.1)
@@ -253,7 +274,7 @@ class Motion(object):
       j+=1
 
 
-  def shrinkDMP(self,data,desired):
+  def shrink_dmp(self,data,desired):
     tot = 0
     path = []
     for i in data:
@@ -268,7 +289,7 @@ class Motion(object):
   def get_move(self):
     return self.move
 
-  def poseToJoints(self,x,y,z,r,p):
+  def pose_to_joints(self,x,y,z,r,p):
     T_sd = np.identity(4)
     yaw = math.atan2(y,x)
     T_sd[:3,:3] = ang.eulerAnglesToRotationMatrix([r, p, yaw])
@@ -276,7 +297,7 @@ class Motion(object):
     joints, found = self.bot.arm.set_ee_pose_matrix(T_sd, custom_guess=None, execute=False, moving_time=None, accel_time=None, blocking=True)
     return joints, found
 
-  def openGripper(self):
+  def open_gripper(self):
     self.bot.gripper.open(2.0)
 
   def close_gripper(self):
@@ -289,26 +310,40 @@ class Motion(object):
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
 
-
+  def execute_action(self,record):
+    if self.bool_act == True  and self.bool_grip_or == True and self.bool_init_p == True:
+      print("in the loop")
+      self.init_position()
+      u = self.init_pose.position.x + self.action.x
+      v = self.init_pose.position.y + self.action.y
+      if self.gripper_orientation.grasp > 0.5:
+        self.open_gripper()
+      else:
+        self.close_gripper()
+      self.bot.arm.set_ee_pose_components(x=self.init_pose.position.x, y=self.init_pose.position.y, z=self.init_pose.position.z, roll=self.gripper_orientation.roll, pitch=self.gripper_orientation.pitch)
+      self.bot.arm.set_ee_pose_components(x=u, y=v, z=self.init_pose.position.z, roll=self.gripper_orientation.roll, pitch=self.gripper_orientation.pitch)
+      self.close_gripper()
+      self.sleep_pose()
+      self.bool_init_p = False
 
   def test_interface(self):
     self.bot.arm.go_to_home_pose()
-    #self.writeBagEE(self.name_ee,self.js)
+    #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(1.0)
     self.record = True
-    #self.writeBagEE(self.name_ee,self.js)
+    #self.write_joints_bag(self.name_ee,self.js)
     self.bot.arm.set_ee_pose_components(x=0.15, y=0.0, z=0.02, roll=0.0, pitch=0.8)
-    #self.writeBagEE(self.name_ee,self.js)
+    #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(0.5)
     #elf.record = True
     #print(self.js_positions)
-    #self.writeBagEE(self.name_ee,self.js)
+    #self.write_joints_bag(self.name_ee,self.js)
     #print("done first")
     #self.joints_pos()
     #print("done second in joints space")
     self.bot.arm.set_ee_pose_components(x=0.3, y=0.0, z=0.02, roll=0.0, pitch=0.8)
     self.record = False
-    #self.writeBagEE(self.name_ee,self.js)
+    #self.write_joints_bag(self.name_ee,self.js)
     #ospy.sleep(0.5)
     #self.record = False
     #print(self.js)
@@ -328,25 +363,15 @@ class Motion(object):
     self.bot.arm.go_to_sleep_pose(moving_time=2.0,accel_time=0.3)
 
 if __name__ == '__main__':
-  motion_planning = Motion()
-  first = True
+  motion_pincher = Motion()
+
+  record = False
+  #first = True
   rospy.sleep(2.0)
-  #motion_planning.openGripper()
+  #motion_planning.open_gripper()
   #motion_planning.close_gripper()
-  #motion_planning.poseToJoints(0.3,-0.1,0.02,0.0,0.8)  
+  #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    if first:
-      #motion_planning.test_interface()
-      #motion_planning.makeDMP()
-      motion_planning.init_position()
-      #motion_planning.playMotionDMP()
-     # motion_planning.sleep_pose()
-      #motion_planning.makeDMP()
-      #motion_planning.test_interface()
-      #motion_planning.init_position()
-      #motion_planning.reproduce_group()
-      #motion_planning.init_position()
-      print("slept")
-      first = False
-    rospy.spin()
+    motion_pincher.execute_action(record)
+  rospy.spin()

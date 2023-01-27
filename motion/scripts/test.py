@@ -1,88 +1,62 @@
 #!/usr/bin/env python3
-import roslib; 
-roslib.load_manifest('dmp')
+import roslib 
 import rospy 
 import numpy as np
-from dmp.srv import *
-from dmp.msg import *
+from motion.msg import PoseRPY
+from motion.msg import GripperOrientation
+from motion.msg import VectorAction
+from geometry_msgs.msg import Pose
 
-#Learn a DMP from demonstration data
-def makeLFDRequest(dims, traj, dt, K_gain, 
-                   D_gain, num_bases):
-    demotraj = DMPTraj()
-        
-    for i in range(len(traj)):
-        pt = DMPPoint();
-        pt.positions = traj[i]
-        demotraj.points.append(pt)
-        demotraj.times.append(dt*i)
-            
-    k_gains = [K_gain]*dims
-    d_gains = [D_gain]*dims
-        
-    print("Starting LfD...")
-    rospy.wait_for_service('learn_dmp_from_demo')
-    try:
-        lfd = rospy.ServiceProxy('learn_dmp_from_demo', LearnDMPFromDemo)
-        resp = lfd(demotraj, k_gains, d_gains, num_bases)
-    except rospy.ServiceException:
-        print("Service call failed: %s")
-    print("LfD done")
-            
-    return resp;
+pub_p = rospy.Publisher("/motion_pincher/start_position", Pose, queue_size=1, latch=True)
+pub_o = rospy.Publisher("/motion_pincher/gripper_orientation", GripperOrientation, queue_size=1, latch=True)
+pub_a = rospy.Publisher("/motion_pincher/vector_action", VectorAction, queue_size=1, latch=True)
 
+def send_position():
+    p = Pose()
+    p.position.x = 0.2
+    p.position.y = 0.0
+    p.position.z = 0.05
+    pub_p.publish(p)
 
-#Set a DMP as active for planning
-def makeSetActiveRequest(dmp_list):
-    try:
-        sad = rospy.ServiceProxy('set_active_dmp', SetActiveDMP)
-        sad(dmp_list)
-    except rospy.ServiceException:
-        print("Service call failed: %s")
+def send_orientation():
+    o = GripperOrientation()
+    o.roll = 0.0
+    o.pitch = 1.0
+    o.grasp = 0.0
+    pub_o.publish(o)
 
+def send_action():
+    a = VectorAction()
+    a.x = 0.1
+    a.y = 0.1
+    a.z = 0.0
+    pub_a.publish(a)
 
-#Generate a plan from a DMP
-def makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, 
-                    seg_length, tau, dt, integrate_iter):
-    print("Starting DMP planning...")
-    rospy.wait_for_service('get_dmp_plan')
-    try:
-        gdp = rospy.ServiceProxy('get_dmp_plan', GetDMPPlan)
-        resp = gdp(x_0, x_dot_0, t_0, goal, goal_thresh, 
-                   seg_length, tau, dt, integrate_iter)
-    except rospy.ServiceException:
-        print("Service call failed: %s")
-    print("DMP planning done") 
-            
-    return resp;
 
 
 if __name__ == '__main__':
-    rospy.init_node('dmp_tutorial_node')
+    rospy.init_node('test')
+    first = True
+    if first == True:
+        send_position()
+        send_orientation()
+        send_action()
+        first = False
+    #rospy.sleep(100000)
+    rospy.spin()
 
-    #Create a DMP from a 2-D trajectory
-    dims = 2                
-    dt = 1.0                
-    K = 100                 
-    D = 2.0 * np.sqrt(K)      
-    num_bases = 4          
-    traj = [[1.0,1.0],[2.0,2.0],[3.0,4.0],[6.0,8.0]]
-    resp = makeLFDRequest(dims, traj, dt, K, D, num_bases)
 
-    #Set it as the active DMP
-    makeSetActiveRequest(resp.dmp_list)
 
-    #Now, generate a plan
-    x_0 = [0.0,0.0]          #Plan starting at a different point than demo 
-    x_dot_0 = [0.0,0.0]   
-    t_0 = 0                
-    goal = [8.0,7.0]         #Plan to a different goal than demo
-    goal_thresh = [0.2,0.2]
-    seg_length = -1          #Plan until convergence to goal
-    tau = 2 * resp.tau       #Desired plan should take twice as long as demo
-    dt = 1.0
-    integrate_iter = 5       #dt is rather large, so this is > 1  
-    plan = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, 
-                           seg_length, tau, dt, integrate_iter)
-
-    print(plan)
+#if first:
+      #motion_planning.test_interface()
+      #motion_planning.makeDMP()
+      #motion_planning.init_position()
+      #motion_planning.play_motion_dmp()
+     # motion_planning.sleep_pose()
+      #motion_planning.makeDMP()
+      #motion_planning.test_interface()
+      #motion_planning.init_position()
+      #motion_planning.reproduce_group()
+      #motion_planning.init_position()
+      #print("slept")
+      #first = False
