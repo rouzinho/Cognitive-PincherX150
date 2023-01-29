@@ -50,6 +50,8 @@ class DepthImage
     ros::Subscriber sub_activate;
     geometry_msgs::TransformStamped transformStamped;
     image_transport::Publisher pub_state;
+    ros::Publisher pub_retry;
+    ros::Publisher pub_new_state;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -70,6 +72,7 @@ class DepthImage
     int threshold;
     int size_neural_field;
     bool start;
+    int threshold_change;
 
   public:
     DepthImage():
@@ -80,6 +83,8 @@ class DepthImage
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
       pub_state = it_.advertise("/depth_perception/state", 1);
+      pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
+      pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -96,6 +101,7 @@ class DepthImage
       count = 0;
       threshold = 25;
       start = false;
+      threshold_change = 50;
     }
     ~DepthImage()
     {
@@ -143,7 +149,9 @@ class DepthImage
       //print4x4Matrix(robot_frame);
       //getExtremeValues(cloud_transformed);
       genDepthFromPcl(cloud_transformed);
-
+      std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
+      cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
+      stateChanged(img1,48);
     }
 
     void activateCb(const std_msgs::BoolConstPtr& msg)
@@ -399,6 +407,7 @@ class DepthImage
           cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
           cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
           cv::Mat r_nf;
+          bool change;
           cv_image = fillDepthMapBlanks(cv_image);
           cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
           //convert to gray
@@ -414,9 +423,32 @@ class DepthImage
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
           int c = getFilesCount();
+          if(first == false)
+          {
+            change = stateChanged(fil,c);
+            if(change == true)
+            {
+              std_msgs::Bool msg;
+              msg.data = true;
+              pub_new_state.publish(msg);
+              ros::Duration(1.5).sleep();
+              msg.data = false;
+              pub_new_state.publish(msg);
+            }
+            else
+            {
+              std_msgs::Bool msg;
+              msg.data = true;
+              pub_retry.publish(msg);
+              ros::Duration(1.5).sleep();
+              msg.data = false;
+              pub_retry.publish(msg);
+            }
+          }
           std::string s = std::to_string(c);
           std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
           cv::imwrite(name_state, fil);
+          
           first = false;
           start = false;
         }
@@ -428,9 +460,35 @@ class DepthImage
       //cv::waitKey(1);
     }
 
-    bool stateChanged(cv::Mat img)
+    bool stateChanged(cv::Mat img2, int file_nb)
     {
+      cv::Mat im2_gray;
+      cv::Mat im1_gray;
       bool suc = false;
+      file_nb = file_nb - 1;
+      std::string s = std::to_string(file_nb);
+      std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+      cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
+      cv::cvtColor(img1,im1_gray,cv::COLOR_RGB2GRAY);
+      cv::cvtColor(img2,im2_gray,cv::COLOR_RGB2GRAY);
+      cv::Mat res;
+      cv::subtract(im2_gray,im1_gray,res);
+      int tot = 0;
+      for(int i = 0; i < res.rows; i++)
+      {
+        for(int j = 0; j < res.cols; j++)
+        {
+          int pix = static_cast<int>(res.at<uchar>(i,j));
+          if(pix > 12)
+          {
+            tot = tot + 1;
+          }
+        }
+      }
+      if(tot > threshold_change)
+      {
+        suc = true;
+      }
       return suc;
     }
 

@@ -6,7 +6,7 @@ import cv2
 # Load an color image in grayscale
 img1 = cv2.imread('/home/altair/interbotix_ws/src/depth_perception/states/state_45.jpg')
 img2 = cv2.imread('/home/altair/interbotix_ws/src/depth_perception/states/state_46.jpg')
-subtracted = cv2.subtract(img1, img2)
+subtracted = cv2.subtract(img2, img1) #right order
 #res = np.float32(img)
 #res = res*(1/255.0)
 
