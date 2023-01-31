@@ -149,9 +149,9 @@ class DepthImage
       //print4x4Matrix(robot_frame);
       //getExtremeValues(cloud_transformed);
       genDepthFromPcl(cloud_transformed);
-      std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
-      cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
-      stateChanged(img1,48);
+      //std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
+      //cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
+      //stateChanged(img1,48);
     }
 
     void activateCb(const std_msgs::BoolConstPtr& msg)
