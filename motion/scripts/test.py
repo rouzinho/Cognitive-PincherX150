@@ -2,10 +2,12 @@
 import roslib 
 import rospy 
 import numpy as np
+import rosbag
 from motion.msg import PoseRPY
 from motion.msg import GripperOrientation
 from motion.msg import VectorAction
 from geometry_msgs.msg import Pose
+from sensor_msgs.msg import JointState
 
 pub_p = rospy.Publisher("/motion_pincher/start_position", Pose, queue_size=1, latch=True)
 pub_o = rospy.Publisher("/motion_pincher/gripper_orientation", GripperOrientation, queue_size=1, latch=True)
@@ -32,15 +34,40 @@ def send_action():
     a.z = 0.0
     pub_a.publish(a)
 
+def name_dmp():
+    name = "/home/altair/interbotix_ws/src/motion/dmp/"
+    nx = ""
+    ny = ""
+    gr = ""
+    a = VectorAction()
+    a.x = -0.1
+    a.y = -0.1
+    a.z = 0.0
+    g = 1
+    nx = "x"+str(a.x)
+    ny = "y"+str(a.y)
+    gr = "g"+str(g)
+    name = name + nx + ny + gr + ".bag"
+    js = JointState()
+    bag = rosbag.Bag(name, "w")
+    try:
+      bag.write("js",js)
+    finally:
+      bag.close()
+    
+
+
+
 
 
 if __name__ == '__main__':
     rospy.init_node('test')
     first = True
     if first == True:
-        send_position()
-        send_orientation()
-        send_action()
+        #send_position()
+        #send_orientation()
+        #send_action()
+        name_dmp()
         first = False
     #rospy.sleep(100000)
     rospy.spin()
