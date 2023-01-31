@@ -414,7 +414,7 @@ class DepthImage
           cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
           res.convertTo(res, CV_8U, 255.0);
           cv::medianBlur(res,fil,(9,9));
-
+          //for dnf
           cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
           cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
           fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
@@ -428,6 +428,9 @@ class DepthImage
             change = stateChanged(fil,c);
             if(change == true)
             {
+              std::string s = std::to_string(c);
+              std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+              cv::imwrite(name_state, fil);
               std_msgs::Bool msg;
               msg.data = true;
               pub_new_state.publish(msg);
@@ -445,9 +448,6 @@ class DepthImage
               pub_retry.publish(msg);
             }
           }
-          std::string s = std::to_string(c);
-          std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-          cv::imwrite(name_state, fil);
           
           first = false;
           start = false;
