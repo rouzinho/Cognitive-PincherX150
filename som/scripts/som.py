@@ -111,7 +111,6 @@ class Som(object):
         rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
-        #self.pub_node = rospy.Publisher('/som/action', Pose, queue_size=1)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -142,12 +141,12 @@ class Som(object):
             va = VectorAction()
             va.x = tmp[0,0]
             va.y = tmp[0,1]
+            va.grasp = tmp[0,2]
             self.pub_node.publish(va)
         else:
             go = GripperOrientation()
             go.roll = tmp[0,0]
             go.pitch = tmp[0,1]
-            go.grasp = tmp[0,2]
             self.pub_node.publish(go)
 
 
@@ -253,7 +252,7 @@ class Som(object):
         while self.current_time < self.epoch:
             n = Node(self.num_features)
             if j < s_dat:
-                n.initNodeValues(dat[j])
+                n.initNodeData(dat[j])
                 j += 1
             if j >= s_dat:
                 j = 0
@@ -262,9 +261,11 @@ class Som(object):
             self.neighbourRadius(self.current_time)
             self.reduceLR(self.current_time)
             self.current_time = self.current_time + 1
-            a = self.getNumpySOM()
-            self.im.set_array(a)
+            #a = self.getNumpySOM()
+            #self.im.set_array(a)
             print(self.current_time)
+        x, y = self.arrange2D()
+        plt.scatter(x, y)
 
     def trainSOMDatasetMotion(self,name_ds):
         dat = self.load_dataset_motion(name_ds)
@@ -282,10 +283,11 @@ class Som(object):
             self.neighbourRadius(self.current_time)
             self.reduceLR(self.current_time)
             self.current_time = self.current_time + 1
-            #a = self.getNumpySOM()
-            #self.im.set_array(a)
-        x, y = self.arrange2D()
-        plt.scatter(x, y)
+            a = self.getNumpySOM()
+            self.im.set_array(a)
+            print(self.current_time)
+        #x, y = self.arrange2D()
+        #plt.scatter(x, y)
         #plt.show()
         
     def arrange2D(self):
@@ -364,34 +366,33 @@ class Som(object):
             dat = np.load(name)
             self.setNumpySOM(dat)
             if mode == "pose":
-                t = self.getNumpySOM()
-                self.im.set_array(t)
-            else:
                 x, y = self.arrange2D()
                 plt.scatter(x, y)
+            else:
+                t = self.getNumpySOM()
+                self.im.set_array(t)
+                
         else:
             print("file doesn't exist")
 
     #build datas for pitch roll and grasp
     def build_dataset_pose(self):
-        file = open("dataset.txt","w+")
+        file = open("/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt","w")
         for i in range(5,100,5):
             for j in range(5,100,5):
-                for k in range(0,2):
-                    dat = str(i/100) +" "+ str(j/100)+" "+ str(k)
-                    #tmp = str(dat)
-                    file.write(dat)
-                    file.write("\n")
+                dat = str(i/100) +" "+ str(j/100)
+                file.write(dat)
+                file.write("\n")
         file.close()
 
     def build_dataset_motion(self):
-        file = open("dataset_motion.txt","a")
-        for i in range(2,22,2):
-            for j in range(2,22,2):
-                dat = str(-(i/100)) +" "+ str(-(j/100))
-                #tmp = str(dat)
-                file.write(dat)
-                file.write("\n")
+        file = open("/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt","w")
+        for i in range(5,100,5):
+            for j in range(5,100,5):
+                for k in range(0,2):
+                    dat = str(i/100) +" "+ str(j/100) + " " + str(k)
+                    file.write(dat)
+                    file.write("\n")
         file.close()
 
     def load_dataset_pose(self,name):
@@ -399,7 +400,7 @@ class Som(object):
         f_open = open(name,"r")
         for line in f_open:
             arr = line.split()
-            tmp = [float(arr[0]),float(arr[1]),float(arr[2])]
+            tmp = [float(arr[0]),float(arr[1])]
             datas.append(tmp)
         f_open.close()
         random.shuffle(datas)
@@ -411,7 +412,7 @@ class Som(object):
         f_open = open(name,"r")
         for line in f_open:
             arr = line.split()
-            tmp = [float(arr[0]),float(arr[1])]
+            tmp = [float(arr[0]),float(arr[1]),float(arr[2])]
             datas.append(tmp)
         f_open.close()
         random.shuffle(datas)
@@ -438,9 +439,11 @@ if __name__ == "__main__":
     som.init_network()
     #som.loadSOM("simple_50_som.npy")
     if training == True and data_set == "motion":
+        #som.build_dataset_motion()
         som.trainSOMDatasetMotion(name_dataset)
         som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
     if training == True and data_set == "pose":
+        #som.build_dataset_pose()
         som.trainSOMDatasetPose(name_dataset)
         som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
     if training == False:
