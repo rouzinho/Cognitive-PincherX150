@@ -485,7 +485,6 @@ class DepthImage
           }
         }
       }
-      std::cout<<"changes : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
