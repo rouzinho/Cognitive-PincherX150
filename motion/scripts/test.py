@@ -8,6 +8,7 @@ from motion.msg import GripperOrientation
 from motion.msg import VectorAction
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
+import os
 
 pub_p = rospy.Publisher("/motion_pincher/start_position", Pose, queue_size=1, latch=True)
 pub_o = rospy.Publisher("/motion_pincher/gripper_orientation", GripperOrientation, queue_size=1, latch=True)
@@ -34,27 +35,38 @@ def send_action():
     a.z = 0.0
     pub_a.publish(a)
 
-def name_dmp():
+def name_dmp(action):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
     nx = ""
     ny = ""
     gr = ""
-    a = VectorAction()
-    a.x = -0.1
-    a.y = -0.1
-    a.z = 0.0
-    g = 1
-    nx = "x"+str(a.x)
-    ny = "y"+str(a.y)
-    gr = "g"+str(g)
-    name = name + nx + ny + gr + ".bag"
-    js = JointState()
-    bag = rosbag.Bag(name, "w")
-    try:
-      bag.write("js",js)
-    finally:
-      bag.close()
+    nx = "x"+str(action.x)
+    ny = "y"+str(action.y)
+    gr = "g"+str(action.grasp)
+    name = name + nx + ny + gr + "r.bag"
+
+    return name
     
+def find_dmp(action):
+    name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
+    found = False
+    right_file = ""
+    for file in os.listdir(name_dir):
+        p_x = file.find('x')
+        p_y = file.find('y')
+        p_g = file.find('g')
+        p_r = file.find('r')
+        x = file[p_x+1:p_y]
+        y = file[p_y+1:p_g]
+        g = file[p_g+1:p_r]
+        x = float(x)
+        y = float(y)
+        g = float(g)
+        if action.x - x < 0.05 and action.y - y < 0.05 and action.grasp - g < 0.05:
+            found = True
+            right_file = file
+    
+    return found, right_file
 
 
 
@@ -63,11 +75,19 @@ def name_dmp():
 if __name__ == '__main__':
     rospy.init_node('test')
     first = True
+    a = VectorAction()
+    a.x = 0.3456
+    a.y = 0.3746
+    a.z = 0.0
+    a.grasp = 0.89
     if first == True:
+        b, f = find_dmp(a)
+        print(b)
+        print(f)
         #send_position()
         #send_orientation()
         #send_action()
-        name_dmp()
+        #name_dmp()
         first = False
     #rospy.sleep(100000)
     rospy.spin()

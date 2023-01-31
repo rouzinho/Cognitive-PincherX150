@@ -237,6 +237,39 @@ class Motion(object):
 
     return resp
 
+  def name_dmp(action):
+    name = "/home/altair/interbotix_ws/src/motion/dmp/"
+    nx = ""
+    ny = ""
+    gr = ""
+    nx = "x"+str(action.x)
+    ny = "y"+str(action.y)
+    gr = "g"+str(action.grasp)
+    name = name + nx + ny + gr + "r.bag"
+
+    return name
+    
+  def find_dmp(action):
+    name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
+    found = False
+    right_file = ""
+    for file in os.listdir(name_dir):
+        p_x = file.find('x')
+        p_y = file.find('y')
+        p_g = file.find('g')
+        p_r = file.find('r')
+        x = file[p_x+1:p_y]
+        y = file[p_y+1:p_g]
+        g = file[p_g+1:p_r]
+        x = float(x)
+        y = float(y)
+        g = float(g)
+        if action.x - x < 0.05 and action.y - y < 0.05 and action.grasp - g < 0.05:
+            found = True
+            right_file = file
+    
+    return found, right_file
+
   def makeDMP(self):
     traj = self.form_data_joint_states()
     resp = self.makeLFDRequest(traj)
@@ -316,7 +349,7 @@ class Motion(object):
       self.init_position()
       u = self.init_pose.position.x + self.action.x
       v = self.init_pose.position.y + self.action.y
-      if self.gripper_orientation.grasp > 0.5:
+      if self.action.grasp > 0.5:
         self.open_gripper()
       else:
         self.close_gripper()
