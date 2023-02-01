@@ -9,6 +9,8 @@ from motion.msg import VectorAction
 from geometry_msgs.msg import Pose
 from sensor_msgs.msg import JointState
 import os
+from os import path
+from pathlib import Path
 
 pub_p = rospy.Publisher("/motion_pincher/start_position", Pose, queue_size=1, latch=True)
 pub_o = rospy.Publisher("/motion_pincher/gripper_orientation", GripperOrientation, queue_size=1, latch=True)
@@ -69,7 +71,28 @@ def find_dmp(action):
     return found, right_file
 
 
-
+def update_offline_dataset(status):
+    name_dataset_states = "/home/altair/interbotix_ws/src/depth_perception/states/"
+    a = VectorAction()
+    p = GripperOrientation()
+    a.x = 1.0
+    a.y = 0.8
+    a.grasp = 1.0
+    p.pitch = 1.0
+    p.roll = 0.0
+    paths = sorted(Path(name_dataset_states).iterdir(), key=os.path.getmtime)
+    name_state = str(paths[len(paths)-1])
+    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/datas.txt"
+    exist = path.exists(name_dataset)
+    opening = ""
+    if(exist == False):
+      opening = "w"
+    else:
+      opening = "a"
+    data = str(a.x) + " " + str(a.y) + " " + str(a.grasp) + " " + str(p.pitch) + " " + str(p.roll) + " " + name_state + " " + str(status) + "\n"
+    with open(name_dataset, opening) as f:
+        f.write(data)
+    f.close()
 
 
 if __name__ == '__main__':
@@ -80,10 +103,9 @@ if __name__ == '__main__':
     a.y = 0.3746
     a.z = 0.0
     a.grasp = 0.89
+
     if first == True:
-        b, f = find_dmp(a)
-        print(b)
-        print(f)
+        update_offline_dataset(True)
         #send_position()
         #send_orientation()
         #send_action()

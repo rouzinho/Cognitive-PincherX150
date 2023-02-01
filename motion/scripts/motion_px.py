@@ -24,7 +24,6 @@ from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from trajectory_msgs.msg import JointTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
-#from trajectory_msgs.msg import JointSingleCommand
 from interbotix_xs_msgs.msg import *
 from std_msgs.msg import Time
 from std_msgs.msg import Header
@@ -37,9 +36,8 @@ from motion.msg import VectorAction
 import os.path
 from os import path
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
-#import PyKDL as kdl
-#import kdl_parser_py.urdf as kdl_parser
 import interbotix_common_modules.angle_manipulation as ang
+from pathlib import Path
 
 #Set a DMP as active for planning
 def makeSetActiveRequest(dmp_list):
@@ -152,10 +150,12 @@ class Motion(object):
       self.bool_init_p = False
       self.bool_grip_or = False
       self.bool_act = False
+      self.update_offline_dataset(True)
 
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_init_p = False
+      self.update_offline_dataset(False)
 
   def makeLFDRequest(self,traj):
     demotraj = DMPTraj()        
@@ -237,6 +237,23 @@ class Motion(object):
 
     return resp
 
+  def update_offline_dataset(self,status):
+    name_dataset_states = "/home/altair/interbotix_ws/src/depth_perception/states/"
+    paths = sorted(Path(name_dataset_states).iterdir(), key=os.path.getmtime)
+    name_state = str(paths[len(paths)-1])
+    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/datas.txt"
+    exist = path.exists(name_dataset)
+    opening = ""
+    if(exist == False):
+      opening = "w"
+    else:
+      opening = "a"
+    data = str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.grasp) + " " + str(self.gripper_orientation.pitch) + " " + str(self.gripper_orientation.roll) + " " + name_state + " " + str(status) + "\n"
+    with open(name_dataset, opening) as f:
+        f.write(data)
+    f.close()
+
+
   def name_dmp(action):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
     nx = ""
@@ -270,24 +287,24 @@ class Motion(object):
     
     return found, right_file
 
-  def makeDMP(self):
+  def makeDMP(self,name_dmp):
     traj = self.form_data_joint_states()
     resp = self.makeLFDRequest(traj)
     print(resp)
-    self.write_dmp_bag(resp,self.name_dmp)
+    self.write_dmp_bag(resp,name_dmp)
 
-  def play_motion_dmp(self):
+  def play_motion_dmp(self,name_dmp,goal):
     tmp = self.js_positions
     print(tmp)
     curr = []
     for i in range(0,5):
       curr.append(tmp[i])
-    resp = self.get_dmp(self.name_dmp)
+    resp = self.get_dmp(name_dmp)
     #print("Get DMP :")
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
     #goal = [0.3709951601922512, 0.08797463793307543, 0.7709327504038811, -0.07890698444098235, 1.505357144537811e-06]
-    goal = [-0.3137078918516636, 0.2984987303111935, 0.4029244794423692, 0.07907685257397824, -1.1780148867046465e-06]
+    #goal = [-0.3137078918516636, 0.2984987303111935, 0.4029244794423692, 0.07907685257397824, -1.1780148867046465e-06]
     goal_thresh = [0.1]
     x_0 = curr         #Plan starting at a different point than demo 
     x_dot_0 = [0.0,0.0,0.0,0.0,0.0]   
