@@ -136,7 +136,7 @@ class Som(object):
             self.cluster_map = np.zeros((self.size,self.size,1))
 
     def callbackNode(self,msg):
-        tmp = self.getWeightsNode(int(msg.x),int(msg.y))
+        tmp = self.get_weights_node(int(msg.x),int(msg.y))
         if self.mode == "motion":
             va = VectorAction()
             va.x = tmp[0,0]
@@ -160,13 +160,13 @@ class Som(object):
                 tmp_l.append(tmp)
             self.network.append(tmp_l)
 
-    def printSOM(self):
+    def print_som(self):
         for i in range(self.size):
             for j in range(self.size):
                 self.network[i][j].printNode()
             print("")
 
-    def getNumpySOM(self):
+    def get_numpy_som(self):
         tmp = np.zeros((self.size,self.size,self.num_features))
         for i in range(0,tmp.shape[0]):
             for j in range(0,tmp.shape[1]):
@@ -174,13 +174,13 @@ class Som(object):
 
         return tmp
 
-    def setNumpySOM(self,datas):
+    def set_numpy_som(self,datas):
         for i in range(0,datas.shape[0]):
             for j in range(0,datas.shape[1]):
                 self.network[i][j].setWeights(datas[i,j])
 
 
-    def getBestMatchUnit(self,node):
+    def get_bmu(self,node):
         best = 1000
         last = 1000
         tmp_i = -1
@@ -196,13 +196,13 @@ class Som(object):
 
         return self.bmu
 
-    def getWeightsNode(self,x,y):
+    def get_weights_node(self,x,y):
         return self.network[x][y].getWeights()
 
-    def neighbourRadius(self,iter_count):
+    def neighbour_radius(self,iter_count):
         self.neighbour_rad = self.map_radius * math.exp(-iter_count/self.lamda)
 
-    def calculateNewWeights(self,node):
+    def compute_new_weights(self,node):
         for i in range(0,self.size):
             for j in range(0,self.size):
                 dist_node = ((self.bmu.getXofLattice()-self.network[i][j].getXofLattice())**2 \
@@ -212,10 +212,10 @@ class Som(object):
                     self.influence = math.exp(-dist_node / (2*widthsq))
                     self.network[i][j].adjustWeights(node,self.learning_rate,self.influence)
 
-    def reduceLR(self,iter_count):
+    def reduce_lr(self,iter_count):
         self.learning_rate = 0.1 * math.exp(-iter_count/self.lamda)
 
-    def defineClusters(self):
+    def define_clusters(self):
         nb_cluster = 0
         for i in range(0,self.cluster_map.shape[0]):
             for j in range(0,self.cluster_map.shape[1]):
@@ -238,14 +238,14 @@ class Som(object):
                 #return
                     
 
-    def printClusters(self):
+    def print_clusters(self):
         for i in range(0,self.cluster_map.shape[0]):
             for j in range(0,self.cluster_map.shape[1]):
                 print(self.cluster_map[i,j],end = "")
             print("")
 
 
-    def trainSOMDatasetPose(self,name_ds):
+    def train_som_dataset_pose(self,name_ds):
         dat = self.load_dataset_pose(name_ds)
         s_dat = len(dat)
         j = 0
@@ -256,18 +256,18 @@ class Som(object):
                 j += 1
             if j >= s_dat:
                 j = 0
-            tmp = self.getBestMatchUnit(n)
-            self.calculateNewWeights(n)
-            self.neighbourRadius(self.current_time)
-            self.reduceLR(self.current_time)
+            tmp = self.get_bmu(n)
+            self.compute_new_weights(n)
+            self.neighbour_radius(self.current_time)
+            self.reduce_lr(self.current_time)
             self.current_time = self.current_time + 1
-            #a = self.getNumpySOM()
+            #a = self.get_numpy_som()
             #self.im.set_array(a)
             print(self.current_time)
         x, y = self.arrange2D()
         plt.scatter(x, y)
 
-    def trainSOMDatasetMotion(self,name_ds):
+    def train_som_dataset_motion(self,name_ds):
         dat = self.load_dataset_motion(name_ds)
         s_dat = len(dat)
         j = 0
@@ -278,12 +278,12 @@ class Som(object):
                 j += 1
             if j >= s_dat:
                 j = 0
-            tmp = self.getBestMatchUnit(n)
-            self.calculateNewWeights(n)
-            self.neighbourRadius(self.current_time)
-            self.reduceLR(self.current_time)
+            tmp = self.get_bmu(n)
+            self.compute_new_weights(n)
+            self.neighbour_radius(self.current_time)
+            self.reduce_lr(self.current_time)
             self.current_time = self.current_time + 1
-            a = self.getNumpySOM()
+            a = self.get_numpy_som()
             self.im.set_array(a)
             print(self.current_time)
         #x, y = self.arrange2D()
@@ -301,24 +301,24 @@ class Som(object):
                 y.append(tmp[1])
         return x, y
 
-    def trainSOMColor(self):
+    def train_som_color(self):
         j = 1
         while self.current_time < self.epoch:
             n = Node(self.num_features)
             n.initNodeColor(j)
-            tmp = self.getBestMatchUnit(n)
-            self.calculateNewWeights(n)
-            self.neighbourRadius(self.current_time)
-            self.reduceLR(self.current_time)
+            tmp = self.get_bmu(n)
+            self.compute_new_weights(n)
+            self.neighbour_radius(self.current_time)
+            self.reduce_lr(self.current_time)
             self.current_time = self.current_time + 1
-            a = self.getNumpySOM()
+            a = self.get_numpy_som()
             self.im.set_array(a)
             j += 1
             if j == 6:
                 j = 1
 
     def init(self):
-        self.im.set_data(self.getNumpySOM())
+        self.im.set_data(self.get_numpy_som())
         return [self.im]
 
     def animateSOM(self,i):
@@ -333,17 +333,17 @@ class Som(object):
                 j += 1
             if j >= s_dat:
                 j = 0
-            self.getBestMatchUnit(n)
-            self.calculateNewWeights(n)
-            self.neighbourRadius(i)
-            self.reduceLR(i)
+            self.get_bmu(n)
+            self.compute_new_weights(n)
+            self.neighbour_radius(i)
+            self.reduce_lr(i)
             print(self.neighbour_rad)
-        a = self.getNumpySOM()
+        a = self.get_numpy_som()
         self.im.set_array(a)
         #print(i)
         return [self.im]
 
-    def getOneDimensionalData(self):
+    def get_one_dimensional_data(self):
         tot = np.array([])
         for i in range(0,self.size):
             for j in range(0,self.size):
@@ -355,21 +355,21 @@ class Som(object):
                     tot = np.vstack((tot,tmp))
         return tot
 
-    def saveSOM(self,name):
+    def save_som(self,name):
         if os.path.exists(name):
             os.remove(name)
-        tmp = self.getNumpySOM()
+        tmp = self.get_numpy_som()
         np.save(name,tmp)
     
-    def loadSOM(self,name,mode):
+    def load_som(self,name,mode):
         if os.path.exists(name):
             dat = np.load(name)
-            self.setNumpySOM(dat)
+            self.set_numpy_som(dat)
             if mode == "pose":
                 x, y = self.arrange2D()
                 plt.scatter(x, y)
             else:
-                t = self.getNumpySOM()
+                t = self.get_numpy_som()
                 self.im.set_array(t)
                 
         else:
@@ -437,17 +437,17 @@ if __name__ == "__main__":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
     som.init_network()
-    #som.loadSOM("simple_50_som.npy")
+    #som.load_som("simple_50_som.npy")
     if training == True and data_set == "motion":
         #som.build_dataset_motion()
-        som.trainSOMDatasetMotion(name_dataset)
-        som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
+        som.train_som_dataset_motion(name_dataset)
+        som.save_som("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
     if training == True and data_set == "pose":
         #som.build_dataset_pose()
-        som.trainSOMDatasetPose(name_dataset)
-        som.saveSOM("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
+        som.train_som_dataset_pose(name_dataset)
+        som.save_som("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
     if training == False:
-        som.loadSOM(model_name,data_set)
+        som.load_som(model_name,data_set)
     plt.show()
     while not rospy.is_shutdown():
         pass
