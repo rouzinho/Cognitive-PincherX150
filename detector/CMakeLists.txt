@@ -58,11 +58,10 @@ find_package(Open3D REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  Outcome.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -79,10 +78,10 @@ find_package(Open3D REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   sensor_msgs#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -116,6 +115,7 @@ find_package(Open3D REQUIRED)
 catkin_package(
     INCLUDE_DIRS
     CATKIN_DEPENDS roscpp
+                   message_runtime
                    sensor_msgs
                    std_msgs
                    visualization_msgs

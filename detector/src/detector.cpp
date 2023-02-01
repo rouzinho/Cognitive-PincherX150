@@ -29,6 +29,7 @@
 #include <pcl_ros/transforms.h>
 #include <math.h>
 #include <std_msgs/Bool.h>
+#include "detector/Outcome.h"
 
 using namespace message_filters;
 using namespace std;
@@ -43,6 +44,7 @@ class Detector
         ros::Publisher pub_outcome;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
+        ros::Subscriber sub_touch;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -66,10 +68,11 @@ class Detector
         open3d::pipelines::registration::RegistrationResult icp_fine;
         double rmse;
         Eigen::Matrix4d_u transform;
-        sensor_msgs::PointCloud2 msg;
+        sensor_msgs::PointCloud2 msg_open;
         sensor_msgs::PointCloud2 cloud_tf;
         sensor_msgs::PointCloud2 cloud_pcl_backup;
         bool activate;
+        bool touch;
 
     public:
 
@@ -79,8 +82,9 @@ class Detector
         sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
+        sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
-        pub_outcome = nh_.advertise<geometry_msgs::Pose>("/outcome_detector/outcome",1);
+        pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -98,6 +102,7 @@ class Detector
         ori_one = false;
         fin_one = false;
         activate = false;
+        touch = false;
     }
 
     virtual ~Detector()
@@ -138,10 +143,9 @@ class Detector
             activate = false;
             count = 0;
             Eigen::Vector3f r = performICP(cloud_origin,cloud_final);
-            geometry_msgs::Pose object_outcome = getOutcome(first_pose,second_pose,r);
-            pub_outcome.publish(object_outcome);
+            setOutcome(first_pose,second_pose,r);
         }
-        pub_tf.publish(msg);
+        pub_tf.publish(msg_open);
     }
 
     void activateCallback(const std_msgs::BoolConstPtr& msg)
@@ -151,6 +155,11 @@ class Detector
             count++;
             activate = true;
         }
+    }
+
+    void touchCallback(const std_msgs::BoolConstPtr& msg)
+    {
+        touch = msg->data;
     }
 
     void objectCallback(const visualization_msgs::MarkerConstPtr& msg)
@@ -189,20 +198,23 @@ class Detector
       }
     }
 
-    geometry_msgs::Pose getOutcome(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, Eigen::Vector3f rot)
+    void setOutcome(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, Eigen::Vector3f rot)
     {
+        detector::Outcome res;
         float t_x = second.pose.position.x - first.pose.position.x;
         float t_y = second.pose.position.y - first.pose.position.y;
-        geometry_msgs::Pose res;
-        res.position.x = t_x;
-        res.position.y = t_y;
-        res.position.z = 0.0;
-        res.orientation.x = rot[0];
-        res.orientation.y = rot[1];
-        res.orientation.z = rot[2];
-        res.orientation.w = 0.0;
-
-        return res;
+        res.x = t_x;
+        res.y = t_y;
+        res.roll = rot[2];
+        if(touch == true)
+        {
+            res.touch = 1.0;
+        }
+        else
+        {
+            res.touch = 0.0;
+        }
+        pub_outcome.publish(res);
     }
 
     Eigen::Vector3f performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
@@ -296,7 +308,7 @@ class Detector
             cout <<"rmse : "<<rmse<<"\n";
         }
         std::shared_ptr<open3d::geometry::PointCloud> cloud_ptr_final = std::make_shared<open3d::geometry::PointCloud>(cloud_ptr->Transform(icp_fine.transformation_));
-        open3d_conversions::open3dToRos(*cloud_ptr_final,msg,"px150/base_link");
+        open3d_conversions::open3dToRos(*cloud_ptr_final,msg_open,"px150/base_link");
         //cout<<"icp coarse \n";
         //print4x4Matrix(icp_coarse.transformation_);
         //cout<<"icp fine \n";
