@@ -130,6 +130,7 @@ class Detector
         {
             cout<<"Recording first pointcloud\n";
             cloud_origin.Clear();
+            cout<<"size cloud : "<<cloud_transformed->size()<<"\n";
             open3d_conversions::rosToOpen3d(cl, cloud_origin);
             first_pose = pose_object;
             activate = false;
@@ -138,6 +139,7 @@ class Detector
         {
             cout<<"Recording second pointcloud\n";
             cloud_final.Clear();
+            cout<<"size cloud : "<<cloud_transformed->size()<<"\n";
             open3d_conversions::rosToOpen3d(cl, cloud_final);
             second_pose = pose_object;
             activate = false;
@@ -154,6 +156,17 @@ class Detector
         {
             count++;
             activate = true;
+        }
+        if(msg->data == true && touch == true)
+        {
+            count = 0;
+            activate = false;
+            detector::Outcome res;
+            res.x = 0.0 - first_pose.pose.position.x;
+            res.y = 0.0 - first_pose.pose.position.y;
+            res.roll = 0.0;
+            res.touch = 1.0;
+            pub_outcome.publish(res);
         }
     }
 
