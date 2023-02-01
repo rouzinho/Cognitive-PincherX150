@@ -71,6 +71,7 @@ class Motion(object):
     #rate = rospy.Rate(100)
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
+    self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -84,7 +85,7 @@ class Motion(object):
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
-    self.stop = False
+    self.stop_pressing = False
     self.init_pose = geometry_msgs.msg.Pose()
     self.gripper_orientation = GripperOrientation()
     self.action = VectorAction()
@@ -103,7 +104,6 @@ class Motion(object):
     self.K_gain = 100              
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 4
-    self.stop = False
 
   def callback_pose(self,msg):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
@@ -132,9 +132,12 @@ class Motion(object):
 
   def callback_pressure(self,msg):
     if msg.data < 200:
-      self.stop = True
+      self.stop_pressing = True
     else:
-      self.stop = False
+      self.stop_pressing = False
+    t = Bool()
+    t.data = self.stop_pressing
+    self.pub_touch.publish(t)
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -248,7 +251,7 @@ class Motion(object):
       opening = "w"
     else:
       opening = "a"
-    data = str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.grasp) + " " + str(self.gripper_orientation.pitch) + " " + str(self.gripper_orientation.roll) + " " + name_state + " " + str(status) + "\n"
+    data = str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.grasp) + " " + str(self.gripper_orientation.pitch) + " " + str(self.gripper_orientation.roll) + " " +name_state + " " + str(status) + "\n"
     with open(name_dataset, opening) as f:
         f.write(data)
     f.close()
@@ -355,7 +358,7 @@ class Motion(object):
     jsc.name = "gripper"
     jsc.cmd = -50.0
     self.pub_gripper.publish(jsc)
-    while not self.stop and self.gripper_state > 0.015:
+    while not self.stop_pressing and self.gripper_state > 0.015:
       pass
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
