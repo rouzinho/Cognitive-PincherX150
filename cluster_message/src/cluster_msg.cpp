@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include "cluster_message/ClusterMessage.h"
 #include "cluster_message/Action.h"
-#include "cluster_message/Outcome.h"
+#include "cluster_message/OutcomeAE.h"
 #include "cluster_message/State.h"
 
 
@@ -86,7 +86,7 @@ class ClusterMessage
       }
    }
 
-   void outcomeCallback(const cluster_message::OutcomeConstPtr& msg)
+   void outcomeCallback(const cluster_message::OutcomeAEConstPtr& msg)
    {
       outcome = true;
       v_outcome.resize(0);

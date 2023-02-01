@@ -52,7 +52,7 @@ add_message_files(
   FILES
   ClusterMessage.msg
   Action.msg
-  Outcome.msg
+  OutcomeAE.msg
   State.msg
 )
 
