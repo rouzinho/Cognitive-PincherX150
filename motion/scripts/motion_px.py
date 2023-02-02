@@ -120,7 +120,6 @@ class Motion(object):
     if self.bool_grip_or == False:
       self.gripper_orientation.roll = msg.roll
       self.gripper_orientation.pitch = msg.pitch
-      self.gripper_orientation.grasp = msg.grasp
       self.bool_grip_or = True
 
   def callback_vector_action(self,msg):
@@ -128,6 +127,7 @@ class Motion(object):
       self.action.x = msg.x
       self.action.y = msg.y
       self.action.z = 0.0
+      self.action.grasp = msg.grasp
       self.bool_act = True
 
   def callback_pressure(self,msg):
@@ -358,7 +358,7 @@ class Motion(object):
     jsc.name = "gripper"
     jsc.cmd = -50.0
     self.pub_gripper.publish(jsc)
-    while not self.stop_pressing and self.gripper_state > 0.015:
+    while not self.stop_pressing and self.gripper_state > 0.020:
       pass
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
@@ -417,7 +417,7 @@ class Motion(object):
 
 if __name__ == '__main__':
   motion_pincher = Motion()
-
+  first = True
   record = False
   #first = True
   rospy.sleep(2.0)
@@ -426,5 +426,9 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    motion_pincher.execute_action(record)
+    if first == True:
+      #motion_pincher.open_gripper()
+      #motion_pincher.close_gripper()
+      #first = False
+      motion_pincher.execute_action(record)
   rospy.spin()
