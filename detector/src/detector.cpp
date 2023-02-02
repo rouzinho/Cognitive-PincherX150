@@ -227,6 +227,7 @@ class Detector
         {
             res.touch = 0.0;
         }
+        writeDataset(res);
         pub_outcome.publish(res);
     }
 
@@ -327,6 +328,36 @@ class Detector
         //cout<<"icp fine \n";
         return rot;
     }
+
+    void writeDataset(detector::Outcome sample)
+    {
+      std::ofstream ofile;
+      ofile.open("/home/altair/interbotix_ws/src/detector/dataset/samples.txt", std::ios::app);
+      ofile << sample.x <<" "<<sample.y<<" "<<sample.roll<<" "<<sample.touch<<std::endl;
+      ofile.close();
+    }
+
+    /*void readDataset()
+    {
+      std::string line;
+      std::ifstream icpfile("/home/altair/odin/src/pcl_fusion/calibration/params.txt");
+      if(icpfile.is_open())
+      {
+        getline(icpfile,line);
+        ax = std::stod(line); 
+        getline(icpfile,line);
+        bx = std::stod(line);
+        getline(icpfile,line);
+        ay = std::stod(line);
+        getline(icpfile,line);
+        by = std::stod(line);
+        getline(icpfile,line);
+        az = std::stod(line);
+        getline(icpfile,line);
+        bz = std::stod(line);
+        icpfile.close();
+      }
+    }*/
 
     void print4x4Matrix (const Eigen::Matrix4d_u & matrix)
     {

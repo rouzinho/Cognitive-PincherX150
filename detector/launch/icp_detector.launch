@@ -1,0 +1,3 @@
+<launch>
+    <node name="icp_detector" pkg="detector" type="detector_node" output="screen"/>
+</launch>
