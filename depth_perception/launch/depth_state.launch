@@ -1,0 +1,3 @@
+<launch>
+    <node name="depth_detector" pkg="depth_perception" type="depth_perception_node" output="screen"/>
+</launch>

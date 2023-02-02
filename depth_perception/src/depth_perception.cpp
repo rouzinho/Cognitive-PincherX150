@@ -52,6 +52,7 @@ class DepthImage
     image_transport::Publisher pub_state;
     ros::Publisher pub_retry;
     ros::Publisher pub_new_state;
+    ros::Publisher pub_activate_detector;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -85,6 +86,7 @@ class DepthImage
       pub_state = it_.advertise("/depth_perception/state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
+      pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -447,6 +449,9 @@ class DepthImage
               msg.data = false;
               pub_retry.publish(msg);
             }
+            std_msgs::Bool msg;
+            msg.data = true;
+            pub_activate_detector.publish(msg);
           }
           
           first = false;
