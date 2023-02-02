@@ -379,6 +379,19 @@ class Motion(object):
       self.sleep_pose()
       self.bool_init_p = False
 
+  def run_possibilities(self):
+    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/possible_datas.txt"
+    exist = path.exists(name_dataset)
+    self.init_position()
+    for i in range(-35,35):
+      for j in range(-35,35):
+        for k in range(1,18):
+          for l in range(-15,15):
+            data = str(i/100) + " " + str(j/100) + " " + str(k/10) + " " + str(l/10) + "\n"
+            with open(name_dataset, "a") as f:
+              f.write(data)
+            f.close()
+
   def test_interface(self):
     self.bot.arm.go_to_home_pose()
     #self.write_joints_bag(self.name_ee,self.js)
@@ -415,6 +428,16 @@ class Motion(object):
   def sleep_pose(self):
     self.bot.arm.go_to_sleep_pose(moving_time=2.0,accel_time=0.3)
 
+  def check_pos(self):
+    self.bot.arm.set_ee_pose_components(x=0.25, y=0.0, z=0.03, roll=0, pitch=1.0)
+    j, f = self.pose_to_joints(0.25,0,0.03,0,1.5)
+    print(f)
+    self.init_position()
+    self.bot.arm.set_ee_pose_components(x=0.25, y=0.01, z=0.03, roll=0, pitch=1.0)
+    j, f = self.pose_to_joints(0.25,0,0.03,0,1.5)
+    print(f)
+    self.init_position()
+
 if __name__ == '__main__':
   motion_pincher = Motion()
   first = True
@@ -429,6 +452,9 @@ if __name__ == '__main__':
     if first == True:
       #motion_pincher.open_gripper()
       #motion_pincher.close_gripper()
-      #first = False
-      motion_pincher.execute_action(record)
+      #motion_pincher.execute_action(record)
+      #motion_pincher.run_possibilities()
+      #motion_pincher.check_pos()
+      print("finished")
+      first = False
   rospy.spin()
