@@ -376,6 +376,7 @@ class Som(object):
             n = Node(self.num_features)
             if j < s_dat:
                 n.initNodeData(dat[j])
+                print(dat[j])
                 j += 1
             if j >= s_dat:
                 j = 0
@@ -539,7 +540,7 @@ if __name__ == "__main__":
     if training == True and data_set == "motion":
         #som.build_dataset_motion()
         som.train_som_dataset_motion(name_dataset)
-        som.save_som("/home/altair/interbotix_ws/src/som/models/new_model_motion.npy")
+        som.save_som("/home/altair/interbotix_ws/src/som/models/new_model_motion1.npy")
     if training == True and data_set == "pose":
         #som.build_dataset_pose()
         som.train_som_dataset_pose(name_dataset)
