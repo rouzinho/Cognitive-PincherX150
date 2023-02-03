@@ -13,6 +13,9 @@ from scipy.cluster.hierarchy import dendrogram, linkage
 import geometry_msgs.msg
 from motion.msg import GripperOrientation
 from motion.msg import VectorAction
+from som.msg import ListPeaks
+from sklearn.preprocessing import MinMaxScaler
+
 
 class Node(object):
     def __init__(self,num_features):
@@ -21,10 +24,16 @@ class Node(object):
         self.y = 0
         self.num_features = num_features
         self.weights = np.zeros((1,num_features))
+        self.list_pitch = [0,0.2,0.4,0.6,0.8,1,1.2,1.4,1.6]
 
     def initNodeRnd(self):
         for i in range(0,self.weights.shape[1]):
             self.weights[0,i] = random.random()
+
+    def initNodeRndPose(self):
+        self.weights[0,0] = random.uniform(-0.4,0.4)
+        self.weights[0,1] = random.uniform(-0.4,0.4)
+        self.weights[0,2] = random.choice(self.list_pitch)
 
     def initNodeValues(self,data):
         self.weights[0,0] = data[0]
@@ -111,6 +120,9 @@ class Som(object):
         rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
+        n_bmu = name + "node_values"
+        rospy.Subscriber(n_bmu, Point, self.callback_bmus)
+        n_peaks = name + "list_peaks"
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -126,6 +138,7 @@ class Som(object):
         self.mode = mode
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
+            self.pub_peaks = rospy.Publisher(n_peaks, ListPeaks, queue_size=1)
         else:
             self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation', GripperOrientation, queue_size=1)
         if num_features != 2:
@@ -149,6 +162,16 @@ class Som(object):
             go.pitch = tmp[0,1]
             self.pub_node.publish(go)
 
+    def callback_bmus(self,msg):
+        values = [msg.x,msg.y]
+        l_peaks = self.list_peaks(values)
+        l = ListPeaks()
+        for i in l_peaks:
+            p = Point()
+            p.x = i[0]
+            p.y = i[1] 
+            l.list_peaks.append(p)
+        self.pub_peaks.publish(l)
 
     def init_network(self):
         for i in range(self.size):
@@ -157,6 +180,16 @@ class Som(object):
                 tmp = Node(self.num_features)
                 tmp.initNodeCoor(i,j)
                 tmp.initNodeRnd()
+                tmp_l.append(tmp)
+            self.network.append(tmp_l)
+
+    def init_network_som(self):
+        for i in range(self.size):
+            tmp_l = []
+            for j in range(self.size):
+                tmp = Node(self.num_features)
+                tmp.initNodeCoor(i,j)
+                tmp.initNodeRndPose()
                 tmp_l.append(tmp)
             self.network.append(tmp_l)
 
@@ -173,6 +206,63 @@ class Som(object):
                 tmp[i,j] = self.network[i][j].getWeights()
 
         return tmp
+    
+    def get_adapted_numpy_som(self):
+        tmp = np.zeros((self.size,self.size,self.num_features))
+        for i in range(0,tmp.shape[0]):
+            for j in range(0,tmp.shape[1]):
+                w = self.network[i][j].getWeights()
+                scaled = self.scale_weights(w)
+                tmp[i,j] = scaled
+
+        return tmp
+    
+    def weights_to_color(self,w):
+        n_x = np.array(w[0:2])
+        n_x = n_x.reshape(-1,1)
+        n_p = np.array(w[2])
+        n_p = n_p.reshape(-1,1)
+        scaler_xy = MinMaxScaler()
+        scaler_p = MinMaxScaler()
+        xy_minmax = np.array([-0.4, 0.4])
+        p_minmax = np.array([0, 1.6])
+        scaler_xy.fit(xy_minmax[:, np.newaxis])
+        scaler_p.fit(p_minmax[:, np.newaxis])
+        n_x = scaler_xy.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+        n_p = scaler_p.transform(n_p)
+        n_p = n_p.reshape(1,-1)
+        n_p = n_p.flatten()
+        scaled_w = [n_x[0],n_x[1],n_p[0]]
+
+        return scaled_w
+    
+    def color_to_weights(self,w):
+        n_x = np.array(w[0:2])
+        n_x = n_x.reshape(-1,1)
+        n_p = np.array(w[2])
+        n_p = n_p.reshape(-1,1)
+        scaler_xy = MinMaxScaler(feature_range=(-0.4, 0.4))
+        scaler_p = MinMaxScaler(feature_range=(0, 1.6))
+        xy_minmax = np.array([0, 1])
+        p_minmax = np.array([0, 1])
+        scaler_xy.fit(xy_minmax[:, np.newaxis])
+        scaler_p.fit(p_minmax[:, np.newaxis])
+        n_x = scaler_xy.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+        n_p = scaler_p.transform(n_p)
+        n_p = n_p.reshape(1,-1)
+        n_p = n_p.flatten()
+        scaled_w = [n_x[0],n_x[1],n_p[0]]
+
+    def set_adapted_numpy_som(self,datas):
+        for i in range(0,datas.shape[0]):
+            for j in range(0,datas.shape[1]):
+                tmp = datas[i,j]
+                w = self.color_to_weights(tmp)
+                self.network[i][j].setWeights(w)
 
     def set_numpy_som(self,datas):
         for i in range(0,datas.shape[0]):
@@ -195,6 +285,17 @@ class Som(object):
         self.bmu = self.network[tmp_i][tmp_j]
 
         return self.bmu
+    
+    def list_peaks(self,data):
+        list_coords = []
+        for i in range(0,self.size):
+            for j in range(0,self.size):
+                val = self.network[i][j].getWeights()
+                if abs(val[0,0] - data[0]) < 0.005 and abs(val[0,1] - data[1]) < 0.005:
+                    coords = [i,j]
+                    list_coords.append(coords)
+        
+        return list_coords
 
     def get_weights_node(self,x,y):
         return self.network[x][y].getWeights()
@@ -286,9 +387,6 @@ class Som(object):
             a = self.get_numpy_som()
             self.im.set_array(a)
             print(self.current_time)
-        #x, y = self.arrange2D()
-        #plt.scatter(x, y)
-        #plt.show()
         
     def arrange2D(self):
         x = []
@@ -432,16 +530,16 @@ if __name__ == "__main__":
     size_map = rospy.get_param(name_init+"size")
     num_feat = rospy.get_param(name_init+"num_feat")
     if data_set == "motion":
-        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"  
+        name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/data_short.txt"  
     if data_set == "pose":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
-    som.init_network()
+    som.init_network_som()
     #som.load_som("simple_50_som.npy")
     if training == True and data_set == "motion":
         #som.build_dataset_motion()
         som.train_som_dataset_motion(name_dataset)
-        som.save_som("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
+        som.save_som("/home/altair/interbotix_ws/src/som/models/new_model_motion.npy")
     if training == True and data_set == "pose":
         #som.build_dataset_pose()
         som.train_som_dataset_pose(name_dataset)
