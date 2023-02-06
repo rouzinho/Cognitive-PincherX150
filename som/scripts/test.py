@@ -5,14 +5,15 @@ import math
 import time
 from sklearn.preprocessing import MinMaxScaler
 
-w = [0.1,0.0,0.8]
+w = [0.4,0.4,1.6]
+c = [0.5,0.5,1.0]
 
 def col_to_w():
-   n_x = np.array(w[0])
+   n_x = np.array(c[0])
    n_x = n_x.reshape(-1,1)
-   n_y = np.array(w[1])
-   n_y = n_x.reshape(-1,1)
-   n_p = np.array(w[2])
+   n_y = np.array(c[1])
+   n_y = n_y.reshape(-1,1)
+   n_p = np.array(c[2])
    n_p = n_p.reshape(-1,1)
    scaler_x = MinMaxScaler(feature_range=(0.05, 0.4))
    scaler_y = MinMaxScaler(feature_range=(-0.4, 0.4))
@@ -40,7 +41,7 @@ def w_to_c():
    n_x = np.array(w[0])
    n_x = n_x.reshape(-1,1)
    n_y = np.array(w[1])
-   n_y = n_x.reshape(-1,1)
+   n_y = n_y.reshape(-1,1)
    n_p = np.array(w[2])
    n_p = n_p.reshape(-1,1)
    scaler_x = MinMaxScaler()
@@ -65,12 +66,13 @@ def w_to_c():
    
    return scaled_w
 
-t = col_to_w()
+
 p = w_to_c()
+t = col_to_w()
 
-print(t)
+
 print(p)
-
+print(t)
 
 
 #data = []

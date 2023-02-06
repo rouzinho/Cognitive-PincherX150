@@ -218,44 +218,62 @@ class Som(object):
         return tmp
     
     def weights_to_color(self,w):
-        n_x = np.array(w[0:2])
+        n_x = np.array(w[0])
         n_x = n_x.reshape(-1,1)
+        n_y = np.array(w[1])
+        n_y = n_y.reshape(-1,1)
         n_p = np.array(w[2])
         n_p = n_p.reshape(-1,1)
-        scaler_xy = MinMaxScaler()
+        scaler_x = MinMaxScaler()
+        scaler_y = MinMaxScaler()
         scaler_p = MinMaxScaler()
-        xy_minmax = np.array([-0.4, 0.4])
+        x_minmax = np.array([0.05, 0.4])
+        y_minmax = np.array([-0.4, 0.4])
         p_minmax = np.array([0, 1.6])
-        scaler_xy.fit(xy_minmax[:, np.newaxis])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        scaler_y.fit(y_minmax[:, np.newaxis])
         scaler_p.fit(p_minmax[:, np.newaxis])
-        n_x = scaler_xy.transform(n_x)
+        n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
         n_x = n_x.flatten()
+        n_y = scaler_y.transform(n_y)
+        n_y = n_y.reshape(1,-1)
+        n_y = n_y.flatten()
         n_p = scaler_p.transform(n_p)
         n_p = n_p.reshape(1,-1)
         n_p = n_p.flatten()
-        scaled_w = [n_x[0],n_x[1],n_p[0]]
+        scaled_w = [n_x[0],n_y[0],n_p[0]]
 
         return scaled_w
     
-    def color_to_weights(self,w):
-        n_x = np.array(w[0:2])
+    def color_to_weights(self,c):
+        n_x = np.array(c[0])
         n_x = n_x.reshape(-1,1)
-        n_p = np.array(w[2])
+        n_y = np.array(c[1])
+        n_y = n_y.reshape(-1,1)
+        n_p = np.array(c[2])
         n_p = n_p.reshape(-1,1)
-        scaler_xy = MinMaxScaler(feature_range=(-0.4, 0.4))
+        scaler_x = MinMaxScaler(feature_range=(0.05, 0.4))
+        scaler_y = MinMaxScaler(feature_range=(-0.4, 0.4))
         scaler_p = MinMaxScaler(feature_range=(0, 1.6))
-        xy_minmax = np.array([0, 1])
+        x_minmax = np.array([0, 1])
+        y_minmax = np.array([0, 1])
         p_minmax = np.array([0, 1])
-        scaler_xy.fit(xy_minmax[:, np.newaxis])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        scaler_y.fit(y_minmax[:, np.newaxis])
         scaler_p.fit(p_minmax[:, np.newaxis])
-        n_x = scaler_xy.transform(n_x)
+        n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
         n_x = n_x.flatten()
+        n_y = scaler_y.transform(n_y)
+        n_y = n_y.reshape(1,-1)
+        n_y = n_y.flatten()
         n_p = scaler_p.transform(n_p)
         n_p = n_p.reshape(1,-1)
         n_p = n_p.flatten()
-        scaled_w = [n_x[0],n_x[1],n_p[0]]
+        scaled_w = [n_x[0],n_y[0],n_p[0]]
+
+        return scaled_w
 
     def set_adapted_numpy_som(self,datas):
         for i in range(0,datas.shape[0]):
@@ -540,7 +558,7 @@ if __name__ == "__main__":
     if training == True and data_set == "motion":
         #som.build_dataset_motion()
         som.train_som_dataset_motion(name_dataset)
-        som.save_som("/home/altair/interbotix_ws/src/som/models/new_model_motion1.npy")
+        som.save_som("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
     if training == True and data_set == "pose":
         #som.build_dataset_pose()
         som.train_som_dataset_pose(name_dataset)
