@@ -394,7 +394,11 @@ class Som(object):
             n = Node(self.num_features)
             if j < s_dat:
                 n.initNodeData(dat[j])
-                print(dat[j])
+                #print(dat[j])
+                ##t = self.weights_to_color(dat[j])
+                #print(t)
+                #w = self.color_to_weights(t)
+                #print(w)
                 j += 1
             if j >= s_dat:
                 j = 0
@@ -558,13 +562,14 @@ if __name__ == "__main__":
     if training == True and data_set == "motion":
         #som.build_dataset_motion()
         som.train_som_dataset_motion(name_dataset)
-        som.save_som("/home/altair/interbotix_ws/src/som/models/model_motion.npy")
+        som.save_som("/home/altair/interbotix_ws/src/som/models/model_motion_large_training.npy")
     if training == True and data_set == "pose":
         #som.build_dataset_pose()
         som.train_som_dataset_pose(name_dataset)
         som.save_som("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
     if training == False:
         som.load_som(model_name,data_set)
+        #som.print_som()
     plt.show()
     while not rospy.is_shutdown():
         pass
