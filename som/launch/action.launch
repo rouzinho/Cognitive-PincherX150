@@ -1,11 +1,11 @@
 <launch>
    <group ns="som_action">
-      <param name="~train_som" type="bool" value="true" />
+      <param name="~train_som" type="bool" value="false" />
       <param name="~dataset" type="str" value="motion" />
-      <param name="~epochs" type="int" value="324000" />
-      <param name="~size" type="int" value="130" />
-      <param name="~num_feat" type="int" value="3" />
-      <param name="~model" type="str" value="$(find som)/models/model_motion.npy" />   
+      <param name="~epochs" type="int" value="422400" />
+      <param name="~size" type="int" value="150" />
+      <param name="~num_feat" type="int" value="4" />
+      <param name="~model" type="str" value="$(find som)/models/model_actions.npy" />   
       <node name="som" pkg="som" type="som_run.py" output="screen"/>
    </group> 
 </launch>
