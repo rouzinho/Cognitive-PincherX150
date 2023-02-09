@@ -33,7 +33,7 @@ class Node(object):
             self.weights[0,i] = random.random()
 
     def initNodeRndPose(self):
-        self.weights[0,0] = random.uniform(-0.4,0.4)
+        self.weights[0,0] = random.uniform(0.05,0.4)
         self.weights[0,1] = random.uniform(-0.4,0.4)
         self.weights[0,2] = random.choice(self.list_pitch)
 
