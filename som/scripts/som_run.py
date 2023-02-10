@@ -145,10 +145,12 @@ class Som(object):
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
             n_bmu = name + "node_values"
-            n_peaks = name + "list_peaks"
-            rospy.Subscriber(n_bmu, Point, self.callback_bmus)
+            ni_peaks = name + "input_list_peaks"
+            no_peaks = name + "output_list_peaks"
+            #rospy.Subscriber(n_bmu, Point, self.callback_bmus)
+            rospy.Subscriber(ni_peaks, ListPeaks, self.callback_list_peaks)
             self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation', GripperOrientation, queue_size=1)
-            self.pub_peaks = rospy.Publisher(n_peaks, ListPeaks, queue_size=1)
+            self.pub_peaks = rospy.Publisher(no_peaks, ListPeaks, queue_size=1)
 
         self.fig = plt.figure()
         self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
@@ -172,9 +174,8 @@ class Som(object):
             go.pitch = tmp[0,2]
             self.pub_node.publish(go)
 
-    def callback_bmus(self,msg):
-        values = [msg.x,msg.y]
-        l_peaks = self.list_peaks(values)
+    def callback_list_peaks(self,msg):
+        l_peaks = self.list_peaks(msg)
         l = ListPeaks()
         for i in l_peaks:
             p = Point()
@@ -185,12 +186,13 @@ class Som(object):
 
     def list_peaks(self,data):
         list_coords = []
-        for i in range(0,self.size):
-            for j in range(0,self.size):
-                val = self.network[i][j].getWeights()
-                if abs(val[0,0] - data[0]) < 0.005 and abs(val[0,1] - data[1]) < 0.005:
-                    coords = [i,j]
-                    list_coords.append(coords)
+        for sample in data.list_peaks:
+            for i in range(0,self.size):
+                for j in range(0,self.size):
+                    val = self.network[i][j].getWeights()
+                    if abs(val[0,0] - sample.x) < 0.005 and abs(val[0,1] - sample.y) < 0.005:
+                        coords = [i,j]
+                        list_coords.append(coords)
         
         return list_coords
 
