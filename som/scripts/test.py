@@ -5,10 +5,39 @@ import math
 import time
 from sklearn.preprocessing import MinMaxScaler
 
-w = [0.4,0.4,1.6]
+w = [0.423,0.755,0.889]
 c = [0.5,0.5,1.0]
 
-def col_to_w():
+def pose_to_color(w):
+   n_x = np.array(w[0])
+   n_x = n_x.reshape(-1,1)
+   n_y = np.array(w[1])
+   n_y = n_y.reshape(-1,1)
+   n_p = np.array(w[2])
+   n_p = n_p.reshape(-1,1)
+   scaler_x = MinMaxScaler()
+   scaler_y = MinMaxScaler()
+   scaler_p = MinMaxScaler()
+   x_minmax = np.array([0.05, 0.4])
+   y_minmax = np.array([-0.4, 0.4])
+   p_minmax = np.array([0, 1.6])
+   scaler_x.fit(x_minmax[:, np.newaxis])
+   scaler_y.fit(y_minmax[:, np.newaxis])
+   scaler_p.fit(p_minmax[:, np.newaxis])
+   n_x = scaler_x.transform(n_x)
+   n_x = n_x.reshape(1,-1)
+   n_x = n_x.flatten()
+   n_y = scaler_y.transform(n_y)
+   n_y = n_y.reshape(1,-1)
+   n_y = n_y.flatten()
+   n_p = scaler_p.transform(n_p)
+   n_p = n_p.reshape(1,-1)
+   n_p = n_p.flatten()
+   scaled_w = [n_x[0],n_y[0],n_p[0]]
+
+   return scaled_w
+    
+def color_to_pose(c):
    n_x = np.array(c[0])
    n_x = n_x.reshape(-1,1)
    n_y = np.array(c[1])
@@ -37,42 +66,11 @@ def col_to_w():
 
    return scaled_w
 
-def w_to_c():
-   n_x = np.array(w[0])
-   n_x = n_x.reshape(-1,1)
-   n_y = np.array(w[1])
-   n_y = n_y.reshape(-1,1)
-   n_p = np.array(w[2])
-   n_p = n_p.reshape(-1,1)
-   scaler_x = MinMaxScaler()
-   scaler_y = MinMaxScaler()
-   scaler_p = MinMaxScaler()
-   x_minmax = np.array([0.05, 0.4])
-   y_minmax = np.array([-0.4, 0.4])
-   p_minmax = np.array([0, 1.6])
-   scaler_x.fit(x_minmax[:, np.newaxis])
-   scaler_y.fit(y_minmax[:, np.newaxis])
-   scaler_p.fit(p_minmax[:, np.newaxis])
-   n_x = scaler_x.transform(n_x)
-   n_x = n_x.reshape(1,-1)
-   n_x = n_x.flatten()
-   n_y = scaler_y.transform(n_y)
-   n_y = n_y.reshape(1,-1)
-   n_y = n_y.flatten()
-   n_p = scaler_p.transform(n_p)
-   n_p = n_p.reshape(1,-1)
-   n_p = n_p.flatten()
-   scaled_w = [n_x[0],n_y[0],n_p[0]]
-   
-   return scaled_w
 
-
-p = w_to_c()
-t = col_to_w()
+p = color_to_pose(w)
 
 
 print(p)
-print(t)
 
 
 #data = []

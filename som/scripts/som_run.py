@@ -128,9 +128,6 @@ class Som(object):
         rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
-        n_bmu = name + "node_values"
-        rospy.Subscriber(n_bmu, Point, self.callback_bmus)
-        n_peaks = name + "list_peaks"
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -146,15 +143,18 @@ class Som(object):
         self.mode = mode
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
-            self.pub_peaks = rospy.Publisher(n_peaks, ListPeaks, queue_size=1)
         else:
+            n_bmu = name + "node_values"
+            n_peaks = name + "list_peaks"
+            rospy.Subscriber(n_bmu, Point, self.callback_bmus)
             self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation', GripperOrientation, queue_size=1)
-        if num_features != 2:
-            self.fig = plt.figure()
-            self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
-            self.map = np.random.random((s, s, num_features))
-            self.im = plt.imshow(self.map,interpolation='none')
-            self.cluster_map = np.zeros((self.size,self.size,1))
+            self.pub_peaks = rospy.Publisher(n_peaks, ListPeaks, queue_size=1)
+
+        self.fig = plt.figure()
+        self.ax = plt.axes(xlim=(-1, s), ylim=(-1, s))
+        self.map = np.random.random((s, s, num_features))
+        self.im = plt.imshow(self.map,interpolation='none')
+        self.cluster_map = np.zeros((self.size,self.size,1))
 
     def callbackNode(self,msg):
         tmp = self.get_weights_node(int(msg.x),int(msg.y))
@@ -162,12 +162,14 @@ class Som(object):
             va = VectorAction()
             va.x = tmp[0,0]
             va.y = tmp[0,1]
-            va.grasp = tmp[0,2]
+            va.roll = tmp[0,2]
+            va.grasp = tmp[0,3]
             self.pub_node.publish(va)
         else:
             go = GripperOrientation()
-            go.roll = tmp[0,0]
-            go.pitch = tmp[0,1]
+            go.x = tmp[0,0]
+            go.y = tmp[0,1]
+            go.pitch = tmp[0,2]
             self.pub_node.publish(go)
 
     def callback_bmus(self,msg):
@@ -180,6 +182,17 @@ class Som(object):
             p.y = i[1] 
             l.list_peaks.append(p)
         self.pub_peaks.publish(l)
+
+    def list_peaks(self,data):
+        list_coords = []
+        for i in range(0,self.size):
+            for j in range(0,self.size):
+                val = self.network[i][j].getWeights()
+                if abs(val[0,0] - data[0]) < 0.005 and abs(val[0,1] - data[1]) < 0.005:
+                    coords = [i,j]
+                    list_coords.append(coords)
+        
+        return list_coords
 
     def init_network(self):
         for i in range(self.size):
@@ -396,17 +409,6 @@ class Som(object):
         self.bmu = self.network[tmp_i][tmp_j]
 
         return self.bmu
-    
-    def list_peaks(self,data):
-        list_coords = []
-        for i in range(0,self.size):
-            for j in range(0,self.size):
-                val = self.network[i][j].getWeights()
-                if abs(val[0,0] - data[0]) < 0.005 and abs(val[0,1] - data[1]) < 0.005:
-                    coords = [i,j]
-                    list_coords.append(coords)
-        
-        return list_coords
 
     def get_weights_node(self,x,y):
         return self.network[x][y].getWeights()
