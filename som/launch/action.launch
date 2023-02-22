@@ -5,7 +5,7 @@
       <param name="~epochs" type="int" value="422400" />
       <param name="~size" type="int" value="150" />
       <param name="~num_feat" type="int" value="4" />
-      <param name="~model" type="str" value="$(find som)/models/model_actions.npy" />   
+      <param name="~model" type="str" value="$(find som)/models/model_actions150.npy" />   
       <node name="som" pkg="som" type="som_run.py" output="screen"/>
    </group> 
 </launch>

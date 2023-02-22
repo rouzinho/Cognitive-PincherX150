@@ -3,9 +3,9 @@
       <param name="~train_som" type="bool" value="false" />
       <param name="~dataset" type="str" value="pose" />
       <param name="~epochs" type="int" value="324000" />
-      <param name="~size" type="int" value="130" />
+      <param name="~size" type="int" value="135" />
       <param name="~num_feat" type="int" value="3" />
-      <param name="~model" type="str" value="$(find som)/models/model_pose130.npy" />   
+      <param name="~model" type="str" value="$(find som)/models/model_pose135.npy" />   
       <node name="som" pkg="som" type="som_run.py" output="screen"/>
    </group> 
 </launch>

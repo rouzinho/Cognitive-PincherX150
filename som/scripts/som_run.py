@@ -256,6 +256,9 @@ class Som(object):
             for j in range(0,tmp.shape[1]):
                 w = self.network[i][j].getWeights()
                 scaled = self.action_to_color(w[0])
+                #for display
+                #if scaled[3] < 0.5:
+                #    scaled[3] = 0.3
                 tmp[i,j] = scaled
 
         return tmp
