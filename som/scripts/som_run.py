@@ -182,6 +182,7 @@ class Som(object):
             p.x = i[0]
             p.y = i[1] 
             l.list_peaks.append(p)
+        print("sending list peaks")
         self.pub_peaks.publish(l)
 
     def list_peaks(self,data):
