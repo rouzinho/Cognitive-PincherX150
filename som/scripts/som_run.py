@@ -43,6 +43,17 @@ class Node(object):
         self.weights[0,2] = random.choice(self.list_roll)
         self.weights[0,3] = random.choice(self.list_touch)
 
+    def initNodeStaticPose(self):
+        self.weights[0,0] = 0.5
+        self.weights[0,1] = 0.5
+        self.weights[0,2] = 0.5
+
+    def initNodeStaticAction(self):
+        self.weights[0,0] = 0.5
+        self.weights[0,1] = 0.5
+        self.weights[0,2] = 0.5
+        self.weights[0,3] = 0.5
+
     def initNodeValues(self,data):
         self.weights[0,0] = data[0]
         self.weights[0,1] = data[1]
@@ -213,7 +224,8 @@ class Som(object):
             for j in range(self.size):
                 tmp = Node(self.num_features)
                 tmp.initNodeCoor(i,j)
-                tmp.initNodeRndPose()
+                #tmp.initNodeRndPose()
+                tmp.initNodeStaticPose()
                 tmp_l.append(tmp)
             self.network.append(tmp_l)
 
@@ -223,7 +235,8 @@ class Som(object):
             for j in range(self.size):
                 tmp = Node(self.num_features)
                 tmp.initNodeCoor(i,j)
-                tmp.initNodeRndAction()
+                #tmp.initNodeRndAction()
+                tmp.initNodeStaticAction()
                 tmp_l.append(tmp)
             self.network.append(tmp_l)
 
