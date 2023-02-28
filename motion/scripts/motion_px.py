@@ -72,6 +72,7 @@ class Motion(object):
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
+    self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -115,6 +116,7 @@ class Motion(object):
       self.first_pose.x = msg.x
       self.first_pose.y = msg.y
       self.first_pose.pitch = msg.pitch
+      self.bool_init_p = True
 
   def callback_last_pose(self,msg):
     if self.bool_last_p == False:
@@ -153,13 +155,13 @@ class Motion(object):
   def callback_new_state(self,msg):
     if msg.data == True:
       self.bool_init_p = False
-      self.bool_grip_or = False
+      self.bool_last_p = False
       self.bool_act = False
       self.update_offline_dataset(True)
 
   def callback_retry(self,msg):
     if msg.data == True:
-      self.bool_init_p = False
+      self.bool_act = False
       self.update_offline_dataset(False)
 
   def makeLFDRequest(self,traj):
@@ -365,21 +367,28 @@ class Motion(object):
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
 
+  def define_action(self):
+    if self.bool_init_p and self.bool_act:
+      go = GripperOrientation()
+      go.x = self.first_pose.x + self.action.x
+      go.y = self.first_pose.y + self.action.y
+      go.pitch = self.first_pose.pitch
+      self.pub_bmu.publish(go)
+      
+
   def execute_action(self,record):
-    if self.bool_act == True  and self.bool_grip_or == True and self.bool_init_p == True:
+    if self.bool_last_p:
       print("in the loop")
-      self.init_position()
-      u = self.init_pose.position.x + self.action.x
-      v = self.init_pose.position.y + self.action.y
+      self.init_position()     
       if self.action.grasp > 0.5:
         self.open_gripper()
       else:
         self.close_gripper()
-      self.bot.arm.set_ee_pose_components(x=self.init_pose.position.x, y=self.init_pose.position.y, z=self.init_pose.position.z, roll=self.gripper_orientation.roll, pitch=self.gripper_orientation.pitch)
-      self.bot.arm.set_ee_pose_components(x=u, y=v, z=self.init_pose.position.z, roll=self.gripper_orientation.roll, pitch=self.gripper_orientation.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=self.action.roll, pitch=self.first_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=self.action.roll, pitch=self.last_pose.pitch)
       self.close_gripper()
       self.sleep_pose()
-      self.bool_init_p = False
+      self.bool_last_p = False
 
   def run_possibilities(self):
     name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/data_short.txt"
