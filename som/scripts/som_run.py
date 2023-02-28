@@ -155,12 +155,13 @@ class Som(object):
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
-            n_bmu = name + "node_values"
+            n_bmu = name + "node_value/bmu"
             ni_peaks = name + "input_list_peaks"
             no_peaks = name + "output_list_peaks"
-            #rospy.Subscriber(n_bmu, Point, self.callback_bmus)
+            rospy.Subscriber(n_bmu, GripperOrientation, self.callback_bmu)
             rospy.Subscriber(ni_peaks, ListPeaks, self.callback_list_peaks)
-            self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation', GripperOrientation, queue_size=1)
+            self.pub_bmu = rospy.Publisher('/motion_pincher/gripper_orientation/bmu_last_pose', GripperOrientation, queue_size=1)
+            self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, queue_size=1)
             self.pub_peaks = rospy.Publisher(no_peaks, ListPeaks, queue_size=1)
 
         self.fig = plt.figure()
@@ -168,6 +169,18 @@ class Som(object):
         self.map = np.random.random((s, s, num_features))
         self.im = plt.imshow(self.map,interpolation='none')
         self.cluster_map = np.zeros((self.size,self.size,1))
+
+    def callback_bmu(self,msg):
+        data = [msg.x,msg.y,msg.pitch]
+        n = Node(self.num_features)
+        n.setWeights(data)
+        bmu = self.get_bmu(n)
+        dat_bmu = bmu.getWeights()
+        go = GripperOrientation()
+        go.x = dat_bmu[0,0]
+        go.y = dat_bmu[0,1]
+        go.pitch = dat_bmu[0,2]
+        self.pub_bmu.publish(go)
 
     def callbackNode(self,msg):
         tmp = self.get_weights_node(int(msg.x),int(msg.y))
@@ -193,7 +206,6 @@ class Som(object):
             p.x = i[0]
             p.y = i[1] 
             l.list_peaks.append(p)
-        print("sending list peaks")
         self.pub_peaks.publish(l)
 
     def list_peaks(self,data):
