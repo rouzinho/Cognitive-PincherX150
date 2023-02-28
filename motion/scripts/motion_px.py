@@ -75,8 +75,8 @@ class Motion(object):
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
-    rospy.Subscriber('/motion_pincher/start_position', Pose, self.callback_xy)
-    rospy.Subscriber('/motion_pincher/gripper_orientation', GripperOrientation, self.callback_gripper)
+    rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
+    rospy.Subscriber('/motion_pincher/gripper_orientation/bmu_last_pose', GripperOrientation, self.callback_last_pose)
     rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
     rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
@@ -87,10 +87,11 @@ class Motion(object):
     self.js_positions = []
     self.stop_pressing = False
     self.init_pose = geometry_msgs.msg.Pose()
-    self.gripper_orientation = GripperOrientation()
+    self.first_pose = GripperOrientation()
+    self.last_pose = GripperOrientation()
     self.action = VectorAction()
     self.bool_init_p = False
-    self.bool_grip_or = False
+    self.bool_last_p = False
     self.bool_act = False
     self.move = False
     self.move_dmp = False
@@ -109,24 +110,25 @@ class Motion(object):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
     self.init_position()
 
-  def callback_xy(self,msg):
+  def callback_first_pose(self,msg):
     if self.bool_init_p == False:
-      self.init_pose.position.x = msg.position.x
-      self.init_pose.position.y = msg.position.y
-      self.init_pose.position.z = msg.position.z
-      self.bool_init_p = True
+      self.first_pose.x = msg.x
+      self.first_pose.y = msg.y
+      self.first_pose.pitch = msg.pitch
 
-  def callback_gripper(self,msg):
-    if self.bool_grip_or == False:
-      self.gripper_orientation.roll = msg.roll
-      self.gripper_orientation.pitch = msg.pitch
-      self.bool_grip_or = True
+  def callback_last_pose(self,msg):
+    if self.bool_last_p == False:
+      self.last_pose.x = msg.x
+      self.last_pose.y = msg.y
+      self.last_pose.pitch = msg.pitch
+      self.bool_last_p = True
 
   def callback_vector_action(self,msg):
     if self.bool_act == False:
       self.action.x = msg.x
       self.action.y = msg.y
       self.action.z = 0.0
+      self.action.roll = msg.roll
       self.action.grasp = msg.grasp
       self.bool_act = True
 
