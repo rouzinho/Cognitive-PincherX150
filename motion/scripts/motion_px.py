@@ -98,7 +98,7 @@ class Motion(object):
     self.move_dmp = False
     self.activate_dmp = False
     self.path = []
-    self.name_ee = "/home/altair/interbotix_ws/rosbags/forward.bag"
+    self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
     self.name_dmp = "/home/altair/interbotix_ws/rosbags/forward_dmp.bag"
     self.record = False
     self.dims = 5
@@ -106,6 +106,7 @@ class Motion(object):
     self.K_gain = 100              
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 4
+    self.single_msg = True
 
   def callback_pose(self,msg):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
@@ -117,8 +118,10 @@ class Motion(object):
       self.first_pose.y = msg.y
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
+      print(self.first_pose)
 
   def callback_last_pose(self,msg):
+    print("Got last Pose")
     if self.bool_last_p == False:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
@@ -133,6 +136,7 @@ class Motion(object):
       self.action.roll = msg.roll
       self.action.grasp = msg.grasp
       self.bool_act = True
+      print(self.action)
 
   def callback_pressure(self,msg):
     if msg.data < 200:
@@ -157,11 +161,13 @@ class Motion(object):
       self.bool_init_p = False
       self.bool_last_p = False
       self.bool_act = False
+      self.single_msg = True
       self.update_offline_dataset(True)
 
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_act = False
+      self.single_msg = True
       self.update_offline_dataset(False)
 
   def makeLFDRequest(self,traj):
@@ -189,18 +195,19 @@ class Motion(object):
     return resp;
 
   def write_joints_bag(self,n,pos):
-    name = n
-    exist = path.exists(name)
+    exist = path.exists(n)
     opening = ""
     if(exist == True):
       opening = "a"
     else:
       opening = "w"
-    bag = rosbag.Bag(name, opening)
+    bag = rosbag.Bag(n, opening)
     try:
+      print("writing js")
       bag.write("js",pos)
-    finally:
-      bag.close()
+    except:
+      print("error recording js")
+    bag.close()
 
   def form_data_joint_states(self):
     name = self.name_ee
@@ -255,7 +262,7 @@ class Motion(object):
       opening = "w"
     else:
       opening = "a"
-    data = str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.grasp) + " " + str(self.gripper_orientation.pitch) + " " + str(self.gripper_orientation.roll) + " " +name_state + " " + str(status) + "\n"
+    data = str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.roll) + " " + str(self.action.grasp) + " " +name_state + " " + str(status) + "\n"
     with open(name_dataset, opening) as f:
         f.write(data)
     f.close()
@@ -263,13 +270,11 @@ class Motion(object):
 
   def name_dmp(action):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
-    nx = ""
-    ny = ""
-    gr = ""
     nx = "x"+str(action.x)
     ny = "y"+str(action.y)
+    nr = "r"+str(action.roll)
     gr = "g"+str(action.grasp)
-    name = name + nx + ny + gr + "r.bag"
+    name = name + nx + ny + nr + gr + "r.bag"
 
     return name
     
@@ -294,7 +299,7 @@ class Motion(object):
     
     return found, right_file
 
-  def makeDMP(self,name_dmp):
+  def make_dmp(self,name_dmp):
     traj = self.form_data_joint_states()
     resp = self.makeLFDRequest(traj)
     print(resp)
@@ -368,15 +373,16 @@ class Motion(object):
     self.pub_gripper.publish(jsc)
 
   def define_action(self):
-    if self.bool_init_p and self.bool_act:
+    if self.bool_init_p and self.bool_act and self.single_msg:
       go = GripperOrientation()
       go.x = self.first_pose.x + self.action.x
       go.y = self.first_pose.y + self.action.y
       go.pitch = self.first_pose.pitch
       self.pub_bmu.publish(go)
+      self.single_msg = False
       
 
-  def execute_action(self,record):
+  def execute_action(self,record_dmp):
     if self.bool_last_p:
       print("in the loop")
       self.init_position()     
@@ -384,11 +390,16 @@ class Motion(object):
         self.open_gripper()
       else:
         self.close_gripper()
+      print("first pose : ",self.first_pose)
+      print("last pose : ",self.last_pose)
+      self.record = record_dmp
       self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=self.action.roll, pitch=self.first_pose.pitch)
       self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=self.action.roll, pitch=self.last_pose.pitch)
+      self.record = False
       self.close_gripper()
       self.sleep_pose()
       self.bool_last_p = False
+      self.bool_act = False
 
   def run_possibilities(self):
     name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/data_short.txt"
@@ -482,11 +493,7 @@ if __name__ == '__main__':
 
   while not rospy.is_shutdown():
     if first == True:
-      #motion_pincher.open_gripper()
-      #motion_pincher.close_gripper()
-      #motion_pincher.execute_action(record)
-      #motion_pincher.check_pos()
-      motion_pincher.run_possibilities()
-      print("finished")
-      first = False
+      motion_pincher.define_action()
+      motion_pincher.execute_action(True)
+      #first = False
   rospy.spin()
