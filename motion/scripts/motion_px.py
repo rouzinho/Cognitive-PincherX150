@@ -33,6 +33,8 @@ from sensor_msgs.msg import JointState
 from motion.msg import PoseRPY
 from motion.msg import GripperOrientation
 from motion.msg import VectorAction
+from motion.msg import Dmp
+import os
 import os.path
 from os import path
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
@@ -54,7 +56,7 @@ def makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh,
     print("Starting DMP planning...")
     rospy.wait_for_service('get_dmp_plan')
     try:
-        gdp = rospy.ServiceProxy('get_dmp_plan', get_dmpPlan)
+        gdp = rospy.ServiceProxy('get_dmp_plan', GetDMPPlan)
         resp = gdp(x_0, x_dot_0, t_0, goal, goal_thresh, 
                    seg_length, tau, dt, integrate_iter)
     except rospy.ServiceException:
@@ -82,6 +84,9 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
+    rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
+    rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
+    rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
 
     self.gripper_state = 0.0
     self.js = JointState()
@@ -99,7 +104,6 @@ class Motion(object):
     self.activate_dmp = False
     self.path = []
     self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
-    self.name_dmp = "/home/altair/interbotix_ws/rosbags/forward_dmp.bag"
     self.record = False
     self.dims = 5
     self.dt = 1.0
@@ -107,25 +111,38 @@ class Motion(object):
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 4
     self.single_msg = True
+    self.explore = False
+    self.exploit = False
+    self.dmp = Dmp()
+    self.dmp_name = ""
+    self.dmp_found = False
+    self.goal_dmp = False
 
   def callback_pose(self,msg):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
     self.init_position()
 
   def callback_first_pose(self,msg):
-    if self.bool_init_p == False:
+    if self.bool_init_p == False and self.explore:
       self.first_pose.x = msg.x
       self.first_pose.y = msg.y
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
       print(self.first_pose)
+    if self.exploit:
+      self.pub_bmu.publish(msg)
 
   def callback_last_pose(self,msg):
-    print("Got last Pose")
-    if self.bool_last_p == False:
+    if self.bool_last_p == False and self.explore:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
+      self.bool_last_p = True
+    if self.bool_last_p == False and self.exploit:
+      self.last_pose.x = msg.x
+      self.last_pose.y = msg.y
+      self.last_pose.pitch = msg.pitch
+      self.goal_dmp = True
       self.bool_last_p = True
 
   def callback_vector_action(self,msg):
@@ -156,19 +173,51 @@ class Motion(object):
     if self.record == True:
       self.write_joints_bag(self.name_ee,msg)
 
+  def callback_dmp(self,msg):
+    self.dmp.x = msg.x
+    self.dmp.y = msg.y
+    self.dmp.roll = msg.roll
+    self.dmp.pitch = msg.pitch
+    self.dmp.grasp = msg.grasp
+    self.dmp_found, self.dmp_name = self.find_dmp(msg)
+    if self.dmp_found:
+      print("found DMP : ",self.dmp_name)
+    else:
+      print("DMP not found")
+
   def callback_new_state(self,msg):
     if msg.data == True:
       self.bool_init_p = False
       self.bool_last_p = False
       self.bool_act = False
       self.single_msg = True
+      self.make_dmp()
       self.update_offline_dataset(True)
+      self.delete_js_bag()
 
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_act = False
       self.single_msg = True
       self.update_offline_dataset(False)
+
+  def callback_exploration(self,msg):
+    self.explore = msg.data
+    self.bool_act = False
+    self.bool_init_p = False
+    self.bool_last_p = False
+
+  def callback_exploitation(self,msg):
+    self.exploit = msg.data
+    self.bool_act = False
+    self.bool_init_p = False
+    self.bool_last_p = False
+
+  def delete_js_bag(self):
+    if os.path.exists(self.name_ee):
+      os.remove(self.name_ee)
+    else:
+      print("JS Bag file doesn't exist") 
 
   def makeLFDRequest(self,traj):
     demotraj = DMPTraj()        
@@ -226,11 +275,7 @@ class Motion(object):
   def write_dmp_bag(self,data,n):
     name = n
     exist = path.exists(name)
-    opening = ""
-    if(exist == False):
-      opening = "w"
-    else:
-      opening = "a"
+    opening = "w"
     bag = rosbag.Bag(name, opening)
     try:
       bag.write("dmp_pos",data)
@@ -238,7 +283,7 @@ class Motion(object):
       bag.close()
 
   def read_dmp_bag(self,name):
-    bag = rosbag.Bag(self.name_dmp)
+    bag = rosbag.Bag(self.name)
     for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
       print(msg)
     bag.close()
@@ -250,6 +295,12 @@ class Motion(object):
     bag.close()
 
     return resp
+  
+  def get_explore(self):
+    return self.explore
+  
+  def get_exploit(self):
+    return self.exploit
 
   def update_offline_dataset(self,status):
     name_dataset_states = "/home/altair/interbotix_ws/src/depth_perception/states/"
@@ -268,17 +319,18 @@ class Motion(object):
     f.close()
 
 
-  def name_dmp(action):
+  def name_dmp(self):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
-    nx = "x"+str(action.x)
-    ny = "y"+str(action.y)
-    nr = "r"+str(action.roll)
-    gr = "g"+str(action.grasp)
-    name = name + nx + ny + nr + gr + "r.bag"
+    nx = "x"+str(round(self.action.x,2))
+    ny = "y"+str(round(self.action.y,2))
+    nr = "r"+str(round(self.action.roll,1))
+    gr = "g"+str(round(self.action.grasp,0))
+    p = "p"+str(round(self.last_pose.pitch,1))
+    name = name + nx + ny + nr + gr + p + "end.bag"
 
     return name
     
-  def find_dmp(action):
+  def find_dmp(self,dmp):
     name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
     found = False
     right_file = ""
@@ -287,42 +339,48 @@ class Motion(object):
         p_y = file.find('y')
         p_g = file.find('g')
         p_r = file.find('r')
+        p_p = file.find('p')
+        p_end = file.find('end')
         x = file[p_x+1:p_y]
-        y = file[p_y+1:p_g]
-        g = file[p_g+1:p_r]
+        y = file[p_y+1:p_r]
+        r = file[p_r+1:p_g]
+        g = file[p_g+1:p_p]
+        p = file[p_p+1:p_end]
         x = float(x)
         y = float(y)
+        r = float(r)
         g = float(g)
-        if action.x - x < 0.05 and action.y - y < 0.05 and action.grasp - g < 0.05:
+        p = float(p)
+        if dmp.x - x < 0.05 and dmp.y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05 and dmp.pitch - p < 0.05:
             found = True
             right_file = file
-    
+    right_file = name_dir + right_file
     return found, right_file
 
-  def make_dmp(self,name_dmp):
+  def make_dmp(self):
     traj = self.form_data_joint_states()
     resp = self.makeLFDRequest(traj)
-    print(resp)
-    self.write_dmp_bag(resp,name_dmp)
+    n = self.name_dmp()
+    self.write_dmp_bag(resp,n)
 
-  def play_motion_dmp(self,name_dmp,goal):
+  def play_motion_dmp(self):
     tmp = self.js_positions
-    print(tmp)
     curr = []
     for i in range(0,5):
       curr.append(tmp[i])
-    resp = self.get_dmp(name_dmp)
+    resp = self.get_dmp(self.dmp_name)
     #print("Get DMP :")
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
-    #goal = [0.3709951601922512, 0.08797463793307543, 0.7709327504038811, -0.07890698444098235, 1.505357144537811e-06]
-    #goal = [-0.3137078918516636, 0.2984987303111935, 0.4029244794423692, 0.07907685257397824, -1.1780148867046465e-06]
+    goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.03,self.dmp.roll,self.dmp.pitch) 
+    if found:
+      print("found goal to reach")
     goal_thresh = [0.1]
     x_0 = curr         #Plan starting at a different point than demo 
     x_dot_0 = [0.0,0.0,0.0,0.0,0.0]   
     t_0 = 0                
     seg_length = -1          #Plan until convergence to goal
-    tau = resp.tau / 1.5       # /4 is good enough
+    tau = resp.tau / 4       # /4 is good enough
     dt = 1.0 
     integrate_iter = 5       #dt is rather large, so this is > 1  
     planned_dmp = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, seg_length, tau, dt, integrate_iter)
@@ -335,7 +393,6 @@ class Motion(object):
       print(j)
       j+=1
 
-
   def shrink_dmp(self,data,desired):
     tot = 0
     path = []
@@ -347,6 +404,19 @@ class Motion(object):
       if tot > 0.04:
         path.append(i.positions)
     return path
+  
+  def execute_dmp(self):
+    if self.dmp_found and self.goal_dmp:
+      self.init_position()     
+      if self.dmp.grasp > 0.5:
+        self.open_gripper()
+      else:
+        self.close_gripper()
+      self.play_motion_dmp()
+      self.close_gripper()
+      self.sleep_pose()
+      self.goal_dmp = False
+      self.bool_last_p = False
 
   def get_move(self):
     return self.move
@@ -433,15 +503,14 @@ class Motion(object):
             with open(name_dataset, "a") as f:
               f.write(data)
             f.close()
-          
 
   def test_interface(self):
     self.bot.arm.go_to_home_pose()
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(1.0)
-    self.record = True
+    #self.record = True
     #self.write_joints_bag(self.name_ee,self.js)
-    self.bot.arm.set_ee_pose_components(x=0.15, y=0.0, z=0.02, roll=0.0, pitch=0.8)
+    self.bot.arm.set_ee_pose_components(x=0.15, y=0.25, z=0.02, roll=0.0, pitch=1.0)
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(0.5)
     #elf.record = True
@@ -450,18 +519,18 @@ class Motion(object):
     #print("done first")
     #self.joints_pos()
     #print("done second in joints space")
-    self.bot.arm.set_ee_pose_components(x=0.3, y=0.0, z=0.02, roll=0.0, pitch=0.8)
-    self.record = False
+    #self.bot.arm.set_ee_pose_components(x=0.3, y=0.0, z=0.02, roll=0.0, pitch=0.8)
+    #self.record = False
     #self.write_joints_bag(self.name_ee,self.js)
     #ospy.sleep(0.5)
     #self.record = False
     #print(self.js)
     #bot.arm.set_single_joint_position("waist", -np.pi/4.0)
     #print("sleep pose")
-    self.bot.arm.go_to_home_pose()
-    self.bot.arm.set_ee_pose_components(x=0.3, y=-0.1, z=0.02, roll=0.0, pitch=0.8)
-    print(self.js)
-    self.bot.arm.go_to_home_pose()
+    #self.bot.arm.go_to_home_pose()
+    #self.bot.arm.set_ee_pose_components(x=0.3, y=-0.1, z=0.02, roll=0.0, pitch=0.8)
+    #print(self.js)
+    #self.bot.arm.go_to_home_pose()
     #print("went to sleep")
 
   def init_position(self):
@@ -485,6 +554,13 @@ if __name__ == '__main__':
   motion_pincher = Motion()
   first = True
   record = False
+  go = GripperOrientation()
+  ac = VectorAction()
+  go.pitch = 0.6
+  ac.x = -0.01
+  ac.y = 0.09
+  ac.roll = 0.0
+  ac.grasp = 0.0
   #first = True
   rospy.sleep(2.0)
   #motion_planning.open_gripper()
@@ -492,8 +568,13 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
+    # if motion_pincher.get_explore():
+    #   motion_pincher.define_action()
+    #   motion_pincher.execute_action(True)
+    # if motion_pincher.get_exploit():
+    #   motion_pincher.execute_dmp()
     if first == True:
-      motion_pincher.define_action()
-      motion_pincher.execute_action(True)
-      #first = False
+      motion_pincher.test_interface()
+      first = False
+
   rospy.spin()

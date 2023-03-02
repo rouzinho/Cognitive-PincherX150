@@ -60,6 +60,7 @@ add_message_files(
   PoseRPY.msg
   GripperOrientation.msg
   VectorAction.msg
+  Dmp.msg
 )
 
 ## Generate services in the 'srv' folder
