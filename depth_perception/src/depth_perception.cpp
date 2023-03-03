@@ -420,7 +420,7 @@ class DepthImage
           cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
           cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
           fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-
+          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/example.jpg", fil);
           cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
