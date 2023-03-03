@@ -30,10 +30,12 @@ from std_msgs.msg import Header
 from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
 from sensor_msgs.msg import JointState
-from motion.msg import PoseRPY
-from motion.msg import GripperOrientation
-from motion.msg import VectorAction
+from som.msg import PoseRPY
+from som.msg import GripperOrientation
+from som.msg import VectorAction
 from motion.msg import Dmp
+from som.msg import ListPose
+from som.srv import *
 import os
 import os.path
 from os import path
@@ -65,6 +67,29 @@ def makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh,
             
     return resp;
 
+def return_bmu(sample):
+  #rospy.wait_for_service('get_bmu')
+  bm = rospy.ServiceProxy('som_pose/get_bmu', GetBMU)
+  try:
+      req = GetBMURequest()
+      req.sample = sample
+      resp = bm(req)
+      return resp
+  except rospy.ServiceException as e:
+      print("Service call failed: %s"%e)
+
+def return_path(path):
+  #rospy.wait_for_service('get_bmu')
+  gp = rospy.ServiceProxy('som_pose/get_path', GetPath)
+  try:
+      req = GetPathRequest()
+      for i in path.list_pose:
+        req.sample.list_pose.append(i)
+      resp = gp(req)
+      return resp
+  except rospy.ServiceException as e:
+      print("Service call failed: %s"%e)
+
 
 class Motion(object):
   def __init__(self):
@@ -75,11 +100,12 @@ class Motion(object):
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
     self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
+    self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
+    rospy.Subscriber('/proprioception/ee_pose', Pose, self.callback_proprioception)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
-    rospy.Subscriber('/motion_pincher/gripper_orientation/bmu_last_pose', GripperOrientation, self.callback_last_pose)
     rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
     rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
@@ -105,7 +131,7 @@ class Motion(object):
     self.path = []
     self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
     self.record = False
-    self.dims = 5
+    self.dims = 3
     self.dt = 1.0
     self.K_gain = 100              
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
@@ -117,6 +143,10 @@ class Motion(object):
     self.dmp_name = ""
     self.dmp_found = False
     self.goal_dmp = False
+    self.pose_ee = Pose()
+    self.bool_dmp_plan = False
+    self.path = ListPose()
+    self.prop = JointState()
 
   def callback_pose(self,msg):
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
@@ -128,17 +158,8 @@ class Motion(object):
       self.first_pose.y = msg.y
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
-      print(self.first_pose)
+      print("first pose : ",self.first_pose)
     if self.exploit:
-      self.pub_bmu.publish(msg)
-
-  def callback_last_pose(self,msg):
-    if self.bool_last_p == False and self.explore:
-      self.last_pose.x = msg.x
-      self.last_pose.y = msg.y
-      self.last_pose.pitch = msg.pitch
-      self.bool_last_p = True
-    if self.bool_last_p == False and self.exploit:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
@@ -153,7 +174,7 @@ class Motion(object):
       self.action.roll = msg.roll
       self.action.grasp = msg.grasp
       self.bool_act = True
-      print(self.action)
+      print("action : ",self.action)
 
   def callback_pressure(self,msg):
     if msg.data < 200:
@@ -170,8 +191,9 @@ class Motion(object):
     self.gripper_state = msg.position[6]
 
   def callback_proprioception(self,msg):
+    self.prop = msg
     if self.record == True:
-      self.write_joints_bag(self.name_ee,msg)
+      self.write_joints_bag(self.name_ee,self.prop)
 
   def callback_dmp(self,msg):
     self.dmp.x = msg.x
@@ -190,15 +212,13 @@ class Motion(object):
       self.bool_init_p = False
       self.bool_last_p = False
       self.bool_act = False
-      self.single_msg = True
       self.make_dmp()
       self.update_offline_dataset(True)
       self.delete_js_bag()
 
   def callback_retry(self,msg):
     if msg.data == True:
-      self.bool_act = False
-      self.single_msg = True
+      self.bool_init_p = False
       self.update_offline_dataset(False)
 
   def callback_exploration(self,msg):
@@ -393,6 +413,7 @@ class Motion(object):
       print(j)
       j+=1
 
+
   def shrink_dmp(self,data,desired):
     tot = 0
     path = []
@@ -401,7 +422,7 @@ class Motion(object):
       for j in range(0,len(desired)):
         diff = abs(abs(i.positions[j]) - abs(desired[j]))
         tot = tot + diff
-      if tot > 0.04:
+      if tot > 0.01:
         path.append(i.positions)
     return path
   
@@ -443,13 +464,17 @@ class Motion(object):
     self.pub_gripper.publish(jsc)
 
   def define_action(self):
-    if self.bool_init_p and self.bool_act and self.single_msg:
+    if self.bool_init_p and self.bool_act:
       go = GripperOrientation()
       go.x = self.first_pose.x + self.action.x
       go.y = self.first_pose.y + self.action.y
       go.pitch = self.first_pose.pitch
-      self.pub_bmu.publish(go)
-      self.single_msg = False
+      resp = return_bmu(go)
+      self.last_pose.x = resp.bmu.x
+      self.last_pose.y = resp.bmu.y
+      self.last_pose.pitch = resp.bmu.pitch
+      print("last pose : ",self.last_pose)
+      self.bool_last_p = True
       
 
   def execute_action(self,record_dmp):
@@ -460,8 +485,6 @@ class Motion(object):
         self.open_gripper()
       else:
         self.close_gripper()
-      print("first pose : ",self.first_pose)
-      print("last pose : ",self.last_pose)
       self.record = record_dmp
       self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=self.action.roll, pitch=self.first_pose.pitch)
       self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=self.action.roll, pitch=self.last_pose.pitch)
@@ -469,7 +492,8 @@ class Motion(object):
       self.close_gripper()
       self.sleep_pose()
       self.bool_last_p = False
-      self.bool_act = False
+      self.bool_init_p = False
+      #self.bool_act = False
 
   def run_possibilities(self):
     name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/data_short.txt"
@@ -510,7 +534,10 @@ class Motion(object):
     #rospy.sleep(1.0)
     #self.record = True
     #self.write_joints_bag(self.name_ee,self.js)
-    self.bot.arm.set_ee_pose_components(x=0.15, y=0.25, z=0.02, roll=0.0, pitch=1.0)
+    self.bot.arm.set_ee_pose_components(x=0.35, y=0.03, z=0.03, roll=0.0, pitch=0.6)
+    rospy.sleep(4)
+    self.bot.arm.set_ee_pose_components(x=0.3, y=0.1, z=0.03, roll=0.0, pitch=0.6)
+    rospy.sleep(4)
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(0.5)
     #elf.record = True
@@ -568,13 +595,13 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    # if motion_pincher.get_explore():
-    #   motion_pincher.define_action()
-    #   motion_pincher.execute_action(True)
-    # if motion_pincher.get_exploit():
-    #   motion_pincher.execute_dmp()
-    if first == True:
-      motion_pincher.test_interface()
-      first = False
+    if motion_pincher.get_explore():
+      motion_pincher.define_action()
+      motion_pincher.execute_action(True)
+    if motion_pincher.get_exploit():
+      motion_pincher.execute_dmp()
+    # if first:
+    #   motion_pincher.test_interface()
+    #   first = False
 
   rospy.spin()
