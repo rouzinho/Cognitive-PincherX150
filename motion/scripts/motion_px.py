@@ -102,7 +102,6 @@ class Motion(object):
     self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
-    rospy.Subscriber('/proprioception/ee_pose', Pose, self.callback_proprioception)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
@@ -131,11 +130,11 @@ class Motion(object):
     self.path = []
     self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
     self.record = False
-    self.dims = 3
+    self.dims = 5
     self.dt = 1.0
     self.K_gain = 100              
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
-    self.num_bases = 4
+    self.num_bases = 5
     self.single_msg = True
     self.explore = False
     self.exploit = False
@@ -393,18 +392,19 @@ class Motion(object):
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
     goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.03,self.dmp.roll,self.dmp.pitch) 
+    print("goal : ",goal)
+    print("cartesian goal : ",self.last_pose)
     if found:
       print("found goal to reach")
-    goal_thresh = [0.1]
+    goal_thresh = [0.01,0.01,0.01,0.01,0.01]
     x_0 = curr         #Plan starting at a different point than demo 
     x_dot_0 = [0.0,0.0,0.0,0.0,0.0]   
     t_0 = 0                
     seg_length = -1          #Plan until convergence to goal
-    tau = resp.tau / 4       # /4 is good enough
+    tau = resp.tau /2       # /4 is good enough
     dt = 1.0 
     integrate_iter = 5       #dt is rather large, so this is > 1  
     planned_dmp = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, seg_length, tau, dt, integrate_iter)
-    
     j = 0
     path = self.shrink_dmp(planned_dmp.plan.points,goal)
     print("path length", len(path))
