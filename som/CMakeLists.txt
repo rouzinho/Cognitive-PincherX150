@@ -51,15 +51,19 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   DIRECTORY msg
   FILES
+  GripperOrientation.msg
+  PoseRPY.msg
+  VectorAction.msg
   ListPeaks.msg
+  ListPose.msg
 )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  GetBMU.srv
+  GetPath.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(

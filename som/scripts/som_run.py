@@ -11,9 +11,11 @@ from matplotlib import animation
 import os.path
 from scipy.cluster.hierarchy import dendrogram, linkage
 import geometry_msgs.msg
-from motion.msg import GripperOrientation
-from motion.msg import VectorAction
+from som.msg import GripperOrientation
+from som.msg import VectorAction
 from som.msg import ListPeaks
+from som.msg import ListPose
+from som.srv import *
 from sklearn.preprocessing import MinMaxScaler
 
 
@@ -136,7 +138,7 @@ class Node(object):
 class Som(object):
     def __init__(self,name,num_features,s,ep,mode):
         super(Som, self).__init__()
-        rospy.init_node("som", anonymous=True)
+        #rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         self.num_features = num_features
@@ -158,8 +160,10 @@ class Som(object):
             n_bmu = name + "node_value/bmu"
             ni_peaks = name + "input_list_peaks"
             no_peaks = name + "output_list_peaks"
+            in_path = name + "dmp_path"
             rospy.Subscriber(n_bmu, GripperOrientation, self.callback_bmu)
             rospy.Subscriber(ni_peaks, ListPeaks, self.callback_list_peaks)
+            #rospy.Subscriber(in_path, ListPose, self.callback_list_pose)
             self.pub_bmu = rospy.Publisher('/motion_pincher/gripper_orientation/bmu_last_pose', GripperOrientation, queue_size=1)
             self.pub_node = rospy.Publisher('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, queue_size=1)
             self.pub_peaks = rospy.Publisher(no_peaks, ListPeaks, queue_size=1)
@@ -184,6 +188,7 @@ class Som(object):
 
     def callbackNode(self,msg):
         tmp = self.get_weights_node(int(msg.x),int(msg.y))
+        print(tmp)
         if self.mode == "motion":
             va = VectorAction()
             va.x = tmp[0,0]
@@ -219,6 +224,34 @@ class Som(object):
                         list_coords.append(coords)
         
         return list_coords
+    
+    def bmu_server(self,req):
+        data = [req.sample.x,req.sample.y,req.sample.pitch]
+        n = Node(self.num_features)
+        n.setWeights(data)
+        bmu = self.get_bmu(n)
+        dat_bmu = bmu.getWeights()
+        go = GetBMUResponse()
+        go.bmu.x = dat_bmu[0,0]
+        go.bmu.y = dat_bmu[0,1]
+        go.bmu.pitch = dat_bmu[0,2]
+        return go
+    
+    def optimal_path(self,req):
+        resp = GetPathResponse()
+        for i in req.sample.list_pose:
+            data = [i.x,i.y,i.pitch]
+            n = Node(self.num_features)
+            n.setWeights(data)
+            bmu = self.get_bmu(n)
+            dat_bmu = bmu.getWeights()
+            go = GripperOrientation()
+            go.x = dat_bmu[0,0]
+            go.y = dat_bmu[0,1]
+            go.z = i.z
+            go.pitch = dat_bmu[0,2]
+            resp.path.list_pose.append(go)
+        return resp
 
     def init_network(self):
         for i in range(self.size):
@@ -646,6 +679,7 @@ class Som(object):
 
 
 if __name__ == "__main__":
+    rospy.init_node("som")
     name_dataset = ""  
     ns = rospy.get_namespace()
     name_init = ns + "som/"
@@ -660,6 +694,8 @@ if __name__ == "__main__":
     if data_set == "pose":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
+    srv_bmu = rospy.Service('get_bmu', GetBMU, som.bmu_server)
+    #srv_path = rospy.Service('get_path', GetPath, som.optimal_path)
     #som.load_som("simple_50_som.npy")
     if training == True and data_set == "motion":
         som.init_network_som_action()
@@ -680,7 +716,8 @@ if __name__ == "__main__":
         som.init_network_som_action()
         som.load_som(model_name,data_set)
         #som.print_som()
-    plt.show()
-    while not rospy.is_shutdown():
-        pass
+    print("READY")
+    #plt.show()
+    #while not rospy.is_shutdown():
+    #    pass
     rospy.spin()
