@@ -162,8 +162,8 @@ class DepthImage
       {
         start = true;
         count = 0;
-        cv_image = cv::Mat(1024, 1024, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
-        fil = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
+        cv_image = cv::Mat(720, 720, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
+        fil = cv::Mat(720, 720, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
       }
       else
       {
@@ -372,9 +372,9 @@ class DepthImage
       float py;
       float pz;
       float test;
-      double ax = (static_cast<double>(1024))/(crop_max_x-crop_min_x); //1024 image width
+      double ax = (static_cast<double>(720))/(crop_max_x-crop_min_x); //1024 image width
       double bx = 0 - (ax*crop_min_x);
-      double ay = (static_cast<double>(1024))/(crop_max_y-crop_min_y); //1024 image height
+      double ay = (static_cast<double>(720))/(crop_max_y-crop_min_y); //1024 image height
       double by = 0 - (ay*crop_min_y);
       double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
       double bz = 0 - (az*crop_min_z);
@@ -420,7 +420,7 @@ class DepthImage
           cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
           cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
           fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/example.jpg", fil);
+          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/min_max_all.jpg", fil);
           cv::resize(res, fil, cv::Size(128, 128), cv::INTER_LANCZOS4);
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
