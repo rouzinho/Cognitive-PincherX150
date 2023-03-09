@@ -156,7 +156,7 @@ add_executable(${PROJECT_NAME}_node src/depth_perception.cpp)
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 target_link_libraries(${PROJECT_NAME}_node
-  ${catkin_LIBRARIES} ${OpenCV_INCLUDE_DIRS}
+  ${catkin_LIBRARIES} ${OpenCV_INCLUDE_DIRS} 
 )
 ## Add cmake target dependencies of the executable
 ## same as for the library above

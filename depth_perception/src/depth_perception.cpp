@@ -35,10 +35,20 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <future>
+#include <thread>
+#include <chrono>
 
+using namespace std;
 static const std::string OPENCV_WINDOW = "Image window";
 static const std::string OPENCV_WINDOW_BIS = "Image";
 typedef pcl::PointXYZRGB PointT;
+
+static bool getAnswer()
+{    
+  char ch = getchar();
+  return true;
+}
 
 class DepthImage
 {
@@ -64,6 +74,7 @@ class DepthImage
     float crop_max_y;
     float crop_max_z;
     float crop_min_z;
+    float threshold_depth;
     bool first;
     cv::Mat cv_image;
     cv::Mat res;
@@ -74,6 +85,7 @@ class DepthImage
     int size_neural_field;
     bool start;
     int threshold_change;
+    cv::Mat test_open;
 
   public:
     DepthImage():
@@ -95,6 +107,7 @@ class DepthImage
       crop_min_z = -5000;
       crop_max_z = 5000;
       size_neural_field = 100;
+      threshold_depth = 0.01;
       first = true;
       cv_image = cv::Mat(1024, 1024, CV_32F,cv::Scalar(std::numeric_limits<float>::max()));
       fil = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::max()));
@@ -104,6 +117,7 @@ class DepthImage
       threshold = 25;
       start = false;
       threshold_change = 50;
+      test_open = cv::imread("/home/altair/interbotix_ws/src/depth_perception/states/min_max.jpg", cv::IMREAD_COLOR);
     }
     ~DepthImage()
     {
@@ -465,6 +479,84 @@ class DepthImage
       //cv::waitKey(1);
     }
 
+    void detectBoundaries()
+    {
+      cv::Mat gray_test;
+      cv::Mat res;
+      cv::Mat depth;
+      cv::Mat detect;
+      cv::Mat t;
+      cv::cvtColor(test_open,gray_test,cv::COLOR_RGB2GRAY);
+      gray_test.convertTo(depth, CV_32FC1, 1/255.0);
+      cv::Mat test = cv::Mat(720, 720, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
+      cv::Mat mask = cv::Mat(720, 720, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+      cv::ellipse(mask, cv::Point(330, 580),cv::Size(410, 410), 0, 0,360, cv::Scalar(255, 255, 0),100, cv::LINE_AA);
+      cv::line(mask, cv::Point(0,0), cv::Point(0,705), cv::Scalar(255, 255, 0),10, cv::LINE_AA);
+      cv::line(mask, cv::Point(0,590), cv::Point(705,590), cv::Scalar(255, 255, 0),150, cv::LINE_AA);
+      depth.copyTo(detect,mask);
+      bool tmp = detectCluster(detect);
+
+      bool answer = false;
+      std::chrono::seconds duration(5);
+      std::future<bool> future = std::async(getAnswer);
+      while(!answer)
+      {
+        if (future.wait_for(duration) == std::future_status::ready)
+        {
+          answer = future.get();
+        }
+        std::cout<<"loop \n";
+        system("aplay /home/altair/interbotix_ws/bip.wav");
+      }
+      std::cout<<"reinit state \n";
+      first = true;
+      start = true;
+      //cv::imshow(OPENCV_WINDOW, detect);
+      //cv::waitKey(1);
+    }
+
+    bool detectCluster(cv::Mat img)
+    {
+      bool res = false;
+      int sum = 0;
+      int i = 0;
+      int j = 0;
+      while(i < img.rows && !res)
+      {
+        while(j < img.cols && !res)
+        {
+          float t = img.at<float>(i,j);
+          int k = 0;
+          int l = 0;
+          if(img.at<float>(i,j) > threshold_depth)
+          {
+            sum = 0;
+            while(k < 4 && sum < 15)
+            {
+              while(l < 4 && sum < 15)
+              {
+                if(img.at<float>(i+k,j+l) > threshold_depth)
+                {
+                  sum++;
+                }
+                l++;
+              }
+              l = 0;
+              k++;
+            }
+          }
+          if(sum >= 15)
+          {
+            res = true;
+          }
+          j++;
+        }
+        j = 0;
+        i++;
+      }
+      return res;
+    }
+
     bool stateChanged(cv::Mat img2, int file_nb)
     {
       cv::Mat im2_gray;
@@ -539,6 +631,10 @@ int main(int argc, char** argv)
 {
   ros::init(argc, argv, "depth_perceptions");
   DepthImage di;
+  while(ros::ok())
+  {
+    di.detectBoundaries();
+  }
   ros::spin();
 
   return 0;
