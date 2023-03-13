@@ -115,7 +115,7 @@ class DepthImage
       //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
       count = 0;
-      threshold = 25;
+      threshold = 50;
       start = false;
       threshold_change = 50;
     }
@@ -494,6 +494,8 @@ class DepthImage
             std::cout<<"first time\n";
             std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
             cv::imwrite(name_state, final_image);
+            cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/calibration_res.jpg", res);
+            cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/calibration_fil.jpg", fil);
             std_msgs::Bool msg;
             msg.data = true;
             pub_new_state.publish(msg);
