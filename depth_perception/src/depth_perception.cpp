@@ -63,6 +63,7 @@ class DepthImage
     ros::Publisher pub_retry;
     ros::Publisher pub_new_state;
     ros::Publisher pub_activate_detector;
+    ros::Publisher pub_reset;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -86,6 +87,9 @@ class DepthImage
     bool start;
     int threshold_change;
     cv::Mat final_image;
+    cv::Mat mask;
+    cv::Mat open_state;
+    cv::Mat tmp_mask;
 
   public:
     DepthImage():
@@ -99,6 +103,7 @@ class DepthImage
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
+      pub_reset = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -114,8 +119,12 @@ class DepthImage
       final_image = cv::Mat(128, 128, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
+      cv::Mat m = cv::imread("/home/altair/interbotix_ws/src/depth_perception/mask/mask_border.jpg");
+      cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
+      cv::resize(tmp_mask, mask, cv::Size(128, 128), cv::INTER_LANCZOS4);
+      open_state = cv::imread("/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg");
       count = 0;
-      threshold = 50;
+      threshold = 40;
       start = false;
       threshold_change = 50;
     }
@@ -285,10 +294,6 @@ class DepthImage
       bool again = true;
       float angle = 0;
       bool rot = true;
-      cv::Mat r;
-      cv::cvtColor(img,r,cv::COLOR_GRAY2RGB);
-      r.convertTo(r, CV_8U, 255.0);
-      cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/fill.jpg", r);
       while(again == true)
       {
         for(int i = 0; i < img.rows;i++)
@@ -309,8 +314,6 @@ class DepthImage
                     
                   }
                 }
-                // std::cout<<" location i :"<<i<<" j: "<<j<<"\n";
-                // std::cout<<"pix : "<<img.at<float>(i,j)<<"\n";
 
               }
               if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
@@ -325,8 +328,6 @@ class DepthImage
                     
                   }
                 }
-                // std::cout<<" location i :"<<i<<" j: "<<j<<"\n";
-                // std::cout<<"pix : "<<img.at<float>(i,j)<<"\n";
               }
               if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
               {
@@ -340,8 +341,6 @@ class DepthImage
                     
                   }
                 }
-                // std::cout<<" location i :"<<i<<" j: "<<j<<"\n";
-                // std::cout<<"pix : "<<img.at<float>(i,j)<<"\n";
               }
               
               
@@ -460,42 +459,49 @@ class DepthImage
           if(first == false)
           {
             //check if object isn't out of robot's reach
-            detectBoundaries(final_image);
-            change = stateChanged(final_image,c);
-            if(change == true)
+            bool border = detectBoundaries(final_image);
+            if(!border)
             {
-              std::cout<<"changes !\n";
-              std::string s = std::to_string(c);
-              std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-              cv::imwrite(name_state, final_image);
+              change = stateChanged(final_image,c);
+              if(change == true)
+              {
+                std::cout<<"changes !\n";
+                std::string s = std::to_string(c);
+                std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                cv::imwrite(name_state, final_image);
+                std_msgs::Bool msg;
+                msg.data = true;
+                pub_new_state.publish(msg);
+                ros::Duration(1.5).sleep();
+                msg.data = false;
+                pub_new_state.publish(msg);
+              }
+              else
+              {
+                std::cout<<"no changes\n";
+                std_msgs::Bool msg;
+                msg.data = true;
+                pub_retry.publish(msg);
+                ros::Duration(1.5).sleep();
+                msg.data = false;
+                pub_retry.publish(msg);
+              }
               std_msgs::Bool msg;
               msg.data = true;
-              pub_new_state.publish(msg);
-              ros::Duration(1.5).sleep();
-              msg.data = false;
-              pub_new_state.publish(msg);
+              pub_activate_detector.publish(msg);
             }
             else
             {
-              std::cout<<"no changes\n";
               std_msgs::Bool msg;
               msg.data = true;
-              pub_retry.publish(msg);
-              ros::Duration(1.5).sleep();
-              msg.data = false;
-              pub_retry.publish(msg);
+              pub_reset.publish(msg);
             }
-            std_msgs::Bool msg;
-            msg.data = true;
-            pub_activate_detector.publish(msg);
           }
           else
           {
             std::cout<<"first time\n";
             std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
             cv::imwrite(name_state, final_image);
-            cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/calibration_res.jpg", res);
-            cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/calibration_fil.jpg", fil);
             std_msgs::Bool msg;
             msg.data = true;
             pub_new_state.publish(msg);
@@ -514,44 +520,57 @@ class DepthImage
       //cv::waitKey(1);
     }
 
-    void detectBoundaries(cv::Mat img)
+    bool detectBoundaries(cv::Mat img)
     {
       cv::Mat gray_test;
-      cv::Mat res;
       cv::Mat depth;
       cv::Mat detect;
       cv::Mat resized;
+      bool tmp = false;
       cv::cvtColor(img,gray_test,cv::COLOR_RGB2GRAY);
       gray_test.convertTo(depth, CV_32F, 1/255.0);
-      cv::Mat mask = cv::Mat(720, 720, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
-      cv::ellipse(mask, cv::Point(330, 580),cv::Size(410, 410), 0, 0,360, cv::Scalar(255, 255, 0),100, cv::LINE_AA);
-      cv::line(mask, cv::Point(0,0), cv::Point(0,705), cv::Scalar(255, 255, 0),10, cv::LINE_AA);
-      cv::line(mask, cv::Point(0,590), cv::Point(705,590), cv::Scalar(255, 255, 0),150, cv::LINE_AA);
-      cv::resize(mask, resized, cv::Size(128, 128), cv::INTER_LANCZOS4);
-      cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/mask.jpg", resized);
-      depth.copyTo(detect,resized);
-      bool tmp = detectCluster(detect);
+      depth.copyTo(detect,mask);
+      tmp = detectCluster(detect);
       if(tmp)
       {
-        std::cout<<"out of boundaries !\n";
-        
-      //   cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/out.jpg", detect);
-      //   bool answer = false;
-      //   std::chrono::seconds duration(5);
-      //   std::future<bool> future = std::async(getAnswer);
-      //   while(!answer)
-      //   {
-      //     if (future.wait_for(duration) == std::future_status::ready)
-      //     {
-      //       answer = future.get();
-      //     }
-      //     std::cout<<"waiting for user input... \n";
-      //     system("aplay /home/altair/interbotix_ws/bip.wav");
-      //   }
-      //   std::cout<<"reset state \n";
+        bool answer = false;
+        std::chrono::seconds duration(5);
+        std::future<bool> future = std::async(getAnswer);
+        while(!answer)
+        {
+          if (future.wait_for(duration) == std::future_status::ready)
+          {
+            answer = future.get();
+          }
+          std::cout<<"waiting for user input... \n";
+          system("aplay /home/altair/interbotix_ws/bip.wav");
+        }
+        std::cout<<"reset state \n";
        }
-      //cv::imshow(OPENCV_WINDOW, detect);
-      //cv::waitKey(1);
+       return tmp;
+    }
+
+    string type2str(int type) {
+      string r;
+
+      uchar depth = type & CV_MAT_DEPTH_MASK;
+      uchar chans = 1 + (type >> CV_CN_SHIFT);
+
+      switch ( depth ) {
+        case CV_8U:  r = "8U"; break;
+        case CV_8S:  r = "8S"; break;
+        case CV_16U: r = "16U"; break;
+        case CV_16S: r = "16S"; break;
+        case CV_32S: r = "32S"; break;
+        case CV_32F: r = "32F"; break;
+        case CV_64F: r = "64F"; break;
+        default:     r = "User"; break;
+      }
+
+      r += "C";
+      r += (chans+'0');
+
+      return r;
     }
 
     bool detectCluster(cv::Mat img)
@@ -577,8 +596,6 @@ class DepthImage
                 if(img.at<float>(i+k,j+l) > threshold_depth)
                 {
                   sum++;
-                  //std::cout<<"pix "<<img.at<float>(i+k,j+l)<<"\n";
-                  std::cout<<"sum pixels detected "<<sum<<"\n";
                 }
                 l++;
               }
@@ -596,10 +613,6 @@ class DepthImage
         j = 0;
         i++;
       }
-      cv::Mat r;
-      cv::cvtColor(img,r,cv::COLOR_GRAY2RGB);
-      r.convertTo(r, CV_8U, 255.0);
-      cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/out.jpg", r);
       return result;
     }
 
