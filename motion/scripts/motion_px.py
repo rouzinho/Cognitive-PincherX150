@@ -148,8 +148,10 @@ class Motion(object):
     self.prop = JointState()
 
   def callback_pose(self,msg):
+    self.init_position()
     self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
     self.init_position()
+    self.sleep_pose()
 
   def callback_first_pose(self,msg):
     if self.bool_init_p == False and self.explore:
@@ -595,11 +597,12 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    if motion_pincher.get_explore():
+    pass
+    """if motion_pincher.get_explore():
       motion_pincher.define_action()
       motion_pincher.execute_action(True)
     if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()
+      motion_pincher.execute_dmp()"""
     # if first:
     #   motion_pincher.test_interface()
     #   first = False
