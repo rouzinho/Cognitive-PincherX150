@@ -29,7 +29,7 @@ class Proprioception(object):
     #rospy.init_node('proprioception', anonymous=True)
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub = rospy.Publisher('/proprioception/joint_states', JointState, queue_size=10)
-    self.pub_ee = rospy.Publisher('/proprioception/EE', Pose, queue_size=1)
+    self.pub_ee = rospy.Publisher('/proprioception/ee_pose', Pose, queue_size=1)
     rospy.Subscriber('/px150/joint_states', JointState, self.joint_states)
     self.js = JointState()
 
@@ -52,7 +52,6 @@ if __name__ == '__main__':
     prop = Proprioception()
     rate = rospy.Rate(10)
     while not rospy.is_shutdown():
-        prop.publishEE()
         prop.publishJS()
         rate.sleep()
 
