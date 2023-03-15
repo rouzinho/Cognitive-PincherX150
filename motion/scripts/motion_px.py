@@ -29,6 +29,7 @@ from std_msgs.msg import Time
 from std_msgs.msg import Header
 from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
+from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 from som.msg import PoseRPY
 from som.msg import GripperOrientation
@@ -78,18 +79,6 @@ def return_bmu(sample):
   except rospy.ServiceException as e:
       print("Service call failed: %s"%e)
 
-def return_path(path):
-  #rospy.wait_for_service('get_bmu')
-  gp = rospy.ServiceProxy('som_pose/get_path', GetPath)
-  try:
-      req = GetPathRequest()
-      for i in path.list_pose:
-        req.sample.list_pose.append(i)
-      resp = gp(req)
-      return resp
-  except rospy.ServiceException as e:
-      print("Service call failed: %s"%e)
-
 
 class Motion(object):
   def __init__(self):
@@ -101,6 +90,8 @@ class Motion(object):
     self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
     self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
+    self.pub_new_state = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
+    self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -112,6 +103,7 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
+    rospy.Subscriber('/depth_perception/name_state', String, self.callback_name_state)
 
     self.gripper_state = 0.0
     self.js = JointState()
@@ -127,6 +119,7 @@ class Motion(object):
     self.move = False
     self.move_dmp = False
     self.activate_dmp = False
+    self.name_state = ""
     self.path = []
     self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
     self.record = False
@@ -234,6 +227,10 @@ class Motion(object):
     self.bool_init_p = False
     self.bool_last_p = False
 
+  def callback_name_state(self,msg):
+    self.name_state = msg.data
+
+  #remove temporary js path bag file created to generate DMP
   def delete_js_bag(self):
     if os.path.exists(self.name_ee):
       os.remove(self.name_ee)
@@ -264,6 +261,7 @@ class Motion(object):
                 
     return resp;
 
+  #write js positions path in file
   def write_joints_bag(self,n,pos):
     exist = path.exists(n)
     opening = ""
@@ -279,6 +277,7 @@ class Motion(object):
       print("error recording js")
     bag.close()
 
+  #get the js path as an array to generae DMP
   def form_data_joint_states(self):
     name = self.name_ee
     tot = []
@@ -303,12 +302,7 @@ class Motion(object):
     finally:
       bag.close()
 
-  def read_dmp_bag(self,name):
-    bag = rosbag.Bag(self.name)
-    for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
-      print(msg)
-    bag.close()
-
+  #read DMP
   def get_dmp(self,name):
     bag = rosbag.Bag(name)
     for topic, msg, t in bag.read_messages(topics=['dmp_pos']):
@@ -317,16 +311,16 @@ class Motion(object):
 
     return resp
   
+  #if it's exploring
   def get_explore(self):
     return self.explore
   
+  #if it's exploiting ->learning a skill
   def get_exploit(self):
     return self.exploit
 
+  #update dataset 
   def update_offline_dataset(self,status):
-    name_dataset_states = "/home/altair/interbotix_ws/src/depth_perception/states/"
-    paths = sorted(Path(name_dataset_states).iterdir(), key=os.path.getmtime)
-    name_state = str(paths[len(paths)-1])
     name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/datas.txt"
     exist = path.exists(name_dataset)
     opening = ""
@@ -334,12 +328,12 @@ class Motion(object):
       opening = "w"
     else:
       opening = "a"
-    data = str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.roll) + " " + str(self.action.grasp) + " " +name_state + " " + str(status) + "\n"
+    data = str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.roll) + " " + str(self.action.grasp) + " " +self.name_state + " " + str(status) + "\n"
     with open(name_dataset, opening) as f:
         f.write(data)
     f.close()
 
-
+  #naming the DMP
   def name_dmp(self):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
     nx = "x"+str(round(self.action.x,2))
@@ -351,6 +345,7 @@ class Motion(object):
 
     return name
     
+  #find the dmp file
   def find_dmp(self,dmp):
     name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
     found = False
@@ -415,7 +410,7 @@ class Motion(object):
       print(j)
       j+=1
 
-
+  #shrink the dmp so the JS positions that are too close are skipped
   def shrink_dmp(self,data,desired):
     tot = 0
     path = []
@@ -444,6 +439,7 @@ class Motion(object):
   def get_move(self):
     return self.move
 
+  #convert 3D EE position to JS through IK
   def pose_to_joints(self,x,y,z,r,p):
     T_sd = np.identity(4)
     yaw = math.atan2(y,x)
@@ -465,6 +461,7 @@ class Motion(object):
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
 
+  #gather pose and action before moving on
   def define_action(self):
     if self.bool_init_p and self.bool_act:
       go = GripperOrientation()
@@ -478,7 +475,7 @@ class Motion(object):
       print("last pose : ",self.last_pose)
       self.bool_last_p = True
       
-
+  #execute the action
   def execute_action(self,record_dmp):
     if self.bool_last_p:
       print("in the loop")
