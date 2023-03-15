@@ -32,6 +32,7 @@
 #include <std_msgs/Header.h>
 #include <ros/header.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/String.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -64,6 +65,7 @@ class DepthImage
     ros::Publisher pub_new_state;
     ros::Publisher pub_activate_detector;
     ros::Publisher pub_reset;
+    ros::Publisher pub_name_state;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -104,6 +106,7 @@ class DepthImage
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
       pub_reset = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
+      pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -469,6 +472,9 @@ class DepthImage
                 std::string s = std::to_string(c);
                 std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
                 cv::imwrite(name_state, final_image);
+                std_msgs::String msg_state;
+                msg_state.data = name_state;
+                pub_name_state.publish(msg_state);
                 std_msgs::Bool msg;
                 msg.data = true;
                 pub_new_state.publish(msg);
