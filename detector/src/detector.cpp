@@ -190,6 +190,7 @@ class Detector
         {
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
+        //std::cout<<pose_object<<"\n";
     }
 
     void listenTransform()
