@@ -65,6 +65,7 @@ class DepthImage
     ros::Publisher pub_new_state;
     ros::Publisher pub_activate_detector;
     ros::Publisher pub_reset;
+    ros::Publisher pub_reset_detector;
     ros::Publisher pub_name_state;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
@@ -106,6 +107,7 @@ class DepthImage
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
       pub_reset = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
+      pub_reset_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/reset",1);
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       tf_in = false;
       crop_max_x = 5000;
@@ -494,14 +496,15 @@ class DepthImage
               }
               std_msgs::Bool msg;
               msg.data = true;
-              pub_activate_detector.publish(msg);
             }
             else
             {
               std_msgs::Bool msg;
               msg.data = true;
+              pub_reset_detector.publish(msg);
               pub_reset.publish(msg);
             }
+            pub_activate_detector.publish(msg);
           }
           else
           {
