@@ -465,6 +465,10 @@ class DepthImage
           {
             //check if object isn't out of robot's reach
             bool border = detectBoundaries(final_image);
+            //activate detector whether it's out of bounds or not
+            std_msgs::Bool msg;
+            msg.data = true;
+            pub_activate_detector.publish(msg);
             if(!border)
             {
               change = stateChanged(final_image,c);
@@ -494,8 +498,6 @@ class DepthImage
                 msg.data = false;
                 pub_retry.publish(msg);
               }
-              std_msgs::Bool msg;
-              msg.data = true;
             }
             else
             {
@@ -503,8 +505,9 @@ class DepthImage
               msg.data = true;
               pub_reset_detector.publish(msg);
               pub_reset.publish(msg);
+              pub_activate_detector.publish(msg);
             }
-            pub_activate_detector.publish(msg);
+            
           }
           else
           {
