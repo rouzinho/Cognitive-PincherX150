@@ -25,7 +25,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
-//#include <message_filters/synchronizer.h>
+#include <std_msgs/Float32.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <image_transport/subscriber_filter.h>
 #include <message_filters/subscriber.h>
@@ -48,6 +48,7 @@ class DepthInterface
     ros::Subscriber sub_poi;
     ros::Publisher pub_poi;
     ros::Publisher pub_poi_pcl;
+    ros::Publisher pub_pose_aruco;
     image_transport::Subscriber dm_sub_;
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::Image> MySyncPolicy;
     message_filters::Synchronizer< MySyncPolicy > sync;
@@ -94,6 +95,7 @@ class DepthInterface
       sub_poi = nh_.subscribe("/outcome/aruco_corners", 1, &DepthInterface::poiCallback,this);
       pub_poi = nh_.advertise<depth_interface::InterfacePOI> ("/depth_interface/poi_depthmap", 1);
       pub_poi_pcl = nh_.advertise<sensor_msgs::PointCloud2> ("/depth_interface/poi_pcl", 1);
+      pub_pose_aruco = nh_.advertise<std_msgs::Float32> ("/depth_interface/aruco_angle", 1);
       handle = k4a::playback::open("/home/altair/interbotix_ws/calibration.mkv");
       k4aCalibration = handle.get_calibration();
       k4aTransformation = k4a::transformation(k4aCalibration);
@@ -122,6 +124,7 @@ class DepthInterface
     void poiCallback(const depth_interface::InterfacePOIConstPtr& msg)
     {
       pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      std::vector<pcl::PointXYZ> aruco_corners;
       list_points.poi.resize(0);
       if(tf_in == false)
       {
@@ -145,8 +148,7 @@ class DepthInterface
             //cout<<"marker 2\n";
           //generate a point XYZ and apply tf
             pcl::PointXYZ pt_depth = generatePointCloudPOI(cv_depth, pixel_res);
-            final_cloud->push_back(pt_depth);
-            //cout<<"marker 3\n";
+            aruco_corners.push_back(pt_depth);
             /*pcl::PointXYZ final_pt = genPointDepthMap(pt_depth);
             
             current_elem.elem.x = static_cast<double>(final_pt.x);
@@ -155,14 +157,38 @@ class DepthInterface
             list_points.poi.push_back(current_elem);*/
           }
         }
-        list_points.header = msg->header;
-        pub_poi.publish(list_points);
+        float deg = ArucoPose(aruco_corners);
+        std_msgs::Float32 f;
+        f.data = deg;
+        pub_pose_aruco.publish(f);
       }
-      sensor_msgs::PointCloud2 cloud_publish;
-      pcl::toROSMsg(*final_cloud,cloud_publish);
-      cloud_publish.header = msg->header;
-      cloud_publish.header.frame_id = "px150/base_link";
-      pub_poi_pcl.publish(cloud_publish);
+      //sensor_msgs::PointCloud2 cloud_publish;
+      //pcl::toROSMsg(*final_cloud,cloud_publish);
+      //cloud_publish.header = msg->header;
+      //cloud_publish.header.frame_id = "px150/base_link";
+      //pub_poi_pcl.publish(cloud_publish);
+    }
+
+    //Generate pose for aruco marker
+    float ArucoPose(std::vector<pcl::PointXYZ> corners)
+    {
+      float deg = 0;
+      //X in robot space, pose of aruco
+      if(corners.size() == 4)
+      {
+        geometry_msgs::Point vec_x;
+        vec_x.x = corners[1].x - corners[0].x;
+        vec_x.y = corners[1].y - corners[0].y;
+        //reference vector aligned to Y
+        geometry_msgs::Point vec_ref;
+        vec_ref.x = 0;
+        vec_ref.y = corners[0].y + 0.15;
+        float dot_prod = (vec_x.x*vec_ref.x) + (vec_x.y*vec_ref.y);
+        float det = (vec_x.x*vec_ref.y) - (vec_x.y*vec_ref.x);
+        float rad = atan2(det,dot_prod);
+        deg = rad * (180.0/3.141592653589793238463);
+      }
+      return deg;
     }
 
    // get the depth of the interface pixels given their location in the RGB space
@@ -306,12 +332,6 @@ class DepthInterface
           pt_trans.z = *iter_z;
         }
       }
-
-      //listen to transform if not done yet
-      //if(!tf_in)
-      //{
-      //  listenTransform();
-      //}
       pcl::PointXYZ tmp_res;
       pcl::PointXYZ final_pt;
       /*if(tf_rgb)
@@ -319,7 +339,7 @@ class DepthInterface
         tmp_res = pcl::transformPoint(pt_trans,rgb_space);
       }*/
       
-      //align to robot frame because the point comes from depth frame
+      //align depth->rgb->robot
       if(tf_in)
       {
         tmp_res = pcl::transformPoint(pt_trans,rgb_space);
@@ -328,31 +348,6 @@ class DepthInterface
 
       return final_pt;
     }
-
-    //Transform PointXYZ from point cloud to the depth map perspective
-    /*pcl::PointXYZ genPointDepthMap(pcl::PointXYZ point_d)
-    {
-      double px;
-      double py;
-      double pz;
-      int pixel_pos_x;
-      int pixel_pos_y;
-      float pixel_pos_z;
-      px = point_d.x * 1000.0;
-      py = point_d.y * 1000.0;
-      pz = point_d.z * 1000.0;
-      pixel_pos_x = (int) (ax * px + bx);
-      pixel_pos_y = (int) (ay * py + by);
-      pixel_pos_z = (az * pz + bz);
-      pixel_pos_z = pixel_pos_z/1000.0;
-      pcl::PointXYZ p;
-      p.x = static_cast<float>(pixel_pos_x);
-      p.y = static_cast<float>(pixel_pos_y);
-      p.z = static_cast<float>(pixel_pos_z);
-
-      return p;
-    }*/
-    
 };
 
 int main(int argc, char **argv)
