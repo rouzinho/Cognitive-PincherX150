@@ -29,6 +29,7 @@
 #include <pcl_ros/transforms.h>
 #include <math.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Float32.h>
 #include "detector/Outcome.h"
 #include <opencv2/aruco.hpp>
 #include <image_transport/image_transport.h>
@@ -57,6 +58,8 @@ class Detector
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
+        ros::Subscriber sub_angle;
+        ros::Subscriber sub_first_time;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -85,7 +88,12 @@ class Detector
         sensor_msgs::PointCloud2 cloud_tf;
         sensor_msgs::PointCloud2 cloud_pcl_backup;
         bool activate;
+        bool activate_angle;
         bool touch;
+        bool mode;
+        float first_angle;
+        float second_angle;
+        bool first_time;
 
     public:
 
@@ -97,6 +105,8 @@ class Detector
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
         sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
+        sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
+        sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
@@ -109,6 +119,7 @@ class Detector
         pose_object.pose.orientation.z = 0.0;
         pose_object.pose.orientation.w = 1.0;
         cloud_origin.Clear();
+        angle = 0;
         count = 0;
         first = true;
         second = false;
@@ -119,6 +130,10 @@ class Detector
         fin_one = false;
         activate = false;
         touch = false;
+        mode = false;
+        first_angle = 0.0;
+        second_angle = 0.0;
+        first_time = true;
         cv::namedWindow(OPENCV_WINDOW,cv::WINDOW_NORMAL);
     }
 
@@ -170,27 +185,74 @@ class Detector
 
     void activateCallback(const std_msgs::BoolConstPtr& msg)
     {
-        if(msg->data == true)
+        if(mode == true)
         {
-            count++;
-            activate = true;
+            if(msg->data == true && !touch)
+            {
+                count++;
+                activate = true;
+            }
+            if(msg->data == true && touch == true)
+            {
+                count = 0;
+                activate = false;
+                detector::Outcome res;
+                res.x = 0.0 - first_pose.pose.position.x;
+                res.y = 0.0 - first_pose.pose.position.y;
+                res.roll = 0.0;
+                res.touch = 1.0;
+                pub_outcome.publish(res);
+            }
         }
-        if(msg->data == true && touch == true)
+        else
         {
-            count = 0;
-            activate = false;
-            detector::Outcome res;
-            res.x = 0.0 - first_pose.pose.position.x;
-            res.y = 0.0 - first_pose.pose.position.y;
-            res.roll = 0.0;
-            res.touch = 1.0;
-            pub_outcome.publish(res);
+            if(msg->data == true && !touch)
+            {
+                activate_angle = true;
+            }
+            if(msg->data == true && touch == true)
+            {
+                activate_angle = false;
+                detector::Outcome res;
+                res.x = 0.0 - first_pose.pose.position.x;
+                res.y = 0.0 - first_pose.pose.position.y;
+                res.roll = 0.0;
+                res.touch = 1.0;
+                pub_outcome.publish(res);
+            }
         }
     }
 
     void touchCallback(const std_msgs::BoolConstPtr& msg)
     {
         touch = msg->data;
+    }
+
+    void AngleCallback(const std_msgs::Float32ConstPtr& msg)
+    {
+        if(first_time && activate_angle)
+        {
+            cout<<"Recording first angle\n";
+            first_angle = msg->data;
+            first_pose = pose_object;
+            activate_angle = false;
+            first_time = false;
+        }
+        if(!first && activate_angle)
+        {
+            cout<<"Recording second angle\n";
+            second_angle = msg->data;
+            second_pose = pose_object;
+            setOutcomeAngle(first_pose,second_pose,first_angle,second_angle);
+            activate_angle = false;
+            first_angle = second_angle;
+            first_pose = second_pose;
+        }
+    }
+
+    void ResetCallback(const std_msgs::BoolConstPtr& msg)
+    {
+        first_time = msg->data;
     }
 
     void objectCallback(const visualization_msgs::MarkerConstPtr& msg)
@@ -224,22 +286,19 @@ class Detector
         {
             for(int i = 0; i < ids.size();  i++)
             {
-                for(int j = 0; j < corners[ids[i]].size(); j++)
+                if(corners[ids[i]].size() == 4)
                 {
-                    depth_interface::ElementUI pt;
-                    pt.elem.x = corners[ids[i]][j].x;
-                    pt.elem.y = corners[ids[i]][j].y;
-                    pts.poi.push_back(pt);
+                    for(int j = 0; j < corners[ids[i]].size(); j++)
+                    {
+                        depth_interface::ElementUI pt;
+                        pt.elem.x = corners[ids[i]][j].x;
+                        pt.elem.y = corners[ids[i]][j].y;
+                        pts.poi.push_back(pt);
+                    }
                 }
             }
             pub_aruco.publish(pts);
         }
-        /*if (ids.size() > 0)
-        {
-           cv::aruco::drawDetectedMarkers(cv_ptr->image, corners, ids);
-        }*/
-        //cv::imshow(OPENCV_WINDOW, cv_ptr->image);
-        //cv::waitKey(1);   
     }
 
     void listenTransform()
@@ -261,7 +320,27 @@ class Detector
       }
     }
 
-    void setOutcome(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, Eigen::Vector3f rot)
+    void setOutcomeICP(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, Eigen::Vector3f rot)
+    {
+        detector::Outcome res;
+        float t_x = second.pose.position.x - first.pose.position.x;
+        float t_y = second.pose.position.y - first.pose.position.y;
+        res.x = t_x;
+        res.y = t_y;
+        res.roll = rot[2];
+        if(touch == true)
+        {
+            res.touch = 1.0;
+        }
+        else
+        {
+            res.touch = 0.0;
+        }
+        writeDataset(res);
+        pub_outcome.publish(res);
+    }
+
+    void setOutcomeAngle(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, float firs_ang, float sec_ang)
     {
         detector::Outcome res;
         float t_x = second.pose.position.x - first.pose.position.x;
