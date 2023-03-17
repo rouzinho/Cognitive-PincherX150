@@ -1,0 +1,10 @@
+<launch>
+    <!--<arg name="node_start_delay" default="2.0" /> 
+    <arg name="node_service_delay" default="3.0" />
+    <include file="$(find transform_pcl)/launch/all_kinect.launch" />-->
+    <!--<include file="$(find transform_pcl)/launch/voxel_and_pcltf.launch" />-->
+    <node name="depth_interface" pkg="depth_interface" type="depth_interface_node" output="screen"/>
+    <!--<node pkg="scene_calibration" type="points_depth" name="server_rgb" launch-prefix="zsh -c 'sleep $(arg node_service_delay); $0 $@' "/>-->
+    <!--<include file="$(find scene_calibration)/launch/start_calibration.launch" />-->
+    <!--<include file="$(find detect_interaction)/launch/wrapper.launch" />-->
+</launch>
