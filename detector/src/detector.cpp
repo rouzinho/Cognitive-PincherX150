@@ -119,7 +119,6 @@ class Detector
         pose_object.pose.orientation.z = 0.0;
         pose_object.pose.orientation.w = 1.0;
         cloud_origin.Clear();
-        angle = 0;
         count = 0;
         first = true;
         second = false;
@@ -178,7 +177,7 @@ class Detector
             activate = false;
             count = 0;
             Eigen::Vector3f r = performICP(cloud_origin,cloud_final);
-            setOutcome(first_pose,second_pose,r);
+            setOutcomeICP(first_pose,second_pose,r);
         }
         pub_tf.publish(msg_open);
     }
@@ -340,14 +339,14 @@ class Detector
         pub_outcome.publish(res);
     }
 
-    void setOutcomeAngle(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, float firs_ang, float sec_ang)
+    void setOutcomeAngle(geometry_msgs::PoseStamped first, geometry_msgs::PoseStamped second, float first_ang, float sec_ang)
     {
         detector::Outcome res;
         float t_x = second.pose.position.x - first.pose.position.x;
         float t_y = second.pose.position.y - first.pose.position.y;
         res.x = t_x;
         res.y = t_y;
-        res.roll = rot[2];
+        float diff;
         if(touch == true)
         {
             res.touch = 1.0;
@@ -356,6 +355,14 @@ class Detector
         {
             res.touch = 0.0;
         }
+        first_ang = first_ang + 180.0;
+        sec_ang = sec_ang + 180.0;
+        diff = sec_ang - first_ang;
+        if(diff > 180.0)
+        {
+            diff = diff - 180.0;
+        }
+        res.roll = diff;
         writeDataset(res);
         pub_outcome.publish(res);
     }
