@@ -30,18 +30,30 @@
 #include <math.h>
 #include <std_msgs/Bool.h>
 #include "detector/Outcome.h"
+#include <opencv2/aruco.hpp>
+#include <image_transport/image_transport.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/opencv.hpp>
+#include <depth_interface/ElementUI.h>
+#include <depth_interface/InterfacePOI.h>
 
 using namespace message_filters;
 using namespace std;
+static const std::string OPENCV_WINDOW = "Image window";
 
 class Detector
 {
     private:
         ros::NodeHandle nh_;
+        image_transport::ImageTransport it_;
+        image_transport::Subscriber img_sub;
         ros::Subscriber sub_ori;
         ros::Subscriber sub_fin;
         ros::Publisher pub_tf;
         ros::Publisher pub_outcome;
+        ros::Publisher pub_aruco;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
@@ -52,6 +64,7 @@ class Detector
         geometry_msgs::PoseStamped pose_object;
         geometry_msgs::PoseStamped first_pose;
         geometry_msgs::PoseStamped second_pose;
+        cv_bridge::CvImagePtr cv_ptr;
         bool tf_in;
         tf2_ros::TransformListener tfListener;
         tf2_ros::Buffer tfBuffer;
@@ -77,14 +90,17 @@ class Detector
     public:
 
     Detector():
-    tfListener(tfBuffer)
+    tfListener(tfBuffer),
+    it_(nh_)
     {
         sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
         sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
+        img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
+        pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome/aruco_corners",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -103,10 +119,12 @@ class Detector
         fin_one = false;
         activate = false;
         touch = false;
+        cv::namedWindow(OPENCV_WINDOW,cv::WINDOW_NORMAL);
     }
 
     virtual ~Detector()
     {
+        cv::destroyWindow(OPENCV_WINDOW);
     }
 
     void callbackPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_ori)
@@ -191,6 +209,37 @@ class Detector
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
         //std::cout<<pose_object<<"\n";
+    }
+
+    void RgbCallback(const sensor_msgs::ImageConstPtr& msg)
+    {
+        cv_ptr = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8);
+        std::vector<int> ids;
+        std::vector<std::vector<cv::Point2f>> corners, rejectedCandidates;
+        cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();;
+        cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50);
+        cv::aruco::detectMarkers(cv_ptr->image, dictionary, corners, ids);
+        depth_interface::InterfacePOI pts;
+        if(ids.size() == 1)
+        {
+            for(int i = 0; i < ids.size();  i++)
+            {
+                for(int j = 0; j < corners[ids[i]].size(); j++)
+                {
+                    depth_interface::ElementUI pt;
+                    pt.elem.x = corners[ids[i]][j].x;
+                    pt.elem.y = corners[ids[i]][j].y;
+                    pts.poi.push_back(pt);
+                }
+            }
+            pub_aruco.publish(pts);
+        }
+        /*if (ids.size() > 0)
+        {
+           cv::aruco::drawDetectedMarkers(cv_ptr->image, corners, ids);
+        }*/
+        //cv::imshow(OPENCV_WINDOW, cv_ptr->image);
+        //cv::waitKey(1);   
     }
 
     void listenTransform()
@@ -337,28 +386,6 @@ class Detector
       ofile << sample.x <<" "<<sample.y<<" "<<sample.roll<<" "<<sample.touch<<std::endl;
       ofile.close();
     }
-
-    /*void readDataset()
-    {
-      std::string line;
-      std::ifstream icpfile("/home/altair/odin/src/pcl_fusion/calibration/params.txt");
-      if(icpfile.is_open())
-      {
-        getline(icpfile,line);
-        ax = std::stod(line); 
-        getline(icpfile,line);
-        bx = std::stod(line);
-        getline(icpfile,line);
-        ay = std::stod(line);
-        getline(icpfile,line);
-        by = std::stod(line);
-        getline(icpfile,line);
-        az = std::stod(line);
-        getline(icpfile,line);
-        bz = std::stod(line);
-        icpfile.close();
-      }
-    }*/
 
     void print4x4Matrix (const Eigen::Matrix4d_u & matrix)
     {

@@ -8,6 +8,8 @@ project(detector)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  cv_bridge
+  image_transport
   open3d_conversions
   roscpp
   roslib
@@ -25,6 +27,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+find_package(OpenCV 4 REQUIRED)
 find_package(Eigen3 REQUIRED) 
 find_package(Open3D REQUIRED)
 
@@ -114,7 +117,9 @@ generate_messages(
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
     INCLUDE_DIRS
-    CATKIN_DEPENDS roscpp
+    CATKIN_DEPENDS cv_bridge
+                   image_transport 
+                   roscpp
                    message_runtime
                    sensor_msgs
                    std_msgs
@@ -133,6 +138,7 @@ catkin_package(
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIR}
   ${Open3D_LIBRARY_DIRS}
 )
@@ -167,7 +173,7 @@ include_directories(
 #   ${catkin_LIBRARIES}
 # )
 add_executable(${PROJECT_NAME}_node src/detector.cpp)
-target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${Open3D_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_node ${catkin_LIBRARIES} ${Open3D_LIBRARIES} ${OpenCV_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME}_node PUBLIC ${Open3D_INCLUDE_DIRS})
 #############
 ## Install ##
