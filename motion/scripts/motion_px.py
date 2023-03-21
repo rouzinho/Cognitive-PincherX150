@@ -20,6 +20,7 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import Pose
 import glob
 import os.path
+import random
 from nav_msgs.msg import Odometry
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from trajectory_msgs.msg import JointTrajectory
@@ -116,6 +117,8 @@ class Motion(object):
     self.bool_init_p = False
     self.bool_last_p = False
     self.bool_act = False
+    self.possible_grasp = [0.0,1.0]
+    self.possible_roll = [-1.5,-1.2,-0.9,-0.6,-0.3,0,0.3,0.6,0.9,1.2,1.5]
     self.move = False
     self.move_dmp = False
     self.activate_dmp = False
@@ -153,6 +156,11 @@ class Motion(object):
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
       print("first pose : ",self.first_pose)
+    elif self.bool_init_p == True and self.explore:
+      self.last_pose.x = msg.x
+      self.last_pose.y = msg.y
+      self.last_pose.pitch = msg.pitch
+      self.bool_last_p = True
     if self.exploit:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
@@ -212,7 +220,7 @@ class Motion(object):
 
   def callback_retry(self,msg):
     if msg.data == True:
-      self.bool_init_p = False
+      self.bool_last_p = False
       self.update_offline_dataset(False)
 
   def callback_exploration(self,msg):
@@ -463,7 +471,7 @@ class Motion(object):
 
   #gather pose and action before moving on
   def define_action(self):
-    if self.bool_init_p and self.bool_act:
+    if self.bool_init_p and self.bool_last_p:
       go = GripperOrientation()
       go.x = self.first_pose.x + self.action.x
       go.y = self.first_pose.y + self.action.y
@@ -477,21 +485,29 @@ class Motion(object):
       
   #execute the action
   def execute_action(self,record_dmp):
-    if self.bool_last_p:
+    if self.bool_init_p and self.bool_last_p:
       print("in the loop")
+      r = random.choice(self.possible_roll)
+      g = random.choice(self.possible_grasp)
+      print("roll ",r)
+      print("grasp ",g)
       self.init_position()     
-      if self.action.grasp > 0.5:
+      if g > 0.5:
         self.open_gripper()
       else:
         self.close_gripper()
       self.record = record_dmp
-      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=self.action.roll, pitch=self.first_pose.pitch)
-      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=self.action.roll, pitch=self.last_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=r, pitch=self.first_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=r, pitch=self.last_pose.pitch)
       self.record = False
       self.close_gripper()
       self.sleep_pose()
       self.bool_last_p = False
-      self.bool_init_p = False
+      b = Bool()
+      b.data = True
+      self.pub_new_state.publish(b)
+      self.pub_outcome.publish(b)
+      #self.bool_init_p = False
       #self.bool_act = False
 
   def run_possibilities(self):
@@ -578,15 +594,15 @@ class Motion(object):
 
 if __name__ == '__main__':
   motion_pincher = Motion()
-  first = True
-  record = False
-  go = GripperOrientation()
-  ac = VectorAction()
-  go.pitch = 0.6
-  ac.x = -0.01
-  ac.y = 0.09
-  ac.roll = 0.0
-  ac.grasp = 0.0
+  #first = True
+  #record = False
+  #go = GripperOrientation()
+  #ac = VectorAction()
+  #go.pitch = 0.6
+  #ac.x = -0.01
+  #ac.y = 0.09
+  #ac.roll = 0.0
+  #ac.grasp = 0.0
   #first = True
   rospy.sleep(2.0)
   #motion_planning.open_gripper()
@@ -594,12 +610,10 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    pass
-    """if motion_pincher.get_explore():
-      motion_pincher.define_action()
-      motion_pincher.execute_action(True)
+    if motion_pincher.get_explore():
+      motion_pincher.execute_action(False)
     if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()"""
+      motion_pincher.execute_dmp()
     # if first:
     #   motion_pincher.test_interface()
     #   first = False
