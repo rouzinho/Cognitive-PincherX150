@@ -5,8 +5,8 @@ import math
 import time
 from sklearn.preprocessing import MinMaxScaler
 
-w = [0.423,0.755,0.889]
-c = [0.5,0.5,1.0]
+w = [0.5,0.5,0.5]
+c = [0.27,-0.106,0.033]
 
 def pose_to_color(w):
    n_x = np.array(w[0])
@@ -68,9 +68,11 @@ def color_to_pose(c):
 
 
 p = color_to_pose(w)
+j = pose_to_color(c)
 
 
 print(p)
+print(j)
 
 
 #data = []

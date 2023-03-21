@@ -188,7 +188,9 @@ class Som(object):
 
     def callbackNode(self,msg):
         tmp = self.get_weights_node(int(msg.x),int(msg.y))
-        print(tmp)
+        print("node index x :",int(msg.x))
+        print("node index y :",int(msg.y))
+        print("node values : ",tmp)
         if self.mode == "motion":
             va = VectorAction()
             va.x = tmp[0,0]
@@ -717,7 +719,7 @@ if __name__ == "__main__":
         som.load_som(model_name,data_set)
         #som.print_som()
     print("READY")
-    #plt.show()
+    plt.show()
     #while not rospy.is_shutdown():
     #    pass
     rospy.spin()
