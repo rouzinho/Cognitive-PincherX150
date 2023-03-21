@@ -237,7 +237,7 @@ class Detector
             activate_angle = false;
             first_time = false;
         }
-        if(!first && activate_angle)
+        if(!first_time && activate_angle)
         {
             cout<<"Recording second angle\n";
             second_angle = msg->data;
