@@ -294,9 +294,10 @@ class Detector
                         pt.elem.y = corners[ids[i]][j].y;
                         pts.poi.push_back(pt);
                     }
+                    pub_aruco.publish(pts);
                 }
             }
-            pub_aruco.publish(pts);
+            
         }
     }
 
@@ -358,10 +359,13 @@ class Detector
         first_ang = first_ang + 180.0;
         sec_ang = sec_ang + 180.0;
         diff = sec_ang - first_ang;
-        if(diff > 180.0)
+        if(diff > 185.0)
         {
-            diff = diff - 180.0;
+            diff = diff - 185.0;
         }
+        std::cout<<"Angle 1 : "<<first_ang<<"\n";
+        std::cout<<"Angle 2 : "<<sec_ang<<"\n";
+        std::cout<<"Angle difference : "<<diff<<"\n";
         res.roll = diff;
         writeDataset(res);
         pub_outcome.publish(res);
