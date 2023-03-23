@@ -93,6 +93,7 @@ class DepthImage
     cv::Mat mask;
     cv::Mat open_state;
     cv::Mat tmp_mask;
+    bool reactivate;
 
   public:
     DepthImage():
@@ -130,8 +131,9 @@ class DepthImage
       open_state = cv::imread("/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg");
       count = 0;
       threshold = 40;
-      start = false;
-      threshold_change = 50;
+      start = true;
+      threshold_change = 10;
+      reactivate = false;
     }
     ~DepthImage()
     {
@@ -463,16 +465,19 @@ class DepthImage
           int c = getFilesCount();
           if(first == false)
           {
+            if(!reactivate)
+            {
+              std_msgs::Bool msg;
+              msg.data = true;
+              pub_activate_detector.publish(msg);
+            }
             //check if object isn't out of robot's reach
             bool border = detectBoundaries(final_image);
-            //activate detector whether it's out of bounds or not
-            std_msgs::Bool msg;
-            msg.data = true;
-            pub_activate_detector.publish(msg);
             if(!border)
             {
+              reactivate = false;
               change = stateChanged(final_image,c);
-              if(change == true)
+              if(change  || reactivate)
               {
                 std::cout<<"changes !\n";
                 std::string s = std::to_string(c);
@@ -501,6 +506,7 @@ class DepthImage
             }
             else
             {
+              reactivate = true;
               std_msgs::Bool msg;
               msg.data = true;
               pub_reset_detector.publish(msg);
