@@ -93,6 +93,7 @@ class Motion(object):
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
     self.pub_new_state = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
     self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
+    self.pub_robot_action = rospy.Publisher("/motion_pincher/robot_action", String, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -502,6 +503,9 @@ class Motion(object):
       self.record = False
       self.close_gripper()
       self.sleep_pose()
+      data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
+      data_msg = String(data)
+      self.pub_robot_action.publish(data_msg) 
       self.bool_last_p = False
       b = Bool()
       b.data = True
