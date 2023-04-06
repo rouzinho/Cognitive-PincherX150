@@ -29,6 +29,7 @@
 #include <pcl_ros/transforms.h>
 #include <math.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
 #include "detector/Outcome.h"
 #include <opencv2/aruco.hpp>
@@ -60,6 +61,7 @@ class Detector
         ros::Subscriber sub_touch;
         ros::Subscriber sub_angle;
         ros::Subscriber sub_first_time;
+        ros::Subscriber sub_robot_action;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -93,6 +95,7 @@ class Detector
         bool mode;
         float first_angle;
         float second_angle;
+        float object_state_angle;
         bool first_time;
 
     public:
@@ -107,6 +110,7 @@ class Detector
         sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
+        sub_robot_action = nh_.subscribe("/motion_pincher/robot_action", 1, &Detector::robotActionCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
@@ -133,6 +137,7 @@ class Detector
         first_angle = 0.0;
         second_angle = 0.0;
         first_time = true;
+        std::string robot_action;
         cv::namedWindow(OPENCV_WINDOW,cv::WINDOW_NORMAL);
     }
 
@@ -272,6 +277,7 @@ class Detector
         //std::cout<<pose_object<<"\n";
     }
 
+    //sending 2D corners to be transform in 3D space
     void RgbCallback(const sensor_msgs::ImageConstPtr& msg)
     {
         cv_ptr = cv_bridge::toCvCopy( msg, sensor_msgs::image_encodings::BGR8);
@@ -299,6 +305,11 @@ class Detector
             }
             
         }
+    }
+
+    void robotActionCallback(const std_msgs::StringConstPtr& msg)
+    {
+        robot_action = msg->data;
     }
 
     void listenTransform()
@@ -367,8 +378,8 @@ class Detector
         std::cout<<"Angle 2 : "<<sec_ang<<"\n";
         std::cout<<"Angle difference : "<<diff<<"\n";
         res.roll = diff;
-        writeDataset(res);
-        pub_outcome.publish(res);
+        //writeDataset(res);
+        //pub_outcome.publish(res);
     }
 
     Eigen::Vector3f performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
@@ -469,7 +480,7 @@ class Detector
         return rot;
     }
 
-    void writeDataset(detector::Outcome sample)
+    void writeDataset(float object_state, detector::Outcome sample)
     {
       std::ofstream ofile;
       ofile.open("/home/altair/interbotix_ws/src/detector/dataset/samples.txt", std::ios::app);
