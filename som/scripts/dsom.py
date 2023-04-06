@@ -15,7 +15,7 @@ class DSom(object):
     def __init__(self,num_features,s,ep):
         super(DSom, self).__init__()
         rospy.init_node('som', anonymous=True)
-        rospy.Subscriber("/som/node_value", Pose, self.callbackNode)
+        rospy.Subscriber("/dsom/node_value", Pose, self.callbackNode)
         self.pub_node = rospy.Publisher('/som/action', Pose, queue_size=1)
         self.num_features = num_features
         self.size = s
