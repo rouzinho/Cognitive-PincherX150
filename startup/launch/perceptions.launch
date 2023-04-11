@@ -1,0 +1,5 @@
+<launch>
+   <node name="depth_detector" pkg="depth_perception" type="depth_perception_node" output="screen"/>
+   <node name="icp_detector" pkg="detector" type="detector_node" output="screen"/>
+   <node name="depth_interface" pkg="depth_interface" type="depth_interface_node" output="screen"/>
+</launch>
