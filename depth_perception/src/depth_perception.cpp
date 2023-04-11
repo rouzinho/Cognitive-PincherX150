@@ -67,6 +67,7 @@ class DepthImage
     ros::Publisher pub_reset;
     ros::Publisher pub_reset_detector;
     ros::Publisher pub_name_state;
+    ros::Publisher pub_success;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -110,6 +111,7 @@ class DepthImage
       pub_reset = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
       pub_reset_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/reset",1);
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
+      pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -465,19 +467,12 @@ class DepthImage
           int c = getFilesCount();
           if(first == false)
           {
-            if(!reactivate)
-            {
-              std_msgs::Bool msg;
-              msg.data = true;
-              pub_activate_detector.publish(msg);
-            }
             //check if object isn't out of robot's reach
             bool border = detectBoundaries(final_image);
             if(!border)
             {
-              reactivate = false;
               change = stateChanged(final_image,c);
-              if(change  || reactivate)
+              if(change)
               {
                 std::cout<<"changes !\n";
                 std::string s = std::to_string(c);
@@ -488,48 +483,71 @@ class DepthImage
                 pub_name_state.publish(msg_state);
                 std_msgs::Bool msg;
                 msg.data = true;
+                pub_success.publish(msg);
                 pub_new_state.publish(msg);
                 ros::Duration(1.5).sleep();
                 msg.data = false;
                 pub_new_state.publish(msg);
+                reactivate = false;
               }
               else
               {
                 std::cout<<"no changes\n";
+                std::string s = std::to_string(c);
+                std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                cv::imwrite(name_state, final_image);
+                std_msgs::Bool msg_f;
+                msg_f.data = false;
+                pub_success.publish(msg_f);
                 std_msgs::Bool msg;
                 msg.data = true;
                 pub_retry.publish(msg);
                 ros::Duration(1.5).sleep();
                 msg.data = false;
                 pub_retry.publish(msg);
+                pub_success.publish(msg);
               }
+              std_msgs::Bool msg;
+              msg.data = true;
+              pub_activate_detector.publish(msg);
             }
             else
             {
-              reactivate = true;
+              first = true;
               std_msgs::Bool msg;
               msg.data = true;
+              //pub_success.publish(msg);
+              //pub_activate_detector.publish(msg);
               pub_reset_detector.publish(msg);
               pub_reset.publish(msg);
-              pub_activate_detector.publish(msg);
             }
-            
+            start = false;
           }
           else
           {
             std::cout<<"first time\n";
-            std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
+            int c = getFilesCount();
+            std::string name_state;
+            if(c > 0)
+            {
+              std::string s = std::to_string(c);
+              name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+            }
+            else
+            {
+              name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
+            }
             cv::imwrite(name_state, final_image);
             std_msgs::Bool msg;
             msg.data = true;
             pub_new_state.publish(msg);
+            pub_activate_detector.publish(msg);
             ros::Duration(1.5).sleep();
             msg.data = false;
             pub_new_state.publish(msg);
+            first = false;
+            start = false;
           }
-          
-          first = false;
-          start = false;
         }
         count++;
       }
@@ -551,8 +569,13 @@ class DepthImage
       tmp = detectCluster(detect);
       if(tmp)
       {
+        //send outcome before reset
+        std_msgs::Bool msg;
+        msg.data = true;
+        pub_success.publish(msg);
+        pub_activate_detector.publish(msg);
         bool answer = false;
-        std::chrono::seconds duration(5);
+        std::chrono::seconds duration(3);
         std::future<bool> future = std::async(getAnswer);
         while(!answer)
         {
@@ -659,6 +682,7 @@ class DepthImage
           }
         }
       }
+      std::cout<<"total change : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
