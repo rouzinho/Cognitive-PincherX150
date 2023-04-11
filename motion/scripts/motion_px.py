@@ -222,7 +222,6 @@ class Motion(object):
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_last_p = False
-      self.update_offline_dataset(False)
 
   def callback_exploration(self,msg):
     self.explore = msg.data
