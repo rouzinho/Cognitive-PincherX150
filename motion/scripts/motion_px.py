@@ -502,7 +502,8 @@ class Motion(object):
       self.record = False
       self.close_gripper()
       self.sleep_pose()
-      data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
+      #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
+      data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
       data_msg = String(data)
       self.pub_robot_action.publish(data_msg) 
       self.bool_last_p = False
