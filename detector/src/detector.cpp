@@ -62,6 +62,7 @@ class Detector
         ros::Subscriber sub_angle;
         ros::Subscriber sub_first_time;
         ros::Subscriber sub_robot_action;
+        ros::Subscriber sub_sample_success;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -97,6 +98,8 @@ class Detector
         float second_angle;
         float object_state_angle;
         bool first_time;
+        std::string robot_action;
+        bool success_sample;
 
     public:
 
@@ -111,6 +114,7 @@ class Detector
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
         sub_robot_action = nh_.subscribe("/motion_pincher/robot_action", 1, &Detector::robotActionCallback,this);
+        sub_sample_success = nh_.subscribe("/depth_perception/sample_success", 1, &Detector::sampleSuccessCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
@@ -137,7 +141,8 @@ class Detector
         first_angle = 0.0;
         second_angle = 0.0;
         first_time = true;
-        std::string robot_action;
+        robot_action = "";
+        success_sample = false;
         cv::namedWindow(OPENCV_WINDOW,cv::WINDOW_NORMAL);
     }
 
@@ -286,6 +291,7 @@ class Detector
         cv::Ptr<cv::aruco::DetectorParameters> parameters = cv::aruco::DetectorParameters::create();;
         cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_4X4_50);
         cv::aruco::detectMarkers(cv_ptr->image, dictionary, corners, ids);
+        //cv::aruco::drawDetectedMarkers(cv_ptr->image, corners, ids);
         depth_interface::InterfacePOI pts;
         if(ids.size() == 1)
         {
@@ -305,11 +311,18 @@ class Detector
             }
             
         }
+        //cv::imshow("out", cv_ptr->image);
+        //cv::waitKey(1);
     }
 
     void robotActionCallback(const std_msgs::StringConstPtr& msg)
     {
         robot_action = msg->data;
+    }
+
+    void sampleSuccessCallback(const std_msgs::BoolConstPtr& msg)
+    {
+        success_sample = msg->data;
     }
 
     void listenTransform()
@@ -347,7 +360,7 @@ class Detector
         {
             res.touch = 0.0;
         }
-        writeDataset(res);
+        //writeDataset(res);
         pub_outcome.publish(res);
     }
 
@@ -374,11 +387,13 @@ class Detector
         {
             diff = diff - 185.0;
         }
-        std::cout<<"Angle 1 : "<<first_ang<<"\n";
-        std::cout<<"Angle 2 : "<<sec_ang<<"\n";
+        //std::cout<<"Angle 1 : "<<first_ang<<"\n";
+        //std::cout<<"Angle 2 : "<<sec_ang<<"\n";
         std::cout<<"Angle difference : "<<diff<<"\n";
+        std::cout<<"x : "<<res.x<<"\n";
+        std::cout<<"y : "<<res.y<<"\n";
         res.roll = diff;
-        //writeDataset(res);
+        writeDataset(first_ang,res);
         //pub_outcome.publish(res);
     }
 
@@ -484,7 +499,7 @@ class Detector
     {
       std::ofstream ofile;
       ofile.open("/home/altair/interbotix_ws/src/detector/dataset/samples.txt", std::ios::app);
-      ofile << sample.x <<" "<<sample.y<<" "<<sample.roll<<" "<<sample.touch<<std::endl;
+      ofile << object_state << " " << robot_action << " " << sample.x <<" "<<sample.y<<" "<<sample.roll<<" "<<sample.touch<< " " <<success_sample<<std::endl;
       ofile.close();
     }
 
