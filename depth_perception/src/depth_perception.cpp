@@ -68,6 +68,7 @@ class DepthImage
     ros::Publisher pub_reset_detector;
     ros::Publisher pub_name_state;
     ros::Publisher pub_success;
+    ros::Publisher pub_ready;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -112,6 +113,7 @@ class DepthImage
       pub_reset_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/reset",1);
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
+      pub_ready = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -485,10 +487,12 @@ class DepthImage
                 msg.data = true;
                 pub_success.publish(msg);
                 pub_new_state.publish(msg);
-                ros::Duration(1.5).sleep();
+                ros::Duration(3.5).sleep();
                 msg.data = false;
                 pub_new_state.publish(msg);
                 reactivate = false;
+                msg.data = true;
+                pub_ready.publish(msg);
               }
               else
               {
@@ -502,10 +506,12 @@ class DepthImage
                 std_msgs::Bool msg;
                 msg.data = true;
                 pub_retry.publish(msg);
-                ros::Duration(1.5).sleep();
+                ros::Duration(0.5).sleep();
                 msg.data = false;
                 pub_retry.publish(msg);
                 pub_success.publish(msg);
+                msg.data = true;
+                pub_ready.publish(msg);
               }
               std_msgs::Bool msg;
               msg.data = true;
@@ -547,6 +553,8 @@ class DepthImage
             pub_new_state.publish(msg);
             first = false;
             start = false;
+            msg.data = true;
+            pub_ready.publish(msg);
           }
         }
         count++;
