@@ -188,9 +188,9 @@ class Som(object):
 
     def callbackNode(self,msg):
         tmp = self.get_weights_node(int(msg.x),int(msg.y))
-        print("node index x :",int(msg.x))
-        print("node index y :",int(msg.y))
-        print("node values : ",tmp)
+        #print("node index x :",int(msg.x))
+        #print("node index y :",int(msg.y))
+        #print("node values : ",tmp)
         if self.mode == "motion":
             va = VectorAction()
             va.x = tmp[0,0]
