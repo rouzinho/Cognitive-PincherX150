@@ -94,6 +94,7 @@ class Motion(object):
     self.pub_new_state = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
     self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
     self.pub_robot_action = rospy.Publisher("/motion_pincher/robot_action", String, queue_size=1, latch=True)
+    self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -105,7 +106,7 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
-    rospy.Subscriber('/depth_perception/name_state', String, self.callback_name_state)
+    rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready)
 
     self.gripper_state = 0.0
     self.js = JointState()
@@ -143,6 +144,9 @@ class Motion(object):
     self.bool_dmp_plan = False
     self.path = ListPose()
     self.prop = JointState()
+    self.ready = True
+    self.got_action = False
+    self.recording_dmp = False
 
   def callback_pose(self,msg):
     self.init_position()
@@ -156,12 +160,16 @@ class Motion(object):
       self.first_pose.y = msg.y
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
+      self.got_action = True
       print("first pose : ",self.first_pose)
     elif self.bool_init_p == True and self.explore:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
       self.bool_last_p = True
+      self.got_action = True
+      print("second pose : ",self.last_pose)
+      self.ready = False
     if self.exploit:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
@@ -212,12 +220,17 @@ class Motion(object):
 
   def callback_new_state(self,msg):
     if msg.data == True:
+      tmp = Bool()
+      tmp.data = False
+      #sending signal down since it's up most of the time
+      self.pub_signal_action.publish(tmp)
       self.bool_init_p = False
       self.bool_last_p = False
       self.bool_act = False
-      self.make_dmp()
-      self.update_offline_dataset(True)
-      self.delete_js_bag()
+      if self.recording_dmp:
+        self.make_dmp()
+        self.delete_js_bag()
+        self.recording_dmp = False
 
   def callback_retry(self,msg):
     if msg.data == True:
@@ -235,8 +248,22 @@ class Motion(object):
     self.bool_init_p = False
     self.bool_last_p = False
 
-  def callback_name_state(self,msg):
-    self.name_state = msg.data
+  def callback_ready(self,msg):
+    self.ready = msg.data
+
+  def send_signal_action(self):
+    if self.ready:
+      print("sending signal...")
+      msg = Bool()
+      msg.data = False
+      self.pub_signal_action.publish(msg)
+      rospy.sleep(1.0)
+      msg.data = True
+      self.pub_signal_action.publish(msg)
+      while not self.got_action:
+        pass
+      self.got_action = False
+      print("got action !")
 
   #remove temporary js path bag file created to generate DMP
   def delete_js_bag(self):
@@ -497,6 +524,7 @@ class Motion(object):
       else:
         self.close_gripper()
       self.record = record_dmp
+      self.recording_dmp = record_dmp
       self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=r, pitch=self.first_pose.pitch)
       self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=r, pitch=self.last_pose.pitch)
       self.record = False
@@ -616,6 +644,7 @@ if __name__ == '__main__':
   while not rospy.is_shutdown():
     if motion_pincher.get_explore():
       motion_pincher.execute_action(False)
+      motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
       motion_pincher.execute_dmp()
     # if first:
