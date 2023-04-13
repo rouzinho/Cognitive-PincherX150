@@ -92,7 +92,7 @@ class DepthInterface
     {
       sync.registerCallback( boost::bind( &DepthInterface::callbackRGBDepth, this, _1, _2) );
       //sub_affine_dm = nh_.subscribe("/pcl_fusion/affine_dm", 1, &DepthInterface::callbackAffineDM,this);
-      sub_poi = nh_.subscribe("/outcome/aruco_corners", 1, &DepthInterface::poiCallback,this);
+      sub_poi = nh_.subscribe("/outcome_detector/aruco_corners", 1, &DepthInterface::poiCallback,this);
       pub_poi = nh_.advertise<depth_interface::InterfacePOI> ("/depth_interface/poi_depthmap", 1);
       pub_poi_pcl = nh_.advertise<sensor_msgs::PointCloud2> ("/depth_interface/poi_pcl", 1);
       pub_pose_aruco = nh_.advertise<std_msgs::Float32> ("/depth_interface/aruco_angle", 1);
