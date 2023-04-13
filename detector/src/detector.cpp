@@ -56,6 +56,7 @@ class Detector
         ros::Publisher pub_tf;
         ros::Publisher pub_outcome;
         ros::Publisher pub_aruco;
+        ros::Publisher pub_ready;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
@@ -118,7 +119,8 @@ class Detector
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
-        pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome/aruco_corners",1);
+        pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
+        pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -394,6 +396,9 @@ class Detector
         std::cout<<"y : "<<res.y<<"\n";
         res.roll = diff;
         writeDataset(first_ang,res);
+        std_msgs::Bool tmp;
+        tmp.data = true;
+        pub_ready.publish(tmp);
         //pub_outcome.publish(res);
     }
 
