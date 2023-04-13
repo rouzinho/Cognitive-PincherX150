@@ -91,8 +91,8 @@ class Motion(object):
     self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
     self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
-    self.pub_new_state = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
-    self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
+    self.pub_activate_perception = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
+    #self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
     self.pub_robot_action = rospy.Publisher("/motion_pincher/robot_action", String, queue_size=1, latch=True)
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
@@ -106,7 +106,8 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
-    rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready)
+    rospy.Subscriber('/depth_perception/ready', Bool, self.callback_ready_depth)
+    rospy.Subscriber('/outcome_detector/ready', Bool, self.callback_ready_outcome)
 
     self.gripper_state = 0.0
     self.js = JointState()
@@ -145,8 +146,11 @@ class Motion(object):
     self.path = ListPose()
     self.prop = JointState()
     self.ready = True
+    self.ready_depth = True
+    self.ready_outcome = True
     self.got_action = False
     self.recording_dmp = False
+    self.last_time = 0
 
   def callback_pose(self,msg):
     self.init_position()
@@ -170,6 +174,8 @@ class Motion(object):
       self.got_action = True
       print("second pose : ",self.last_pose)
       self.ready = False
+      self.ready_depth = False
+      self.ready_outcome = False
     if self.exploit:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
@@ -248,8 +254,15 @@ class Motion(object):
     self.bool_init_p = False
     self.bool_last_p = False
 
-  def callback_ready(self,msg):
-    self.ready = msg.data
+  def callback_ready_depth(self,msg):
+    self.ready_depth = msg.data
+    if self.ready_depth and self.ready_outcome:
+      self.ready = True
+
+  def callback_ready_outcome(self,msg):
+    self.ready_outcome = msg.data
+    if self.ready_outcome and self.ready_depth:
+      self.ready = True
 
   def send_signal_action(self):
     if self.ready:
@@ -263,7 +276,10 @@ class Motion(object):
       while not self.got_action:
         pass
       self.got_action = False
+      self.last_time = rospy.get_time()
       print("got action !")
+    if rospy.get_time() - self.last_time > 15:
+      print("still waiting for perception...")
 
   #remove temporary js path bag file created to generate DMP
   def delete_js_bag(self):
@@ -531,14 +547,14 @@ class Motion(object):
       self.close_gripper()
       self.sleep_pose()
       #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
-      data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
+      data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " "
       data_msg = String(data)
       self.pub_robot_action.publish(data_msg) 
       self.bool_last_p = False
       b = Bool()
       b.data = True
-      self.pub_new_state.publish(b)
-      self.pub_outcome.publish(b)
+      self.pub_activate_perception.publish(b)
+      #self.pub_outcome.publish(b)
       #self.bool_init_p = False
       #self.bool_act = False
 
