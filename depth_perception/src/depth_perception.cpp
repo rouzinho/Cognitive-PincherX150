@@ -69,6 +69,7 @@ class DepthImage
     ros::Publisher pub_name_state;
     ros::Publisher pub_success;
     ros::Publisher pub_ready;
+    ros::Publisher pub_ready_robot;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -114,6 +115,7 @@ class DepthImage
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
+      pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motoin_pincher/ready",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -553,7 +555,8 @@ class DepthImage
             first = false;
             start = false;
             msg.data = true;
-            pub_ready.publish(msg);
+            //pub_ready.publish(msg);
+            pub_ready_robot.publish(msg);
           }
         }
         count++;
