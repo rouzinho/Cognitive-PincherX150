@@ -100,7 +100,7 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
     rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
-    rospy.Subscriber('/motion_pincher/touch_pressure', UInt16, self.callback_pressure)
+    rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
@@ -108,6 +108,7 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/depth_perception/ready', Bool, self.callback_ready_depth)
     rospy.Subscriber('/outcome_detector/ready', Bool, self.callback_ready_outcome)
+    rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready_robot)
 
     self.gripper_state = 0.0
     self.js = JointState()
@@ -135,6 +136,7 @@ class Motion(object):
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 5
     self.single_msg = True
+    self.threshold_touch = 315
     self.explore = False
     self.exploit = False
     self.dmp = Dmp()
@@ -145,7 +147,7 @@ class Motion(object):
     self.bool_dmp_plan = False
     self.path = ListPose()
     self.prop = JointState()
-    self.ready = True
+    self.ready = False
     self.ready_depth = True
     self.ready_outcome = True
     self.got_action = False
@@ -194,13 +196,15 @@ class Motion(object):
       print("action : ",self.action)
 
   def callback_pressure(self,msg):
-    if msg.data < 200:
+    if msg.data < self.threshold_touch:
       self.stop_pressing = True
     else:
       self.stop_pressing = False
     t = Bool()
     t.data = self.stop_pressing
     self.pub_touch.publish(t)
+    if self.stop_pressing:
+      print("object grasped !")
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -264,6 +268,9 @@ class Motion(object):
     if self.ready_outcome and self.ready_depth:
       self.ready = True
 
+  def callback_ready_robot(self,msg):
+    self.ready = msg.data
+
   def send_signal_action(self):
     if self.ready:
       print("sending signal...")
@@ -276,9 +283,10 @@ class Motion(object):
       while not self.got_action:
         pass
       self.got_action = False
-      self.last_time = rospy.get_time()
       print("got action !")
-    if rospy.get_time() - self.last_time > 15:
+      self.last_time = rospy.get_time()
+    elapsed = rospy.get_time() - self.last_time
+    if elapsed > 35:
       print("still waiting for perception...")
 
   #remove temporary js path bag file created to generate DMP
@@ -505,26 +513,14 @@ class Motion(object):
   def close_gripper(self):
     jsc = JointSingleCommand()
     jsc.name = "gripper"
-    jsc.cmd = -50.0
+    jsc.cmd = -250.0
     self.pub_gripper.publish(jsc)
-    while not self.stop_pressing and self.gripper_state > 0.020:
+    while not self.stop_pressing and self.gripper_state > 0.017:
       pass
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
-
-  #gather pose and action before moving on
-  def define_action(self):
-    if self.bool_init_p and self.bool_last_p:
-      go = GripperOrientation()
-      go.x = self.first_pose.x + self.action.x
-      go.y = self.first_pose.y + self.action.y
-      go.pitch = self.first_pose.pitch
-      resp = return_bmu(go)
-      self.last_pose.x = resp.bmu.x
-      self.last_pose.y = resp.bmu.y
-      self.last_pose.pitch = resp.bmu.pitch
-      print("last pose : ",self.last_pose)
-      self.bool_last_p = True
+    if self.stop_pressing:
+      print("object grasped !")
       
   #execute the action
   def execute_action(self,record_dmp):
@@ -536,16 +532,17 @@ class Motion(object):
       print("grasp ",g)
       self.init_position()     
       if g > 0.5:
-        self.open_gripper()
+        self.bot.gripper.open()
       else:
-        self.close_gripper()
+        self.bot.gripper.close()
       self.record = record_dmp
       self.recording_dmp = record_dmp
       self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=r, pitch=self.first_pose.pitch)
       self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=r, pitch=self.last_pose.pitch)
       self.record = False
-      self.close_gripper()
+      self.bot.gripper.close()
       self.sleep_pose()
+      self.last_time = rospy.get_time()
       #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
       data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " "
       data_msg = String(data)
@@ -592,15 +589,23 @@ class Motion(object):
             f.close()
 
   def test_interface(self):
-    self.bot.arm.go_to_home_pose()
+    self.sleep_pose()
+    print("opening gripper")
+    self.bot.gripper.open(3.0)
+    #self.open_gripper()
+    print("closing gripper")
+    self.bot.gripper.close()
+    #self.close_gripper()
+    print("gripper closed")
+    #self.bot.arm.go_to_home_pose()
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(1.0)
     #self.record = True
     #self.write_joints_bag(self.name_ee,self.js)
-    self.bot.arm.set_ee_pose_components(x=0.35, y=0.03, z=0.03, roll=0.0, pitch=0.6)
-    rospy.sleep(4)
-    self.bot.arm.set_ee_pose_components(x=0.3, y=0.1, z=0.03, roll=0.0, pitch=0.6)
-    rospy.sleep(4)
+    #self.bot.arm.set_ee_pose_components(x=0.35, y=0.03, z=0.03, roll=0.0, pitch=0.6)
+    #rospy.sleep(4)
+    #self.bot.arm.set_ee_pose_components(x=0.3, y=0.1, z=0.03, roll=0.0, pitch=0.6)
+    #rospy.sleep(4)
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(0.5)
     #elf.record = True
@@ -642,7 +647,7 @@ class Motion(object):
 
 if __name__ == '__main__':
   motion_pincher = Motion()
-  #first = True
+  first = True
   #record = False
   #go = GripperOrientation()
   #ac = VectorAction()
@@ -658,13 +663,14 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    if motion_pincher.get_explore():
-      motion_pincher.execute_action(False)
-      motion_pincher.send_signal_action()
-    if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()
-    # if first:
-    #   motion_pincher.test_interface()
-    #   first = False
+    #if motion_pincher.get_explore():
+    #  motion_pincher.execute_action(False)
+    #  motion_pincher.send_signal_action()
+    #if motion_pincher.get_exploit():
+    #  motion_pincher.execute_dmp()
+    if first:
+      motion_pincher.test_interface()
+      
+      first = False
 
   rospy.spin()
