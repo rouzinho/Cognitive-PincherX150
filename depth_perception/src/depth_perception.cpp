@@ -113,7 +113,7 @@ class DepthImage
       pub_reset_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/reset",1);
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
-      pub_ready = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
+      pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -506,10 +506,9 @@ class DepthImage
                 std_msgs::Bool msg;
                 msg.data = true;
                 pub_retry.publish(msg);
-                ros::Duration(0.5).sleep();
-                msg.data = false;
-                pub_retry.publish(msg);
-                pub_success.publish(msg);
+                //ros::Duration(0.5).sleep();
+                //msg.data = false;
+                //pub_retry.publish(msg);
                 msg.data = true;
                 pub_ready.publish(msg);
               }
