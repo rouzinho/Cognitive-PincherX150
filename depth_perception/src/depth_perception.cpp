@@ -472,10 +472,11 @@ class DepthImage
           cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
           cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
           fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-          //cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/min_max_all.jpg", fil);
+          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/dnf.jpg", fil_nf);
           cv::resize(fil, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
           sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
           pub_state.publish(dobject_nf);
+          ros::Duration(3.5).sleep();
           int c = getFilesCount();
           if(first == false)
           {
@@ -493,11 +494,12 @@ class DepthImage
                 std_msgs::String msg_state;
                 msg_state.data = name_state;
                 pub_name_state.publish(msg_state);
+                std::cout<<"RESET DNF\n";
                 std_msgs::Bool msg;
                 msg.data = true;
                 pub_success.publish(msg);
                 pub_new_state.publish(msg);
-                ros::Duration(3.5).sleep();
+                ros::Duration(4.5).sleep();
                 msg.data = false;
                 pub_new_state.publish(msg);
                 reactivate = false;
@@ -569,8 +571,7 @@ class DepthImage
         count++;
       }
 
-      //cv::imshow(OPENCV_WINDOW, final_image);
-      //cv::waitKey(1);
+      
     }
 
     bool detectBoundaries(cv::Mat img)
