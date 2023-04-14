@@ -97,6 +97,7 @@ class DepthImage
     cv::Mat open_state;
     cv::Mat tmp_mask;
     bool reactivate;
+    bool init_values;
 
   public:
     DepthImage():
@@ -115,7 +116,7 @@ class DepthImage
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
-      pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motoin_pincher/ready",1);
+      pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       tf_in = false;
       crop_max_x = 5000;
       crop_max_y = 5000;
@@ -140,6 +141,7 @@ class DepthImage
       start = true;
       threshold_change = 10;
       reactivate = false;
+      init_values = false;
     }
     ~DepthImage()
     {
@@ -147,23 +149,29 @@ class DepthImage
 
     void pointCloudCb(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     {
-      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
-      pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
-      if(!tf_in)
+      if(!init_values)
       {
-        listenTransform();
-      }
-      //std::cout<<cloud_msg->header.frame_id<<"/n";
-      
-      pcl::PCLPointCloud2 pcl_pc2;
-      pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
-      pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
-      pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
 
-      //print4x4Matrix(robot_frame);
-      getExtremeValues(cloud_transformed);
-      //genDepthFromPcl(cloud_transformed);
+      
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
+        if(!tf_in)
+        {
+          listenTransform();
+        }
+        //std::cout<<cloud_msg->header.frame_id<<"/n";
+        
+        pcl::PCLPointCloud2 pcl_pc2;
+        pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
+        pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+        pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+
+        //print4x4Matrix(robot_frame);
+        getExtremeValues(cloud_transformed);
+        //genDepthFromPcl(cloud_transformed);
+        init_values = true;
+      }
 
     }
 
@@ -555,8 +563,7 @@ class DepthImage
             first = false;
             start = false;
             msg.data = true;
-            //pub_ready.publish(msg);
-            pub_ready_robot.publish(msg);
+            pub_ready.publish(msg);
           }
         }
         count++;
