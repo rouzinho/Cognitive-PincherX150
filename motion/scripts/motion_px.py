@@ -136,8 +136,8 @@ class Motion(object):
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 5
     self.single_msg = True
-    self.threshold_touch = 315
-    self.explore = False
+    self.threshold_touch = 290
+    self.explore = True
     self.exploit = False
     self.dmp = Dmp()
     self.dmp_name = ""
@@ -148,8 +148,8 @@ class Motion(object):
     self.path = ListPose()
     self.prop = JointState()
     self.ready = False
-    self.ready_depth = True
-    self.ready_outcome = True
+    self.ready_depth = False
+    self.ready_outcome = False
     self.got_action = False
     self.recording_dmp = False
     self.last_time = 0
@@ -168,7 +168,7 @@ class Motion(object):
       self.bool_init_p = True
       self.got_action = True
       print("first pose : ",self.first_pose)
-    elif self.bool_init_p == True and self.explore:
+    elif self.bool_init_p == True and not self.bool_last_p and self.explore:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
@@ -203,8 +203,8 @@ class Motion(object):
     t = Bool()
     t.data = self.stop_pressing
     self.pub_touch.publish(t)
-    if self.stop_pressing:
-      print("object grasped !")
+    #if self.stop_pressing:
+    #  print("object grasped !")
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -237,6 +237,7 @@ class Motion(object):
       self.bool_init_p = False
       self.bool_last_p = False
       self.bool_act = False
+      print("PLAN NEW ACTION")
       if self.recording_dmp:
         self.make_dmp()
         self.delete_js_bag()
@@ -245,6 +246,7 @@ class Motion(object):
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_last_p = False
+      print("TRY AGAIN with 2nd pose")
 
   def callback_exploration(self,msg):
     self.explore = msg.data
@@ -262,11 +264,13 @@ class Motion(object):
     self.ready_depth = msg.data
     if self.ready_depth and self.ready_outcome:
       self.ready = True
+      print("READY Depth last")
 
   def callback_ready_outcome(self,msg):
     self.ready_outcome = msg.data
     if self.ready_outcome and self.ready_depth:
       self.ready = True
+      print("READY outcome last")
 
   def callback_ready_robot(self,msg):
     self.ready = msg.data
@@ -287,7 +291,8 @@ class Motion(object):
       self.last_time = rospy.get_time()
     elapsed = rospy.get_time() - self.last_time
     if elapsed > 35:
-      print("still waiting for perception...")
+      pass
+      #print("still waiting for perception...")
 
   #remove temporary js path bag file created to generate DMP
   def delete_js_bag(self):
@@ -525,11 +530,13 @@ class Motion(object):
   #execute the action
   def execute_action(self,record_dmp):
     if self.bool_init_p and self.bool_last_p:
-      print("in the loop")
+      print("EXECUTING ACTION")
       r = random.choice(self.possible_roll)
       g = random.choice(self.possible_grasp)
-      print("roll ",r)
-      print("grasp ",g)
+      #print("roll ",r)
+      #print("grasp ",g)
+      self.bot.gripper.set_pressure(0.4)
+      rospy.sleep(3.0)
       self.init_position()     
       if g > 0.5:
         self.bot.gripper.open()
@@ -537,17 +544,22 @@ class Motion(object):
         self.bot.gripper.close()
       self.record = record_dmp
       self.recording_dmp = record_dmp
-      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.03, roll=r, pitch=self.first_pose.pitch)
-      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.03, roll=r, pitch=self.last_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.07, roll=r, pitch=self.first_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.07, roll=r, pitch=self.last_pose.pitch)
       self.record = False
       self.bot.gripper.close()
+      self.init_position()  
       self.sleep_pose()
+      print("ACTION DONE")
       self.last_time = rospy.get_time()
       #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
       data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " "
       data_msg = String(data)
       self.pub_robot_action.publish(data_msg) 
       self.bool_last_p = False
+      self.ready_depth = False
+      self.ready_outcome = False
+      self.ready = False
       b = Bool()
       b.data = True
       self.pub_activate_perception.publish(b)
@@ -590,13 +602,18 @@ class Motion(object):
 
   def test_interface(self):
     self.sleep_pose()
-    print("opening gripper")
-    self.bot.gripper.open(3.0)
+    self.init_position()
+    self.bot.arm.set_ee_pose_components(x=0.20, y=-0.15, z=0.07, roll=0.0, pitch=1.0)
+    rospy.sleep(5.0)
+    self.sleep_pose()
+    #print("opening gripper")
+    #self.bot.gripper.open(3.0)
     #self.open_gripper()
-    print("closing gripper")
-    self.bot.gripper.close()
+    #print("closing gripper")
+    #self.bot.gripper.set_pressure(0.4)
+    #self.bot.gripper.close()
     #self.close_gripper()
-    print("gripper closed")
+    #print("gripper closed")
     #self.bot.arm.go_to_home_pose()
     #self.write_joints_bag(self.name_ee,self.js)
     #rospy.sleep(1.0)
@@ -663,14 +680,13 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    #if motion_pincher.get_explore():
-    #  motion_pincher.execute_action(False)
-    #  motion_pincher.send_signal_action()
-    #if motion_pincher.get_exploit():
-    #  motion_pincher.execute_dmp()
-    if first:
-      motion_pincher.test_interface()
-      
-      first = False
+    if motion_pincher.get_explore():
+      motion_pincher.execute_action(False)
+      motion_pincher.send_signal_action()
+    if motion_pincher.get_exploit():
+      motion_pincher.execute_dmp()
+    #if first:
+    #  motion_pincher.test_interface()  
+    #  first = False
 
   rospy.spin()
