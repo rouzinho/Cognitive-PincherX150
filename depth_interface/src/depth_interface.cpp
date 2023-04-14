@@ -80,6 +80,7 @@ class DepthInterface
     double az;
     double bz;
     
+    
 
   public:
     DepthInterface():
