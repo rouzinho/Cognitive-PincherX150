@@ -207,12 +207,15 @@ class Som(object):
 
     def callback_list_peaks(self,msg):
         l_peaks = self.list_peaks(msg)
+        print("list peaks ")
+        print(l_peaks)
         l = ListPeaks()
         for i in l_peaks:
             p = Point()
             p.x = i[0]
             p.y = i[1] 
             l.list_peaks.append(p)
+        #print(l.list_peaks)
         self.pub_peaks.publish(l)
 
     def list_peaks(self,data):
