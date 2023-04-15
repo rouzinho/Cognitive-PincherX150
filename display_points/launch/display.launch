@@ -1,0 +1,3 @@
+<launch>
+    <node name="display_points" pkg="display_points" type="display_pts.py" output="screen"/>
+</launch>
