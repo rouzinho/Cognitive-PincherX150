@@ -21,6 +21,7 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/Vector3Stamped.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Point.h>
 #include <visualization_msgs/Marker.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
@@ -28,6 +29,7 @@
 #include <pcl/filters/crop_box.h>
 #include <pcl_ros/transforms.h>
 #include <math.h>
+#include <cmath>
 #include <std_msgs/Bool.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
@@ -396,17 +398,35 @@ class Detector
         {
             diff = diff - 185.0;
         }
-        //std::cout<<"Angle 1 : "<<first_ang<<"\n";
-        //std::cout<<"Angle 2 : "<<sec_ang<<"\n";
+        geometry_msgs::Point vec_ref_object = findVectorTransform(first,t_x,t_y);
         std::cout<<"Angle difference : "<<diff<<"\n";
-        std::cout<<"x : "<<res.x<<"\n";
-        std::cout<<"y : "<<res.y<<"\n";
+        std::cout<<"object ref x : "<<vec_ref_object.x<<"\n";
+        std::cout<<"object ref y : "<<vec_ref_object.y<<"\n";
         res.roll = diff;
         writeDataset(first_ang,res);
         std_msgs::Bool tmp;
         tmp.data = true;
         pub_ready.publish(tmp);
         //pub_outcome.publish(res);
+    }
+
+    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty)
+    {
+        geometry_msgs::Point new_vec;
+        geometry_msgs::Point vec_ori;
+        vec_ori.x = first_pose.pose.position.x;
+        vec_ori.y = first_pose.pose.position.y;
+        vec_ori.x = first_pose.pose.position.x + vec_ori.x;
+        vec_ori.y = first_pose.pose.position.y + vec_ori.y;
+        float dot_prod = (vec_ori.x*tx) + (vec_ori.y*ty);
+        float det = (vec_ori.x*ty) + (vec_ori.y*tx);
+        float ang = atan2(det,dot_prod);
+        float tx_p = tx * cos(ang) - ty * sin(ang);
+        float ty_p = tx * sin(ang) + ty * cos(ang);
+        new_vec.x = tx_p;
+        new_vec.y = ty_p;
+
+        return new_vec;
     }
 
     Eigen::Vector3f performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
