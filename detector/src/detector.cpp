@@ -398,10 +398,12 @@ class Detector
         {
             diff = diff - 185.0;
         }
-        geometry_msgs::Point vec_ref_object = findVectorTransform(first,t_x,t_y);
+        geometry_msgs::Point vec_ref_object = findVectorTransform(first,t_y,t_x);
         std::cout<<"Angle difference : "<<diff<<"\n";
         std::cout<<"object ref x : "<<vec_ref_object.x<<"\n";
         std::cout<<"object ref y : "<<vec_ref_object.y<<"\n";
+        std::cout<<"robot ref x : "<<t_x<<"\n";
+        std::cout<<"robot ref y : "<<t_y<<"\n";
         res.roll = diff;
         writeDataset(first_ang,res);
         std_msgs::Bool tmp;
@@ -414,10 +416,10 @@ class Detector
     {
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
-        vec_ori.x = first_pose.pose.position.x;
-        vec_ori.y = first_pose.pose.position.y;
-        vec_ori.x = first_pose.pose.position.x + vec_ori.x;
-        vec_ori.y = first_pose.pose.position.y + vec_ori.y;
+        vec_ori.x = first_pose.pose.position.y;
+        vec_ori.y = first_pose.pose.position.x;
+        vec_ori.x = first_pose.pose.position.y + vec_ori.y;
+        vec_ori.y = first_pose.pose.position.x + vec_ori.x;
         float dot_prod = (vec_ori.x*tx) + (vec_ori.y*ty);
         float det = (vec_ori.x*ty) + (vec_ori.y*tx);
         float ang = atan2(det,dot_prod);
