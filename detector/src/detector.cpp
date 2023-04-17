@@ -416,17 +416,20 @@ class Detector
     {
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
+        geometry_msgs::Point vec_orth;
+        vec_orth.x = 0.1;
         vec_ori.x = first_pose.pose.position.y;
         vec_ori.y = first_pose.pose.position.x;
         vec_ori.x = first_pose.pose.position.y + vec_ori.y;
         vec_ori.y = first_pose.pose.position.x + vec_ori.x;
-        float dot_prod = (vec_ori.x*tx) + (vec_ori.y*ty);
-        float det = (vec_ori.x*ty) + (vec_ori.y*tx);
+        vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
+        float dot_prod = (vec_orth.x*tx) + (vec_orth.y*ty);
+        float det = (vec_orth.x*ty) + (vec_orth.y*tx);
         float ang = atan2(det,dot_prod);
         float tx_p = tx * cos(ang) - ty * sin(ang);
         float ty_p = tx * sin(ang) + ty * cos(ang);
-        new_vec.x = tx_p;
-        new_vec.y = ty_p;
+        new_vec.x = ty_p;
+        new_vec.y = tx_p;
 
         return new_vec;
     }
