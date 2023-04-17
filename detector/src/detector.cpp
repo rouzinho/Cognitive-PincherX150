@@ -42,6 +42,7 @@
 #include <opencv2/opencv.hpp>
 #include <depth_interface/ElementUI.h>
 #include <depth_interface/InterfacePOI.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 
 using namespace message_filters;
 using namespace std;
@@ -60,6 +61,7 @@ class Detector
         ros::Publisher pub_aruco;
         ros::Publisher pub_ready;
         ros::Publisher pub_ready_robot;
+        ros::Publisher pub_object_rot;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
@@ -125,6 +127,7 @@ class Detector
         pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
+        pub_object_rot = nh_.advertise<geometry_msgs::PoseStamped>("/object/pose",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -290,7 +293,33 @@ class Detector
         {
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
-        //std::cout<<pose_object<<"\n";
+        tf2::Quaternion q_orig(0,0,0,1);
+        tf2::Quaternion q_new, q_rot;
+        geometry_msgs::Point new_vec;
+        geometry_msgs::Point vec_ori;
+        geometry_msgs::Point vec_orth;
+        geometry_msgs::PoseStamped p;
+        p.header = msg->header;
+        p.header.frame_id = "px150/base_link";
+        p.pose.position.x = pose_object.pose.position.x;
+        p.pose.position.y = pose_object.pose.position.y;
+        p.pose.position.z = pose_object.pose.position.z;
+        
+        vec_ori.x = pose_object.pose.position.x;
+        vec_ori.y = pose_object.pose.position.y;
+        vec_ori.x = pose_object.pose.position.x + vec_ori.x;
+        vec_ori.y = pose_object.pose.position.y + vec_ori.y;
+        //vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
+        float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
+        float det = (vec_ori.x*0) + (vec_ori.y*0.1);
+        float ang = atan2(det,dot_prod);
+
+        q_rot.setRPY(0,0,ang);
+        q_new = q_rot*q_orig;
+        q_new.normalize();
+        tf2::convert(q_new, p.pose.orientation);
+        std::cout<<"tf angle : "<<ang<<"\n";
+        pub_object_rot.publish(p);
     }
 
     //sending 2D corners to be transform in 3D space
@@ -417,19 +446,14 @@ class Detector
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
         geometry_msgs::Point vec_orth;
-        vec_orth.x = 0.1;
-        vec_ori.x = first_pose.pose.position.y;
-        vec_ori.y = first_pose.pose.position.x;
-        vec_ori.x = first_pose.pose.position.y + vec_ori.y;
-        vec_ori.y = first_pose.pose.position.x + vec_ori.x;
-        vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
-        float dot_prod = (vec_orth.x*tx) + (vec_orth.y*ty);
-        float det = (vec_orth.x*ty) + (vec_orth.y*tx);
+        vec_ori.x = pose_object.pose.position.x;
+        vec_ori.y = pose_object.pose.position.y;
+        vec_ori.x = pose_object.pose.position.x + vec_ori.x;
+        vec_ori.y = pose_object.pose.position.y + vec_ori.y;
+        //vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
+        float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
+        float det = (vec_ori.x*0) + (vec_ori.y*0.1);
         float ang = atan2(det,dot_prod);
-        float tx_p = tx * cos(ang) - ty * sin(ang);
-        float ty_p = tx * sin(ang) + ty * cos(ang);
-        new_vec.x = ty_p;
-        new_vec.y = tx_p;
 
         return new_vec;
     }
