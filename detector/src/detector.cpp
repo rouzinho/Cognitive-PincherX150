@@ -43,6 +43,7 @@
 #include <depth_interface/ElementUI.h>
 #include <depth_interface/InterfacePOI.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <visualization_msgs/Marker.h>
 
 using namespace message_filters;
 using namespace std;
@@ -62,6 +63,8 @@ class Detector
         ros::Publisher pub_ready;
         ros::Publisher pub_ready_robot;
         ros::Publisher pub_object_rot;
+        ros::Publisher pub_vector_world;
+        ros::Publisher pub_vector_robot;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
@@ -106,6 +109,7 @@ class Detector
         bool first_time;
         std::string robot_action;
         bool success_sample;
+        tf2::Quaternion q_vector;
 
     public:
 
@@ -128,6 +132,8 @@ class Detector
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
         pub_object_rot = nh_.advertise<geometry_msgs::PoseStamped>("/object/pose",1);
+        pub_vector_world = nh_.advertise<visualization_msgs::Marker>("/object/translation_world",1);
+        pub_vector_robot = nh_.advertise<visualization_msgs::Marker>("/object/translation_robot",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -294,7 +300,7 @@ class Detector
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
         tf2::Quaternion q_orig(0,0,0,1);
-        tf2::Quaternion q_new, q_rot;
+        tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
         geometry_msgs::Point vec_orth;
@@ -315,11 +321,14 @@ class Detector
         float ang = atan2(det,dot_prod);
 
         q_rot.setRPY(0,0,ang);
-        q_new = q_rot*q_orig;
-        q_new.normalize();
-        tf2::convert(q_new, p.pose.orientation);
-        std::cout<<"tf angle : "<<ang<<"\n";
-        pub_object_rot.publish(p);
+        q_vector = q_rot*q_orig;
+        q_vector.normalize();
+        tf2::convert(q_vector, p.pose.orientation);
+        pose_object.pose.orientation.x = p.pose.orientation.x;
+        pose_object.pose.orientation.y = p.pose.orientation.y;
+        pose_object.pose.orientation.z = p.pose.orientation.z;
+        pose_object.pose.orientation.w = p.pose.orientation.w;
+        pub_object_rot.publish(pose_object);
     }
 
     //sending 2D corners to be transform in 3D space
@@ -427,7 +436,7 @@ class Detector
         {
             diff = diff - 185.0;
         }
-        geometry_msgs::Point vec_ref_object = findVectorTransform(first,t_y,t_x);
+        geometry_msgs::Point vec_ref_object = findVectorTransform(first, second, t_x,t_y);
         std::cout<<"Angle difference : "<<diff<<"\n";
         std::cout<<"object ref x : "<<vec_ref_object.x<<"\n";
         std::cout<<"object ref y : "<<vec_ref_object.y<<"\n";
@@ -441,21 +450,62 @@ class Detector
         //pub_outcome.publish(res);
     }
 
-    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty)
+    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, geometry_msgs::PoseStamped second_pose, float tx, float ty)
     {
-        geometry_msgs::Point new_vec;
-        geometry_msgs::Point vec_ori;
-        geometry_msgs::Point vec_orth;
-        vec_ori.x = pose_object.pose.position.x;
+        geometry_msgs::Point p;
+        visualization_msgs::Marker marker_world;
+        marker_world.header = second_pose.header;
+        marker_world.header.frame_id = "px150/base_link";
+        marker_world.color.a = 1.0;
+        marker_world.color.r = 1.0;
+        marker_world.id = 0;
+        marker_world.type = visualization_msgs::Marker::ARROW;
+        marker_world.action = visualization_msgs::Marker::ADD;
+        marker_world.scale.x = 0.1;
+        marker_world.scale.y = 0.1;
+        marker_world.scale.z = 0.1;
+        visualization_msgs::Marker marker_robot;
+        marker_robot.header = second_pose.header;
+        marker_robot.header.frame_id = "px150/base_link";
+        marker_robot.color.a = 1.0;
+        marker_robot.color.g = 1.0;
+        marker_robot.id = 1;
+        marker_robot.type = visualization_msgs::Marker::ARROW;
+        marker_robot.action = visualization_msgs::Marker::ADD;
+        marker_robot.scale.x = 0.1;
+        marker_robot.scale.y = 0.1;
+        marker_robot.scale.z = 0.1;
+        tf2::Vector3 vec(tx,ty,0);
+        tf2::Vector3 v_new = tf2::quatRotate(q_vector,vec);
+        geometry_msgs::Point p_world;
+        p_world.x = first_pose.pose.position.x;
+        p_world.y = first_pose.pose.position.y;
+        p_world.z = 0;
+        marker_world.points.push_back(p_world);
+        p_world.x = second_pose.pose.position.x;
+        p_world.y = second_pose.pose.position.y;
+        p_world.z = 0;
+        marker_world.points.push_back(p_world);
+        geometry_msgs::Point p_robot;
+        p_robot.x = first_pose.pose.position.x;
+        p_robot.y = first_pose.pose.position.y;
+        p_robot.z = 0;
+        marker_robot.points.push_back(p_robot);
+        p_robot.x = first_pose.pose.position.x + v_new.getX();
+        p_robot.y = first_pose.pose.position.y + v_new.getY();
+        p_robot.z = 0;
+        marker_robot.points.push_back(p_robot);
+        pub_vector_world.publish(marker_world);
+        pub_vector_robot.publish(marker_robot);
+        /*vec_ori.x = pose_object.pose.position.x;
         vec_ori.y = pose_object.pose.position.y;
         vec_ori.x = pose_object.pose.position.x + vec_ori.x;
         vec_ori.y = pose_object.pose.position.y + vec_ori.y;
-        //vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
         float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
         float det = (vec_ori.x*0) + (vec_ori.y*0.1);
-        float ang = atan2(det,dot_prod);
+        float ang = atan2(det,dot_prod);*/
 
-        return new_vec;
+        return p;
     }
 
     Eigen::Vector3f performICP(open3d::geometry::PointCloud cloud_ori, open3d::geometry::PointCloud cloud_fin)
