@@ -63,8 +63,6 @@ class Detector
         ros::Publisher pub_ready;
         ros::Publisher pub_ready_robot;
         ros::Publisher pub_object_rot;
-        ros::Publisher pub_vector_world;
-        ros::Publisher pub_vector_robot;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
@@ -132,8 +130,6 @@ class Detector
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
         pub_object_rot = nh_.advertise<geometry_msgs::PoseStamped>("/object/pose",1);
-        pub_vector_world = nh_.advertise<visualization_msgs::Marker>("/object/translation_world",1);
-        pub_vector_robot = nh_.advertise<visualization_msgs::Marker>("/object/translation_robot",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -418,8 +414,6 @@ class Detector
         detector::Outcome res;
         float t_x = second.pose.position.x - first.pose.position.x;
         float t_y = second.pose.position.y - first.pose.position.y;
-        res.x = t_x;
-        res.y = t_y;
         float diff;
         if(touch == true)
         {
@@ -437,11 +431,11 @@ class Detector
             diff = diff - 185.0;
         }
         geometry_msgs::Point vec_ref_object = findVectorTransform(first, second, t_x,t_y);
+        res.x = vec_ref_object.x;
+        res.y = vec_ref_object.y;
         std::cout<<"Angle difference : "<<diff<<"\n";
-        std::cout<<"object ref x : "<<vec_ref_object.x<<"\n";
-        std::cout<<"object ref y : "<<vec_ref_object.y<<"\n";
-        std::cout<<"robot ref x : "<<t_x<<"\n";
-        std::cout<<"robot ref y : "<<t_y<<"\n";
+        std::cout<<"vec x : "<<res.x<<"\n";
+        std::cout<<"vec y : "<<res.y<<"\n";
         res.roll = diff;
         writeDataset(first_ang,res);
         std_msgs::Bool tmp;
@@ -453,59 +447,14 @@ class Detector
     geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, geometry_msgs::PoseStamped second_pose, float tx, float ty)
     {
         geometry_msgs::Point p;
-        visualization_msgs::Marker marker_world;
-        marker_world.header = second_pose.header;
-        marker_world.header.frame_id = "px150/base_link";
-        marker_world.color.a = 1.0;
-        marker_world.color.r = 1.0;
-        marker_world.id = 0;
-        marker_world.type = visualization_msgs::Marker::ARROW;
-        marker_world.action = visualization_msgs::Marker::ADD;
-        marker_world.scale.x = 0.01;
-        marker_world.scale.y = 0.01;
-        marker_world.scale.z = 0.01;
-        visualization_msgs::Marker marker_robot;
-        marker_robot.header = second_pose.header;
-        marker_robot.header.frame_id = "px150/base_link";
-        marker_robot.color.a = 1.0;
-        marker_robot.color.g = 1.0;
-        marker_robot.id = 1;
-        marker_robot.type = visualization_msgs::Marker::ARROW;
-        marker_robot.action = visualization_msgs::Marker::ADD;
-        marker_robot.scale.x = 0.01;
-        marker_robot.scale.y = 0.01;
-        marker_robot.scale.z = 0.01;
+        geometry_msgs::Point p_robot;
         tf2::Vector3 vec(tx,ty,0);
         tf2::Vector3 v_new = tf2::quatRotate(q_vector.inverse(),vec);
-        geometry_msgs::Point p_world;
-        p_world.x = first_pose.pose.position.x;
-        p_world.y = first_pose.pose.position.y;
-        p_world.z = 0;
-        marker_world.points.push_back(p_world);
-        p_world.x = second_pose.pose.position.x;
-        p_world.y = second_pose.pose.position.y;
-        p_world.z = 0;
-        marker_world.points.push_back(p_world);
-        geometry_msgs::Point p_robot;
-        p_robot.x = first_pose.pose.position.x;
-        p_robot.y = first_pose.pose.position.y;
-        p_robot.z = 0;
-        marker_robot.points.push_back(p_robot);
         p_robot.x = first_pose.pose.position.x + v_new.getX();
         p_robot.y = first_pose.pose.position.y + v_new.getY();
         p_robot.z = 0;
-        marker_robot.points.push_back(p_robot);
-        pub_vector_world.publish(marker_world);
-        pub_vector_robot.publish(marker_robot);
         p.x = p_robot.x - first_pose.pose.position.x;
         p.y = p_robot.y - first_pose.pose.position.y;
-        /*vec_ori.x = pose_object.pose.position.x;
-        vec_ori.y = pose_object.pose.position.y;
-        vec_ori.x = pose_object.pose.position.x + vec_ori.x;
-        vec_ori.y = pose_object.pose.position.y + vec_ori.y;
-        float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
-        float det = (vec_ori.x*0) + (vec_ori.y*0.1);
-        float ang = atan2(det,dot_prod);*/
 
         return p;
     }
