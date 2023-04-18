@@ -461,9 +461,9 @@ class Detector
         marker_world.id = 0;
         marker_world.type = visualization_msgs::Marker::ARROW;
         marker_world.action = visualization_msgs::Marker::ADD;
-        marker_world.scale.x = 0.1;
-        marker_world.scale.y = 0.1;
-        marker_world.scale.z = 0.1;
+        marker_world.scale.x = 0.01;
+        marker_world.scale.y = 0.01;
+        marker_world.scale.z = 0.01;
         visualization_msgs::Marker marker_robot;
         marker_robot.header = second_pose.header;
         marker_robot.header.frame_id = "px150/base_link";
@@ -472,11 +472,11 @@ class Detector
         marker_robot.id = 1;
         marker_robot.type = visualization_msgs::Marker::ARROW;
         marker_robot.action = visualization_msgs::Marker::ADD;
-        marker_robot.scale.x = 0.1;
-        marker_robot.scale.y = 0.1;
-        marker_robot.scale.z = 0.1;
+        marker_robot.scale.x = 0.01;
+        marker_robot.scale.y = 0.01;
+        marker_robot.scale.z = 0.01;
         tf2::Vector3 vec(tx,ty,0);
-        tf2::Vector3 v_new = tf2::quatRotate(q_vector,vec);
+        tf2::Vector3 v_new = tf2::quatRotate(q_vector.inverse(),vec);
         geometry_msgs::Point p_world;
         p_world.x = first_pose.pose.position.x;
         p_world.y = first_pose.pose.position.y;
@@ -497,6 +497,8 @@ class Detector
         marker_robot.points.push_back(p_robot);
         pub_vector_world.publish(marker_world);
         pub_vector_robot.publish(marker_robot);
+        p.x = p_robot.x - first_pose.pose.position.x;
+        p.y = p_robot.y - first_pose.pose.position.y;
         /*vec_ori.x = pose_object.pose.position.x;
         vec_ori.y = pose_object.pose.position.y;
         vec_ori.x = pose_object.pose.position.x + vec_ori.x;
