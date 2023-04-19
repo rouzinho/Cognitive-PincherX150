@@ -125,7 +125,7 @@ class DepthImage
       crop_max_y = 463.131;
       crop_min_x = -593.047;
       crop_min_y = -430.127;
-      crop_min_z = -35.7793;
+      crop_min_z = 0;
       crop_max_z = 0;
       size_neural_field = 100;
       threshold_depth = 0.05;
@@ -136,7 +136,7 @@ class DepthImage
       final_image = cv::Mat(128, 128, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
-      cv::Mat m = cv::imread("/home/altair/interbotix_ws/src/depth_perception/mask/mask_border.jpg");
+      cv::Mat m = cv::imread("/home/altair/interbotix_ws/src/depth_perception/mask/new_mask.jpg");
       cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
       cv::resize(tmp_mask, mask, cv::Size(128, 128), cv::INTER_LANCZOS4);
       open_state = cv::imread("/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg");
@@ -287,10 +287,10 @@ class DepthImage
             }
         }
       }
-      crop_min_x = min_x;
-      crop_min_y = min_y;
-      crop_max_x = max_x;
-      crop_max_y = max_y;
+      //crop_min_x = min_x;
+      //crop_min_y = min_y;
+      //crop_max_x = max_x;
+      //crop_max_y = max_y;
       crop_min_z = min_z;
       crop_max_z = max_z;
       float length_x;
@@ -305,15 +305,15 @@ class DepthImage
       }
       gain = length_y / length_x;
       
-      s_y = static_cast<int>(720 * gain);
-      cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      std::cout<<"max x : "<<max_x<<"\n";
-      std::cout<<"min x : "<<min_x<<"\n";
-      std::cout<<"max y : "<<max_y<<"\n";
-      std::cout<<"min y : "<<min_y<<"\n";
-      std::cout<<"max z : "<<max_z<<"\n";
-      std::cout<<"min z : "<<min_z<<"\n";
-      std::cout<<"sy : "<<s_y<<"\n";
+      //s_y = static_cast<int>(720 * gain);
+      //cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      // std::cout<<"max x : "<<max_x<<"\n";
+      // std::cout<<"min x : "<<min_x<<"\n";
+      // std::cout<<"max y : "<<max_y<<"\n";
+      // std::cout<<"min y : "<<min_y<<"\n";
+      // std::cout<<"max z : "<<max_z<<"\n";
+      // std::cout<<"min z : "<<min_z<<"\n";
+      //std::cout<<"gain : "<<gain<<"\n";
     }
 
     cv::Mat fillDepthMapBlanks(cv::Mat img)
@@ -331,7 +331,7 @@ class DepthImage
         {
           for(int j = 0; j < img.cols;j++)
           {
-            if(i > 10 && j > 10)
+            if(i > 10 && i < 1470 && j > 10 && j < 1470)
             {
               if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2)
               {
@@ -419,7 +419,12 @@ class DepthImage
           //cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
         }
       }
-      return img;
+      //std::cout<<img.size()<<"  "<<img.rows<<"\n";
+      //cv::resize(img, resiz, cv::Size(720, 720), cv::INTER_LANCZOS4);
+      cv::Mat cropped_image; //= img(cv::Range(760,1480), cv::Range(0,1480));
+      cv::Mat ROI(img, cv::Rect(0,760,1480,720));
+      //ROI.copyTo(cropped_image);
+      return ROI;
     }
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
@@ -431,7 +436,6 @@ class DepthImage
       }
       if(!first_gen)
       {
-        std::cout<<"in !\n";
         cv::Mat rot;
         const float bad_point = std::numeric_limits<float>::quiet_NaN();
         int pixel_pos_x;
@@ -441,10 +445,6 @@ class DepthImage
         float py;
         float pz;
         float test;
-        /*double ax = (static_cast<double>(720))/(crop_max_x-crop_min_x); //1024 image width
-        double bx = 0 - (ax*crop_min_x);
-        double ay = (static_cast<double>)(720)/(crop_max_y-crop_min_y); //1024 image height
-        double by = 0 - (ay*crop_min_y);*/
         double ax = (static_cast<double>(720))/(std::abs(crop_min_x)-std::abs(crop_max_x)); //1024 image width
         double bx = 0 - (ax*crop_min_x);
         double ay = (static_cast<double>(s_y))/(crop_max_y-crop_min_y); //1024 image height
@@ -460,7 +460,6 @@ class DepthImage
               px = cloud->points[i].x * 1000.0*-1;
               py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
               pz = cloud->points[i].z * 1000.0;
-              std::cout<<pz<<"\n";
               pixel_pos_x = (int) (ax * px + bx);
               pixel_pos_y = (int) (ay * py + by);
               pixel_pos_z = (az * pz + bz);
@@ -478,24 +477,26 @@ class DepthImage
               }
             }
           }
-          cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
-          res.convertTo(res, CV_8U, 255.0);
-          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/calibration_mask.jpg", res);
-          /*else
+          else
           {
             cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
             cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
             cv::Mat r_nf;
+            cv::Mat padded;
+            cv::Mat resiz;
             bool change;
-            cv_image = fillDepthMapBlanks(cv_image);
-            cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
+            cv::copyMakeBorder(cv_image,padded,760,0,0,0,cv::BORDER_CONSTANT,cv::Scalar(std::numeric_limits<float>::min()));
+            //cv::resize(padded, resiz, cv::Size(720, 720), cv::INTER_LANCZOS4);
+            cv_image = fillDepthMapBlanks(padded);
+            //std::cout<<test.size()<<"  "<<test.rows<<"\n";
+            //cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
             //convert to gray
-            cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
+            cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
             res.convertTo(res, CV_8U, 255.0);
             cv::medianBlur(res,fil,(9,9));
             //for dnf
             cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
-            cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
+            cv::resize(r_nf, fil_nf, cv::Size(246, 120), cv::INTER_LANCZOS4);
             fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
             //cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/dnf.jpg", fil_nf);
             cv::resize(fil, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
@@ -592,11 +593,11 @@ class DepthImage
               msg.data = true;
               pub_ready.publish(msg);
             }
-          }*/
+          }
         count++;
       }
-      cv::imshow(OPENCV_WINDOW, cv_image);
-      cv::waitKey(1);
+      //cv::imshow(OPENCV_WINDOW, fil);
+      //cv::waitKey(1);
       }
     }
 
@@ -726,7 +727,7 @@ class DepthImage
           }
         }
       }
-      std::cout<<"total change : "<<tot<<"\n";
+      //std::cout<<"total change : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
