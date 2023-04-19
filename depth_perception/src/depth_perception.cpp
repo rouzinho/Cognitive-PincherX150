@@ -121,16 +121,16 @@ class DepthImage
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
       pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       tf_in = false;
-      crop_max_x = 3000;
-      crop_max_y = 2000;
-      crop_min_x = -2000;
-      crop_min_y = -2000;
-      crop_min_z = -2000;
-      crop_max_z = 2000;
+      crop_max_x = -157.78;
+      crop_max_y = 463.131;
+      crop_min_x = -593.047;
+      crop_min_y = -430.127;
+      crop_min_z = -35.7793;
+      crop_max_z = 0;
       size_neural_field = 100;
       threshold_depth = 0.05;
       first = true;
-      s_y = 1490;
+      s_y = 1480;
       cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       fil = cv::Mat(720, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       final_image = cv::Mat(128, 128, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
@@ -307,7 +307,13 @@ class DepthImage
       
       s_y = static_cast<int>(720 * gain);
       cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      //std::cout<<"max x : "<<s_y<<"\n";
+      std::cout<<"max x : "<<max_x<<"\n";
+      std::cout<<"min x : "<<min_x<<"\n";
+      std::cout<<"max y : "<<max_y<<"\n";
+      std::cout<<"min y : "<<min_y<<"\n";
+      std::cout<<"max z : "<<max_z<<"\n";
+      std::cout<<"min z : "<<min_z<<"\n";
+      std::cout<<"sy : "<<s_y<<"\n";
     }
 
     cv::Mat fillDepthMapBlanks(cv::Mat img)
@@ -425,6 +431,7 @@ class DepthImage
       }
       if(!first_gen)
       {
+        std::cout<<"in !\n";
         cv::Mat rot;
         const float bad_point = std::numeric_limits<float>::quiet_NaN();
         int pixel_pos_x;
@@ -453,6 +460,7 @@ class DepthImage
               px = cloud->points[i].x * 1000.0*-1;
               py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
               pz = cloud->points[i].z * 1000.0;
+              std::cout<<pz<<"\n";
               pixel_pos_x = (int) (ax * px + bx);
               pixel_pos_y = (int) (ay * py + by);
               pixel_pos_z = (az * pz + bz);
