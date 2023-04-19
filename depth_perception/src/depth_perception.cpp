@@ -98,6 +98,9 @@ class DepthImage
     cv::Mat tmp_mask;
     bool reactivate;
     bool init_values;
+    float gain;
+    int s_y;
+    bool first_gen;
 
   public:
     DepthImage():
@@ -118,17 +121,18 @@ class DepthImage
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
       pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       tf_in = false;
-      crop_max_x = 5000;
-      crop_max_y = 5000;
-      crop_min_x = -5000;
-      crop_min_y = -5000;
-      crop_min_z = -5000;
-      crop_max_z = 5000;
+      crop_max_x = 3000;
+      crop_max_y = 2000;
+      crop_min_x = -2000;
+      crop_min_y = -2000;
+      crop_min_z = -2000;
+      crop_max_z = 2000;
       size_neural_field = 100;
       threshold_depth = 0.05;
       first = true;
-      cv_image = cv::Mat(720, 720, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      fil = cv::Mat(720, 720, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+      s_y = 1490;
+      cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      fil = cv::Mat(720, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       final_image = cv::Mat(128, 128, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
@@ -142,6 +146,7 @@ class DepthImage
       threshold_change = 10;
       reactivate = false;
       init_values = false;
+      first_gen = true;
     }
     ~DepthImage()
     {
@@ -206,8 +211,9 @@ class DepthImage
       {
         start = true;
         count = 0;
-        cv_image = cv::Mat(720, 720, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-        fil = cv::Mat(720, 720, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+        //s_y = static_cast<int>(720 * gain);
+        cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+        fil = cv::Mat(720, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
         final_image = cv::Mat(128, 128, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       }
       else
@@ -237,11 +243,11 @@ class DepthImage
 
     void getExtremeValues(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      float min_x = 0;
-      float max_x = 0;
-      float min_y = 0;
+      float min_x = 1000;
+      float max_x = -1000;
+      float min_y = 1000;
       float max_y = 0;
-      float min_z = 0;
+      float min_z = 1000;
       float max_z = 0;
       float px;
       float py;
@@ -251,9 +257,10 @@ class DepthImage
       {
         if (cloud->points[i].z == cloud->points[i].z)
         {
-            px = cloud->points[i].x * 1000.0;// *1000.0;
+            px = cloud->points[i].x * 1000.0*-1;// *1000.0;
             py = cloud->points[i].y * 1000.0*-1;// *1000.0*-1; //revert image because it's upside down for display
             pz = cloud->points[i].z *1000.0;
+            //std::cout<<px<<"\n";
             if(px < min_x)
             {
               min_x = px;
@@ -280,30 +287,27 @@ class DepthImage
             }
         }
       }
-      if(min_x > crop_min_x)
+      crop_min_x = min_x;
+      crop_min_y = min_y;
+      crop_max_x = max_x;
+      crop_max_y = max_y;
+      crop_min_z = min_z;
+      crop_max_z = max_z;
+      float length_x;
+      float length_y;
+      if(min_x < 0 && max_x < 0)
       {
-        crop_min_x = min_x;
+        length_x = std::abs(min_x) - std::abs(max_x);
       }
-      if(min_y > crop_min_y)
+      if(min_y < 0 && max_y > 0)
       {
-        crop_min_y = min_y;
+        length_y = std::abs(min_y) + max_y;
       }
-      if(max_x < crop_max_x)
-      {
-        crop_max_x = max_x;
-      }
-      if(max_y < crop_max_y)
-      {
-        crop_max_y = max_y;
-      }
-      if(min_z > crop_min_z)
-      {
-        crop_min_z = min_z;
-      }
-      if(max_z < crop_max_z)
-      {
-        crop_max_z = max_z;
-      }
+      gain = length_y / length_x;
+      
+      s_y = static_cast<int>(720 * gain);
+      cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      //std::cout<<"max x : "<<s_y<<"\n";
     }
 
     cv::Mat fillDepthMapBlanks(cv::Mat img)
@@ -414,164 +418,178 @@ class DepthImage
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      //cv::Mat cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(std::numeric_limits<float>::max()));
-      cv::Mat rot;
-      const float bad_point = std::numeric_limits<float>::quiet_NaN();
-      int pixel_pos_x;
-      int pixel_pos_y;
-      float pixel_pos_z;
-      float px;
-      float py;
-      float pz;
-      float test;
-      double ax = (static_cast<double>(720))/(crop_max_x-crop_min_x); //1024 image width
-      double bx = 0 - (ax*crop_min_x);
-      double ay = (static_cast<double>(720))/(crop_max_y-crop_min_y); //1024 image height
-      double by = 0 - (ay*crop_min_y);
-      double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
-      double bz = 0 - (az*crop_min_z);
-      if(start == true)
+      if(first_gen)
       {
-        if(count < threshold)
+        cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+        first_gen = false;
+      }
+      if(!first_gen)
+      {
+        cv::Mat rot;
+        const float bad_point = std::numeric_limits<float>::quiet_NaN();
+        int pixel_pos_x;
+        int pixel_pos_y;
+        float pixel_pos_z;
+        float px;
+        float py;
+        float pz;
+        float test;
+        /*double ax = (static_cast<double>(720))/(crop_max_x-crop_min_x); //1024 image width
+        double bx = 0 - (ax*crop_min_x);
+        double ay = (static_cast<double>)(720)/(crop_max_y-crop_min_y); //1024 image height
+        double by = 0 - (ay*crop_min_y);*/
+        double ax = (static_cast<double>(720))/(std::abs(crop_min_x)-std::abs(crop_max_x)); //1024 image width
+        double bx = 0 - (ax*crop_min_x);
+        double ay = (static_cast<double>(s_y))/(crop_max_y-crop_min_y); //1024 image height
+        double by = 0 - (ay*crop_min_y);
+        double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
+        double bz = 0 - (az*crop_min_z);
+        if(start == true)
         {
-          for (int i=0; i< cloud->points.size();i++)
+          if(count < threshold)
           {
-            px = cloud->points[i].x * 1000.0;
-            py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
-            pz = cloud->points[i].z * 1000.0;
-            pixel_pos_x = (int) (ax * px + bx);
-            pixel_pos_y = (int) (ay * py + by);
-            pixel_pos_z = (az * pz + bz);
-            pixel_pos_z = pixel_pos_z/1000.0;
-            if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
+            for (int i=0; i< cloud->points.size();i++)
             {
-              cloud->points[i].z = bad_point;
-              cv_image.at<float>(pixel_pos_y,pixel_pos_x) = 0.0;
-            }
-            if (cloud->points[i].z == cloud->points[i].z)
-            {
+              px = cloud->points[i].x * 1000.0*-1;
+              py = cloud->points[i].y * 1000.0*-1;//revert image because it's upside down for display
+              pz = cloud->points[i].z * 1000.0;
+              pixel_pos_x = (int) (ax * px + bx);
+              pixel_pos_y = (int) (ay * py + by);
+              pixel_pos_z = (az * pz + bz);
+              pixel_pos_z = pixel_pos_z/1000.0;
+              if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
               {
-                cv_image.at<float>(pixel_pos_y,pixel_pos_x) = pixel_pos_z;
-              }    
+                cloud->points[i].z = bad_point;
+                cv_image.at<float>(pixel_pos_x,pixel_pos_y) = 0.0;
+              }
+              if (cloud->points[i].z == cloud->points[i].z)
+              {
+                {
+                  cv_image.at<float>(pixel_pos_x,pixel_pos_y) = pixel_pos_z;
+                }    
+              }
             }
           }
-        }
-        else
-        {
-          cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
-          cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
-          cv::Mat r_nf;
-          bool change;
-          cv_image = fillDepthMapBlanks(cv_image);
-          cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
-          //convert to gray
-          cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
+          cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
           res.convertTo(res, CV_8U, 255.0);
-          cv::medianBlur(res,fil,(9,9));
-          //for dnf
-          cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
-          cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
-          fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/dnf.jpg", fil_nf);
-          cv::resize(fil, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
-          sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
-          pub_state.publish(dobject_nf);
-          ros::Duration(3.5).sleep();
-          int c = getFilesCount();
-          if(first == false)
+          cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/calibration_mask.jpg", res);
+          /*else
           {
-            //check if object isn't out of robot's reach
-            bool border = detectBoundaries(final_image);
-            if(!border)
+            cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
+            cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+            cv::Mat r_nf;
+            bool change;
+            cv_image = fillDepthMapBlanks(cv_image);
+            cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
+            //convert to gray
+            cv::cvtColor(rot,res,cv::COLOR_GRAY2RGB);
+            res.convertTo(res, CV_8U, 255.0);
+            cv::medianBlur(res,fil,(9,9));
+            //for dnf
+            cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
+            cv::resize(r_nf, fil_nf, cv::Size(200, 200), cv::INTER_LANCZOS4);
+            fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
+            //cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/dnf.jpg", fil_nf);
+            cv::resize(fil, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
+            sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
+            pub_state.publish(dobject_nf);
+            ros::Duration(3.5).sleep();
+            int c = getFilesCount();
+            if(first == false)
             {
-              change = stateChanged(final_image,c);
-              if(change)
+              //check if object isn't out of robot's reach
+              bool border = detectBoundaries(final_image);
+              if(!border)
               {
-                std::cout<<"changes !\n";
-                std::string s = std::to_string(c);
-                std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-                cv::imwrite(name_state, final_image);
-                std_msgs::String msg_state;
-                msg_state.data = name_state;
-                pub_name_state.publish(msg_state);
-                std::cout<<"RESET DNF\n";
+                change = stateChanged(final_image,c);
+                if(change)
+                {
+                  std::cout<<"changes !\n";
+                  std::string s = std::to_string(c);
+                  std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                  cv::imwrite(name_state, final_image);
+                  std_msgs::String msg_state;
+                  msg_state.data = name_state;
+                  pub_name_state.publish(msg_state);
+                  std::cout<<"RESET DNF\n";
+                  std_msgs::Bool msg;
+                  msg.data = true;
+                  pub_success.publish(msg);
+                  pub_new_state.publish(msg);
+                  ros::Duration(4.5).sleep();
+                  msg.data = false;
+                  pub_new_state.publish(msg);
+                  reactivate = false;
+                  msg.data = true;
+                  pub_ready.publish(msg);
+                }
+                else
+                {
+                  std::cout<<"no changes\n";
+                  std::string s = std::to_string(c);
+                  std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                  cv::imwrite(name_state, final_image);
+                  std_msgs::Bool msg_f;
+                  msg_f.data = false;
+                  pub_success.publish(msg_f);
+                  std_msgs::Bool msg;
+                  msg.data = true;
+                  pub_retry.publish(msg);
+                  //ros::Duration(0.5).sleep();
+                  //msg.data = false;
+                  //pub_retry.publish(msg);
+                  msg.data = true;
+                  pub_ready.publish(msg);
+                }
                 std_msgs::Bool msg;
                 msg.data = true;
-                pub_success.publish(msg);
-                pub_new_state.publish(msg);
-                ros::Duration(4.5).sleep();
-                msg.data = false;
-                pub_new_state.publish(msg);
-                reactivate = false;
-                msg.data = true;
-                pub_ready.publish(msg);
+                pub_activate_detector.publish(msg);
               }
               else
               {
-                std::cout<<"no changes\n";
-                std::string s = std::to_string(c);
-                std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-                cv::imwrite(name_state, final_image);
-                std_msgs::Bool msg_f;
-                msg_f.data = false;
-                pub_success.publish(msg_f);
+                first = true;
                 std_msgs::Bool msg;
                 msg.data = true;
-                pub_retry.publish(msg);
-                //ros::Duration(0.5).sleep();
-                //msg.data = false;
-                //pub_retry.publish(msg);
-                msg.data = true;
-                pub_ready.publish(msg);
+                //pub_success.publish(msg);
+                //pub_activate_detector.publish(msg);
+                pub_reset_detector.publish(msg);
+                pub_reset.publish(msg);
               }
+              start = false;
+            }
+            else
+            {
+              std::cout<<"first time\n";
+              int c = getFilesCount();
+              std::string name_state;
+              if(c > 0)
+              {
+                std::string s = std::to_string(c);
+                name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+              }
+              else
+              {
+                name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
+              }
+              cv::imwrite(name_state, final_image);
               std_msgs::Bool msg;
               msg.data = true;
+              pub_new_state.publish(msg);
               pub_activate_detector.publish(msg);
-            }
-            else
-            {
-              first = true;
-              std_msgs::Bool msg;
+              ros::Duration(1.5).sleep();
+              msg.data = false;
+              pub_new_state.publish(msg);
+              first = false;
+              start = false;
               msg.data = true;
-              //pub_success.publish(msg);
-              //pub_activate_detector.publish(msg);
-              pub_reset_detector.publish(msg);
-              pub_reset.publish(msg);
+              pub_ready.publish(msg);
             }
-            start = false;
-          }
-          else
-          {
-            std::cout<<"first time\n";
-            int c = getFilesCount();
-            std::string name_state;
-            if(c > 0)
-            {
-              std::string s = std::to_string(c);
-              name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-            }
-            else
-            {
-              name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg";
-            }
-            cv::imwrite(name_state, final_image);
-            std_msgs::Bool msg;
-            msg.data = true;
-            pub_new_state.publish(msg);
-            pub_activate_detector.publish(msg);
-            ros::Duration(1.5).sleep();
-            msg.data = false;
-            pub_new_state.publish(msg);
-            first = false;
-            start = false;
-            msg.data = true;
-            pub_ready.publish(msg);
-          }
-        }
+          }*/
         count++;
       }
-
-      
+      cv::imshow(OPENCV_WINDOW, cv_image);
+      cv::waitKey(1);
+      }
     }
 
     bool detectBoundaries(cv::Mat img)
