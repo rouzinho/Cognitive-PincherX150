@@ -56,21 +56,21 @@ class DisplayPts(object):
       self.y_lpose = np.array([msg.y])
 
    def setup_plot(self):
-      self.scat_o = self.ax.scatter(self.x_object, self.y_object, c='red')
-      self.scat_g = self.ax.scatter(self.x_gauss, self.y_gauss, c='blue')
-      self.scat_f = self.ax.scatter(self.x_fpose, self.y_fpose, c='forestgreen')
-      self.scat_l = self.ax.scatter(self.x_lpose, self.y_lpose, c='lime')
-      self.ax.axis([0, 0.6, -0.4, 0.4])
+      self.scat_o = self.ax.scatter(self.y_object, self.x_object, c='red')
+      self.scat_g = self.ax.scatter(self.y_gauss, self.x_gauss, c='blue')
+      self.scat_f = self.ax.scatter(self.y_fpose, self.x_fpose, c='forestgreen')
+      self.scat_l = self.ax.scatter(self.y_lpose, self.x_lpose, c='lime')
+      self.ax.axis([-0.4, 0.4, 0.0, 0.8])
       # For FuncAnimation's sake, we need to return the artist we'll be using
       # Note that it expects a sequence of artists, thus the trailing comma.
       return self.scat_o, self.scat_g, self.scat_f, self.scat_l
 
    def update(self, i):
       # Set x and y data...
-      X = np.c_[self.x_object, self.y_object]
-      X_b = np.c_[self.x_gauss, self.y_gauss]
-      X_f = np.c_[self.x_fpose, self.y_fpose]
-      X_l = np.c_[self.x_lpose, self.y_lpose]
+      X = np.c_[self.y_object, self.x_object]
+      X_b = np.c_[self.y_gauss, self.x_gauss]
+      X_f = np.c_[self.y_fpose, self.x_fpose]
+      X_l = np.c_[self.y_lpose, self.x_lpose]
       self.scat_o.set_offsets(X)
       self.scat_g.set_offsets(X_b)
       self.scat_f.set_offsets(X_f)
