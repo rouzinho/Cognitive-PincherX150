@@ -434,6 +434,7 @@ class DepthImage
         cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
         first_gen = false;
       }
+      
       if(!first_gen)
       {
         cv::Mat rot;
@@ -483,26 +484,29 @@ class DepthImage
             cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
             cv::Mat r_nf;
             cv::Mat padded;
-            cv::Mat resiz;
+            cv::Mat resized;
+            cv::Mat filtered;
             bool change;
+            //Padding for easier blank filling
             cv::copyMakeBorder(cv_image,padded,760,0,0,0,cv::BORDER_CONSTANT,cv::Scalar(std::numeric_limits<float>::min()));
-            //cv::resize(padded, resiz, cv::Size(720, 720), cv::INTER_LANCZOS4);
             cv_image = fillDepthMapBlanks(padded);
-            //std::cout<<test.size()<<"  "<<test.rows<<"\n";
-            //cv::rotate(cv_image, rot, cv::ROTATE_90_COUNTERCLOCKWISE);
-            //convert to gray
-            cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
+            //convert to RGB
+            cv::resize(cv_image, resized, cv::Size(246, 120), cv::INTER_LANCZOS4);
+            cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
             res.convertTo(res, CV_8U, 255.0);
             cv::medianBlur(res,fil,(9,9));
+            //get filtered image
+            filtered = filterDepthSample(resized,fil);
+            
             //for dnf
-            cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
-            cv::resize(r_nf, fil_nf, cv::Size(246, 120), cv::INTER_LANCZOS4);
+            cv::cvtColor(filtered,r_nf,cv::COLOR_RGB2GRAY);
+            //cv::resize(r_nf, fil_nf, cv::Size(246, 120), cv::INTER_LANCZOS4);
             fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-            //cv::imwrite("/home/altair/interbotix_ws/src/depth_perception/states/dnf.jpg", fil_nf);
-            cv::resize(fil, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
+
+            cv::resize(filtered, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
             pub_state.publish(dobject_nf);
-            ros::Duration(3.5).sleep();
+            ros::Duration(4.5).sleep();
             int c = getFilesCount();
             if(first == false)
             {
@@ -594,11 +598,22 @@ class DepthImage
               pub_ready.publish(msg);
             }
           }
+        }
         count++;
-      }
-      //cv::imshow(OPENCV_WINDOW, fil);
+      //cv::imshow(OPENCV_WINDOW, );
       //cv::waitKey(1);
       }
+    }
+
+    cv::Mat filterDepthSample(cv::Mat img_depth, cv::Mat img_color)
+    {
+      cv::Mat mask_filter = cv::Mat(120, 246, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+      cv::Mat filtered_img;
+      cv::Point tl = detectObject(img_depth);
+      cv::circle(mask_filter, tl,14, cv::Scalar(255, 255, 255), -1);
+      img_color.copyTo(filtered_img,mask_filter);
+
+      return filtered_img;
     }
 
     bool detectBoundaries(cv::Mat img)
@@ -657,6 +672,55 @@ class DepthImage
       r += (chans+'0');
 
       return r;
+    }
+
+    cv::Point detectObject(cv::Mat img)
+    {
+      cv::Point tl;
+      int sum = 0;
+      int best = 0;
+      bool found = false;
+      for(int i = 0; i < img.rows; i++)
+      {
+        for(int j = 0; j < img.cols; j++)
+        {
+          int k = 0;
+          int l = 0;
+          float t = img.at<float>(i,j); 
+          //std::cout<<t<<" ";
+          if(img.at<float>(i,j) > 0.01)
+          {
+            sum = 0;
+            while(k < 6 && sum < 32 && !found)
+            {
+              while(l < 6 && sum < 32 && !found)
+              {
+                if(img.at<float>(i+k,j+l) > 0.01)
+                {
+                  
+                  sum++;
+                  
+                }
+                l++;
+              }
+              l = 0;
+              k++;
+            }
+            //std::cout<<sum<<"\n";
+          }
+          if(sum >= 32 && !found)
+          {
+            tl.x = j+4;
+            tl.y = i+4;   
+            found = true;
+            std::cout<<"x : "<<tl.x<<"\n";
+            std::cout<<"y : "<<tl.y<<"\n";
+          }
+        }
+        //std::cout<<"\n";
+      }
+
+      return tl;
     }
 
     bool detectCluster(cv::Mat img)
