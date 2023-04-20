@@ -95,6 +95,8 @@ class Motion(object):
     #self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
     self.pub_robot_action = rospy.Publisher("/motion_pincher/robot_action", String, queue_size=1, latch=True)
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
+    self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
+    self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -167,6 +169,7 @@ class Motion(object):
       self.first_pose.pitch = msg.pitch
       self.bool_init_p = True
       self.got_action = True
+      self.pub_display_fpose.publish(msg)
       print("first pose : ",self.first_pose)
     elif self.bool_init_p == True and not self.bool_last_p and self.explore:
       self.last_pose.x = msg.x
@@ -174,6 +177,7 @@ class Motion(object):
       self.last_pose.pitch = msg.pitch
       self.bool_last_p = True
       self.got_action = True
+      self.pub_display_lpose.publish(msg)
       print("second pose : ",self.last_pose)
       self.ready = False
       self.ready_depth = False
@@ -536,7 +540,7 @@ class Motion(object):
       #print("roll ",r)
       #print("grasp ",g)
       self.bot.gripper.set_pressure(0.4)
-      rospy.sleep(3.0)
+      #rospy.sleep(3.0)
       self.init_position()     
       if g > 0.5:
         self.bot.gripper.open()
@@ -544,10 +548,11 @@ class Motion(object):
         self.bot.gripper.close()
       self.record = record_dmp
       self.recording_dmp = record_dmp
-      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.07, roll=r, pitch=self.first_pose.pitch)
-      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.07, roll=r, pitch=self.last_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.06, roll=r, pitch=self.first_pose.pitch)
+      self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.06, roll=r, pitch=self.last_pose.pitch)
       self.record = False
       self.bot.gripper.close()
+      rospy.sleep(2.0)
       self.init_position()  
       self.sleep_pose()
       print("ACTION DONE")
