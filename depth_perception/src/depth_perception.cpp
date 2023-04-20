@@ -94,9 +94,8 @@ class DepthImage
     int threshold_change;
     cv::Mat final_image;
     cv::Mat mask;
-    cv::Mat open_state;
     cv::Mat tmp_mask;
-    bool reactivate;
+    bool out_boundary;
     bool init_values;
     float gain;
     int s_y;
@@ -139,12 +138,11 @@ class DepthImage
       cv::Mat m = cv::imread("/home/altair/interbotix_ws/src/depth_perception/mask/new_mask.jpg");
       cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
       cv::resize(tmp_mask, mask, cv::Size(128, 128), cv::INTER_LANCZOS4);
-      open_state = cv::imread("/home/altair/interbotix_ws/src/depth_perception/states/state_0.jpg");
       count = 0;
       threshold = 40;
       start = true;
       threshold_change = 10;
-      reactivate = false;
+      out_boundary = false;
       init_values = false;
       first_gen = true;
     }
@@ -506,7 +504,7 @@ class DepthImage
             cv::resize(filtered, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
             pub_state.publish(dobject_nf);
-            ros::Duration(4.5).sleep();
+            ros::Duration(5.5).sleep();
             int c = getFilesCount();
             if(first == false)
             {
@@ -532,7 +530,6 @@ class DepthImage
                   ros::Duration(4.5).sleep();
                   msg.data = false;
                   pub_new_state.publish(msg);
-                  reactivate = false;
                   msg.data = true;
                   pub_ready.publish(msg);
                 }
@@ -561,6 +558,7 @@ class DepthImage
               else
               {
                 first = true;
+                out_boundary = true;
                 std_msgs::Bool msg;
                 msg.data = true;
                 //pub_success.publish(msg);
@@ -588,7 +586,11 @@ class DepthImage
               std_msgs::Bool msg;
               msg.data = true;
               pub_new_state.publish(msg);
-              pub_activate_detector.publish(msg);
+              if(out_boundary)
+              {
+                pub_activate_detector.publish(msg);
+                out_boundary = false;
+              }
               ros::Duration(1.5).sleep();
               msg.data = false;
               pub_new_state.publish(msg);
