@@ -205,6 +205,7 @@ class Detector
 
     void activateCallback(const std_msgs::BoolConstPtr& msg)
     {
+        std::cout<<msg->data<<"\n";
         if(mode == true)
         {
             if(msg->data == true && !touch)
@@ -260,7 +261,7 @@ class Detector
             std_msgs::Bool tmp;
             tmp.data = true;
             //pub_ready.publish(msg);
-            std::cout<<"sending activation\n";
+            //std::cout<<"sending activation\n";
             pub_ready.publish(tmp);
         }
         if(!first_time && activate_angle)
