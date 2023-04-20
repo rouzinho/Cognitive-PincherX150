@@ -434,7 +434,7 @@ class DepthImage
         cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
         first_gen = false;
       }
-      
+      cv::Mat cv_nf = cv::Mat(120, 246, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       if(!first_gen)
       {
         cv::Mat rot;
@@ -480,7 +480,7 @@ class DepthImage
           }
           else
           {
-            cv::Mat cv_nf;// = cv::Mat(100, 100, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
+            
             cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
             cv::Mat r_nf;
             cv::Mat padded;
@@ -501,7 +501,7 @@ class DepthImage
             //for dnf
             cv::cvtColor(filtered,r_nf,cv::COLOR_RGB2GRAY);
             //cv::resize(r_nf, fil_nf, cv::Size(246, 120), cv::INTER_LANCZOS4);
-            fil_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
+            r_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
 
             cv::resize(filtered, final_image, cv::Size(128, 128), cv::INTER_LANCZOS4);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
@@ -600,7 +600,7 @@ class DepthImage
           }
         }
         count++;
-      //cv::imshow(OPENCV_WINDOW, );
+      //cv::imshow(OPENCV_WINDOW,cv_nf);
       //cv::waitKey(1);
       }
     }
