@@ -713,8 +713,6 @@ class DepthImage
             tl.x = j+4;
             tl.y = i+4;   
             found = true;
-            std::cout<<"x : "<<tl.x<<"\n";
-            std::cout<<"y : "<<tl.y<<"\n";
           }
         }
         //std::cout<<"\n";
