@@ -434,9 +434,11 @@ class Detector
         geometry_msgs::Point vec_ref_object = findVectorTransform(first, second, t_x,t_y);
         res.x = vec_ref_object.x;
         res.y = vec_ref_object.y;
+        std::cout<<"first angle : "<<first_ang<<"\n";
+        std::cout<<"second angle : "<<sec_ang<<"\n";
         std::cout<<"Angle difference : "<<diff<<"\n";
-        std::cout<<"vec x : "<<res.x<<"\n";
-        std::cout<<"vec y : "<<res.y<<"\n";
+        //std::cout<<"vec x : "<<res.x<<"\n";
+        //std::cout<<"vec y : "<<res.y<<"\n";
         res.roll = diff;
         writeDataset(first_ang,res);
         std_msgs::Bool tmp;
