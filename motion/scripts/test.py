@@ -97,21 +97,24 @@ def update_offline_dataset(status):
 
 if __name__ == '__main__':
     rospy.init_node('test')
-    first = True
-    a = VectorAction()
-    a.x = 0.3456
-    a.y = 0.3746
-    a.z = 0.0
-    a.grasp = 0.89
+    # first = True
+    # a = VectorAction()
+    # a.x = 0.3456
+    # a.y = 0.3746
+    # a.z = 0.0
+    # a.grasp = 0.89
 
-    if first == True:
-        update_offline_dataset(True)
-        #send_position()
-        #send_orientation()
-        #send_action()
-        #name_dmp()
-        first = False
-    #rospy.sleep(100000)
+    # if first == True:
+    #     update_offline_dataset(True)
+    #     #send_position()
+    #     #send_orientation()
+    #     #send_action()
+    #     #name_dmp()
+    #     first = False
+    # #rospy.sleep(100000)
+    t = 180
+    r = t%90
+    print(r)
     rospy.spin()
 
 
