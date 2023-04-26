@@ -1,0 +1,11 @@
+<launch>
+   <group ns="som_pose">
+      <param name="~train_som" type="bool" value="true" />
+      <param name="~dataset" type="str" value="outcome" />
+      <param name="~epochs" type="int" value="274360" />
+      <param name="~size" type="int" value="120" />
+      <param name="~num_feat" type="int" value="4" />
+      <param name="~model" type="str" value="$(find som)/models/model_outcome.npy" />   
+      <node name="som" pkg="som" type="som_run.py" output="screen"/>
+   </group> 
+</launch>

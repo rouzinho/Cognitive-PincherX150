@@ -22,8 +22,8 @@ class DSom(object):
         self.shape = (s,s,num_features)
         self.grid = np.ones(self.shape)*0.5
         self.epoch = ep
-        self.learning_rate = 0.3
-        self.elasticity = 1.0
+        self.learning_rate = 0.7
+        self.elasticity = 0.25
         self.current_time = 0
         self.neighbour_rad = -1.0
         self.influence = 0
@@ -157,26 +157,6 @@ class DSom(object):
                 print(self.cluster_map[i,j],end = "")
             print("")
 
-
-    def trainSOMDataset(self):
-        dat = self.load_dataset()
-        s_dat = len(dat)
-        j = 0
-        while self.current_time < self.epoch:
-            n = Node(self.num_features)
-            if j < s_dat:
-                n.initNodeValues(dat[j])
-                j += 1
-            if j >= s_dat:
-                j = 0
-            tmp = self.getBestMatchUnit(n)
-            self.calculateNewWeights(n)
-            self.neighbourRadius(self.current_time)
-            self.reduceLR(self.current_time)
-            self.current_time = self.current_time + 1
-            a = self.getNumpySOM()
-            self.im.set_array(a)
-
     def trainSOMColor(self,color):
         self.current_time = 0
         while self.current_time < self.epoch:
@@ -203,7 +183,9 @@ class DSom(object):
         return [self.im]
 
     def animateSOMDynamic(self,k):
+        inside = False
         if k < self.epoch:
+            inside = True
             sample = self.initNodeColor(self.j)
             winner = self.getBMU(sample)
             self.max = max(self.distance_map.max(), self.max)
@@ -214,12 +196,11 @@ class DSom(object):
             delta = (self.grid - sample)
             for i in range(self.grid.shape[-1]):
                 self.grid[...,i] -= self.learning_rate*d*G*delta[...,i]
-        self.im.set_array(self.grid)
-        print(k)
+            self.im.set_array(self.grid)
         
-        if self.j == 7:
-            self.j = 1
-        else:
+        if self.j == 7 and not inside:
+            self.j = 0
+        if self.j < 7 and not inside:
             self.j += 1
         return [self.im]
 
@@ -275,10 +256,10 @@ if __name__ == "__main__":
     
     #som.saveSOM("init")
     #som.loadSOM("init.npy")
-    som.trainSOMColor(1)
-    som.trainSOMColor(2)
-    som.trainSOMColor(3)
-    som.trainSOMColor(4)
+    #som.trainSOMColor(1)
+    #som.trainSOMColor(2)
+    #som.trainSOMColor(3)
+    #som.trainSOMColor(4)
     #som.trainSOMColor(5)
     #som.trainSOMColor(6)
     #som.trainSOMColor(7)
@@ -286,7 +267,7 @@ if __name__ == "__main__":
     #som.printClusters()
     #som.saveSOM("simple_50_som")
     #som.loadSOM("trained_dataset_5.npy")
-    #anim = animation.FuncAnimation(som.fig, som.animateSOMDynamic, init_func=som.init,frames=500, interval=1, blit=True)
+    anim = animation.FuncAnimation(som.fig, som.animateSOMDynamic, init_func=som.init,frames=501, interval=1, blit=True)
     #som.getOneDimensionalData()
     #som.getCluster()
     plt.show()

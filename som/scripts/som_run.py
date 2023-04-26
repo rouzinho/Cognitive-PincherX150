@@ -632,6 +632,16 @@ class Som(object):
                 file.write("\n")
         file.close()
 
+    def build_dataset_outcome(self):
+        file = open("/home/altair/interbotix_ws/src/som/dataset/dataset_outcome.txt","w")
+        for i in range(5,100,5):
+            for j in range(5,100,5):
+                for k in range(5,100,5):
+                    for l in range(0,2):
+                        dat = str(i/100) +" "+ str(j/100) + " " + str(k/100) + " " + str(l) + "\n"
+                        file.write(dat)
+        file.close()
+
     def build_dataset_motion(self):
         file = open("/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt","w")
         x = 0
@@ -698,6 +708,8 @@ if __name__ == "__main__":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"  
     if data_set == "pose":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
+    if data_set == "outcome":
+        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_outcome.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
     srv_bmu = rospy.Service('get_bmu', GetBMU, som.bmu_server)
     #srv_path = rospy.Service('get_path', GetPath, som.optimal_path)
@@ -713,9 +725,11 @@ if __name__ == "__main__":
         som.train_som_dataset_pose(name_dataset)
         som.save_som_pose("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
         #som.print_som()
-    if training == False and data_set == "pose":
-        som.init_network_som_pose()
-        som.load_som(model_name,data_set)
+    if training == True and data_set == "outcome":
+        som.init_network_som_action()
+        #som.build_dataset_outcome()
+        som.train_som_dataset_motion(name_dataset)
+        som.save_som_action("/home/altair/interbotix_ws/src/som/models/model_outcome.npy")
         #som.print_som()
     if training == False and data_set == "motion":
         som.init_network_som_action()
