@@ -548,8 +548,8 @@ class Som(object):
         a = self.get_pose_numpy_som()
         self.im.set_array(a)
 
-    def train_som_dataset_motion(self,name_ds):
-        dat = self.load_dataset_motion(name_ds)
+    def train_som_dataset_outcome(self,name_ds):
+        dat = self.load_dataset_outcome(name_ds)
         s_dat = len(dat)
         j = 0
         while self.current_time < self.epoch:
@@ -565,7 +565,7 @@ class Som(object):
             self.reduce_lr(self.current_time)
             self.current_time = self.current_time + 1
             print(self.current_time)
-        a = self.get_action_numpy_som()
+        a = self.get_numpy_som()
         self.im.set_array(a)
         
     def arrange2D(self):
@@ -601,10 +601,10 @@ class Som(object):
         tmp = self.get_pose_numpy_som()
         np.save(name,tmp)
 
-    def save_som_action(self,name):
+    def save_som_outcome(self,name):
         if os.path.exists(name):
             os.remove(name)
-        tmp = self.get_action_numpy_som()
+        tmp = self.get_numpy_som()
         np.save(name,tmp)
     
     def load_som(self,name,mode):
@@ -679,7 +679,7 @@ class Som(object):
 
         return datas
 
-    def load_dataset_motion(self,name):
+    def load_dataset_outcome(self,name):
         datas = []
         f_open = open(name,"r")
         for line in f_open:
@@ -717,8 +717,8 @@ if __name__ == "__main__":
     if training == True and data_set == "motion":
         som.init_network_som_action()
         #som.build_dataset_motion()
-        som.train_som_dataset_motion(name_dataset)
-        som.save_som_action("/home/altair/interbotix_ws/src/som/models/model_actions.npy")
+        som.train_som_dataset_outcome(name_dataset)
+        som.save_som_outcome("/home/altair/interbotix_ws/src/som/models/model_actions.npy")
     if training == True and data_set == "pose":
         som.init_network_som_pose()
         #som.build_dataset_pose()
@@ -728,15 +728,18 @@ if __name__ == "__main__":
     if training == True and data_set == "outcome":
         som.init_network_som_action()
         #som.build_dataset_outcome()
-        som.train_som_dataset_motion(name_dataset)
-        som.save_som_action("/home/altair/interbotix_ws/src/som/models/model_outcome.npy")
+        som.train_som_dataset_outcome(name_dataset)
+        som.save_som_outcome("/home/altair/interbotix_ws/src/som/models/model_outcome.npy")
         #som.print_som()
     if training == False and data_set == "motion":
         som.init_network_som_action()
         som.load_som(model_name,data_set)
         #som.print_som()
+    if training == False and data_set == "outcome":
+        som.init_network_som_action()
+        som.load_som(model_name,data_set)
     print("READY")
-    #plt.show()
+    plt.show()
     #while not rospy.is_shutdown():
     #    pass
     rospy.spin()
