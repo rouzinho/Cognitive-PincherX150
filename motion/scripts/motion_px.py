@@ -115,7 +115,7 @@ class Motion(object):
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
-    self.stop_pressing = False
+    self.touch_value = False
     self.init_pose = geometry_msgs.msg.Pose()
     self.first_pose = GripperOrientation()
     self.last_pose = GripperOrientation()
@@ -138,7 +138,8 @@ class Motion(object):
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 5
     self.single_msg = True
-    self.threshold_touch = 290
+    self.threshold_touch_min = 0.02
+    self.threshold_touch_max = 0.03
     self.explore = True
     self.exploit = False
     self.dmp = Dmp()
@@ -201,19 +202,24 @@ class Motion(object):
 
   def callback_pressure(self,msg):
     if msg.data < self.threshold_touch:
-      self.stop_pressing = True
+      self.touch_value = True
     else:
-      self.stop_pressing = False
-    t = Bool()
-    t.data = self.stop_pressing
-    self.pub_touch.publish(t)
-    #if self.stop_pressing:
+      self.touch_value = False
+    #if self.touch_value:
     #  print("object grasped !")
 
   def callback_joint_states(self,msg):
     self.js = msg
     self.js_positions = msg.position
     self.gripper_state = msg.position[6]
+    if self.gripper_state < self.threshold_touch_max and self.gripper_state > self.threshold_touch_min:
+      self.touch_value = True
+    else:
+      self.touch_value = False
+    t = Bool()
+    t.data = self.touch_value
+    self.pub_touch.publish(t)
+    print(self.touch_value)
 
   def callback_proprioception(self,msg):
     self.prop = msg
@@ -524,11 +530,11 @@ class Motion(object):
     jsc.name = "gripper"
     jsc.cmd = -250.0
     self.pub_gripper.publish(jsc)
-    while not self.stop_pressing and self.gripper_state > 0.017:
+    while not self.touch_value and self.gripper_state > 0.017:
       pass
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
-    if self.stop_pressing:
+    if self.touch_value:
       print("object grasped !")
       
   #execute the action
@@ -555,6 +561,10 @@ class Motion(object):
       rospy.sleep(2.0)
       self.init_position()  
       self.sleep_pose()
+      #send touch value
+      t = Bool()
+      t.data = self.touch_value
+      self.pub_touch.publish(t)
       print("ACTION DONE")
       self.last_time = rospy.get_time()
       #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
@@ -568,6 +578,7 @@ class Motion(object):
       b = Bool()
       b.data = True
       self.pub_activate_perception.publish(b)
+      self.bot.gripper.open()
       #self.pub_outcome.publish(b)
       #self.bool_init_p = False
       #self.bool_act = False
@@ -606,11 +617,16 @@ class Motion(object):
             f.close()
 
   def test_interface(self):
-    self.sleep_pose()
-    self.init_position()
-    self.bot.arm.set_ee_pose_components(x=0.20, y=-0.15, z=0.07, roll=0.0, pitch=1.0)
-    rospy.sleep(5.0)
-    self.sleep_pose()
+    self.bot.gripper.open()
+    self.bot.gripper.set_pressure(0.4)
+    self.bot.gripper.close()
+    rospy.sleep(2.0)
+    self.bot.gripper.open()
+    #self.sleep_pose()
+    #self.init_position()
+    #self.bot.arm.set_ee_pose_components(x=0.20, y=-0.15, z=0.07, roll=0.0, pitch=1.0)
+    #rospy.sleep(5.0)
+    #self.sleep_pose()
     #print("opening gripper")
     #self.bot.gripper.open(3.0)
     #self.open_gripper()
@@ -684,14 +700,14 @@ if __name__ == '__main__':
   #motion_planning.close_gripper()
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
-  while not rospy.is_shutdown():
+  """while not rospy.is_shutdown():
     if motion_pincher.get_explore():
       motion_pincher.execute_action(False)
       motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()
-    #if first:
-    #  motion_pincher.test_interface()  
-    #  first = False
+      motion_pincher.execute_dmp()"""
+  if first:
+    motion_pincher.test_interface()  
+    first = False
 
   rospy.spin()
