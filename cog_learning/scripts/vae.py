@@ -88,7 +88,7 @@ class Decoder(nn.Module):
       z = torch.tanh(self.linear2(z))
       z = torch.tanh(self.linear3(z))
       z = self.linear4(z)
-      #z = torch.tanh(self.linear4(z))
+      #z = torch.sigmoid(self.linear4(z))
       return z
       #return z.reshape((-1, 1, 28, 28))
 
@@ -128,12 +128,12 @@ class Habituation(object):
       mu, logvar, recon_x = y_pred
       self.recon_loss = self.reconstruction_loss(recon_x, y_true)
       self.kld_loss = self.vae_gaussian_kl_loss(mu, logvar)
-      return 10 * self.recon_loss + self.kld_loss
+      return 50 * self.recon_loss + self.kld_loss
 
    def train(self, data, epochs=6000):
       kl_weight = 0.8
       #opt = torch.optim.Adam(list(self.vae.encoder.parameters()) + list(self.vae.decoder.parameters()), lr=0.001)
-      opt = torch.optim.Adam(self.vae.parameters(), lr=0.01)
+      opt = torch.optim.Adam(self.vae.parameters(), lr=0.007)
       train_loss = 0.0
       last_loss = 10
       stop = False
@@ -167,8 +167,9 @@ class Habituation(object):
             loss.backward()
             opt.step()
             i += 1
-            if self.kld_loss < 0.0005 and self.recon_loss < 0.0001:
+            if self.kld_loss < 0.005 and self.recon_loss < 0.001:
                stop = True
+               break
             #last_loss = loss_mse
             #if nb_data > 1:
             #   if loss_mse < 9e-5 and loss_kl < 9e-5:
@@ -199,7 +200,7 @@ if __name__ == "__main__":
    #     batch_size=128,
    #     shuffle=True)
    goal = [0.1,0.1,0.5,0.2,0.3,0.25,0.65,0.9]
-   sec_goal = [0.4,0.4,0.1,0.6,0.1,0.6,0.1,0.45]
+   sec_goal = [0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4]
    third_goal = [0.2,0.34,0.12,0.43,0.8,0.85,0.45,0.76]
    test_goal = [0.6,0.7,0.4,0.15,0.67,0.77,0.8,0.35]
    test_goal2 = [0.8,0.6,0.1,0.3,0.5,0.45,0.9,0.1]
