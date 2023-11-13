@@ -206,9 +206,10 @@ class Som(object):
             self.pub_node.publish(go)
 
     def callback_list_peaks(self,msg):
+        print(msg)
         l_peaks = self.list_peaks(msg)
-        print("list peaks ")
-        print(l_peaks)
+        #print("list peaks ")
+        #print(l_peaks)
         l = ListPeaks()
         for i in l_peaks:
             p = Point()
@@ -224,6 +225,7 @@ class Som(object):
             for i in range(0,self.size):
                 for j in range(0,self.size):
                     val = self.network[i][j].getWeights()
+                    #print(val)
                     if abs(val[0,0] - sample.x) < 0.005 and abs(val[0,1] - sample.y) < 0.005:
                         coords = [i,j]
                         list_coords.append(coords)
@@ -738,8 +740,11 @@ if __name__ == "__main__":
     if training == False and data_set == "outcome":
         som.init_network_som_action()
         som.load_som(model_name,data_set)
+    if training == False and data_set == "pose":
+        som.init_network_som_pose()
+        som.load_som(model_name,data_set)
     print("READY")
-    plt.show()
+    #plt.show()
     #while not rospy.is_shutdown():
     #    pass
     rospy.spin()
