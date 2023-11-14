@@ -342,12 +342,12 @@ class DepthImage
       
       //s_y = static_cast<int>(720 * gain);
       //cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      std::cout<<"max x : "<<max_x<<"\n";
-      std::cout<<"min x : "<<min_x<<"\n";
-      std::cout<<"max y : "<<max_y<<"\n";
-      std::cout<<"min y : "<<min_y<<"\n";
-      std::cout<<"max z : "<<max_z<<"\n";
-      std::cout<<"min z : "<<min_z<<"\n";
+      // std::cout<<"max x : "<<max_x<<"\n";
+      // std::cout<<"min x : "<<min_x<<"\n";
+      // std::cout<<"max y : "<<max_y<<"\n";
+      // std::cout<<"min y : "<<min_y<<"\n";
+      // std::cout<<"max z : "<<max_z<<"\n";
+      // std::cout<<"min z : "<<min_z<<"\n";
       //std::cout<<"gain : "<<gain<<"\n";
     }
 
@@ -669,9 +669,7 @@ class DepthImage
       bool tmp = false;
       cv::cvtColor(img,gray_test,cv::COLOR_RGB2GRAY);
       gray_test.convertTo(depth, CV_32F, 1/255.0);
-      std::cout<<"test3\n";
       depth.copyTo(detect,mask);
-      std::cout<<"test4\n";
       tmp = detectCluster(detect);
       if(tmp)
       {
