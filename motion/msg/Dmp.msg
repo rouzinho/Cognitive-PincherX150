@@ -1,5 +1,5 @@
-float32 x
-float32 y
+float32 v_x
+float32 v_y
+float32 v_pitch
 float32 roll
-float32 pitch
 float32 grasp

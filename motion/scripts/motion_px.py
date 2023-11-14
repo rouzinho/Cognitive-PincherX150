@@ -101,7 +101,6 @@ class Motion(object):
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
-    rospy.Subscriber('/motion_pincher/vector_action', VectorAction, self.callback_vector_action)
     rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
@@ -119,7 +118,6 @@ class Motion(object):
     self.init_pose = geometry_msgs.msg.Pose()
     self.first_pose = GripperOrientation()
     self.last_pose = GripperOrientation()
-    self.action = VectorAction()
     self.bool_init_p = False
     self.bool_last_p = False
     self.bool_act = False
@@ -176,6 +174,9 @@ class Motion(object):
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
+      self.dmp.v_x = self.last_pose.x - self.first_pose.x
+      self.dmp.v_y = self.last_pose.y - self.first_pose.y
+      self.dmp.v_pitch = self.last_pose.pitch - self.first_pose.pitch
       self.bool_last_p = True
       self.got_action = True
       self.pub_display_lpose.publish(msg)
@@ -189,16 +190,6 @@ class Motion(object):
       self.last_pose.pitch = msg.pitch
       self.goal_dmp = True
       self.bool_last_p = True
-
-  def callback_vector_action(self,msg):
-    if self.bool_act == False:
-      self.action.x = msg.x
-      self.action.y = msg.y
-      self.action.z = 0.0
-      self.action.roll = msg.roll
-      self.action.grasp = msg.grasp
-      self.bool_act = True
-      print("action : ",self.action)
 
   def callback_pressure(self,msg):
     if msg.data < self.threshold_touch:
@@ -219,7 +210,7 @@ class Motion(object):
     t = Bool()
     t.data = self.touch_value
     self.pub_touch.publish(t)
-    print(self.touch_value)
+    #print(self.touch_value)
 
   def callback_proprioception(self,msg):
     self.prop = msg
@@ -230,7 +221,6 @@ class Motion(object):
     self.dmp.x = msg.x
     self.dmp.y = msg.y
     self.dmp.roll = msg.roll
-    self.dmp.pitch = msg.pitch
     self.dmp.grasp = msg.grasp
     self.dmp_found, self.dmp_name = self.find_dmp(msg)
     if self.dmp_found:
@@ -410,12 +400,13 @@ class Motion(object):
   #naming the DMP
   def name_dmp(self):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
-    nx = "x"+str(round(self.action.x,2))
-    ny = "y"+str(round(self.action.y,2))
-    nr = "r"+str(round(self.action.roll,1))
-    gr = "g"+str(round(self.action.grasp,0))
-    p = "p"+str(round(self.last_pose.pitch,1))
-    name = name + nx + ny + nr + gr + p + "end.bag"
+    nx = "x"+str(round(self.dmp.v_x,2))
+    ny = "y"+str(round(self.dmp.v_y,2))
+    np = "p"+str(round(self.dmp.v_pitch,1))
+    nr = "r"+str(round(self.dmp.roll,1))
+    gr = "g"+str(round(self.dmp.grasp,0))
+    name = name + nx + ny + np + nr + gr + "end.bag"
+    print(name)
 
     return name
     
@@ -429,19 +420,16 @@ class Motion(object):
         p_y = file.find('y')
         p_g = file.find('g')
         p_r = file.find('r')
-        p_p = file.find('p')
         p_end = file.find('end')
         x = file[p_x+1:p_y]
         y = file[p_y+1:p_r]
         r = file[p_r+1:p_g]
-        g = file[p_g+1:p_p]
-        p = file[p_p+1:p_end]
+        g = file[p_g+1:p_end]
         x = float(x)
         y = float(y)
         r = float(r)
         g = float(g)
-        p = float(p)
-        if dmp.x - x < 0.05 and dmp.y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05 and dmp.pitch - p < 0.05:
+        if dmp.x - x < 0.05 and dmp.y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05:
             found = True
             right_file = file
     right_file = name_dir + right_file
@@ -543,6 +531,8 @@ class Motion(object):
       print("EXECUTING ACTION")
       r = random.choice(self.possible_roll)
       g = random.choice(self.possible_grasp)
+      self.dmp.roll = r
+      self.dmp.grasp = g
       #print("roll ",r)
       #print("grasp ",g)
       self.bot.gripper.set_pressure(0.4)
@@ -700,14 +690,14 @@ if __name__ == '__main__':
   #motion_planning.close_gripper()
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
-  """while not rospy.is_shutdown():
+  while not rospy.is_shutdown():
     if motion_pincher.get_explore():
-      motion_pincher.execute_action(False)
+      motion_pincher.execute_action(True)
       motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()"""
-  if first:
+      motion_pincher.execute_dmp()
+  """if first:
     motion_pincher.test_interface()  
-    first = False
+    first = False"""
 
   rospy.spin()
