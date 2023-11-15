@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils
 import torch.distributions
+from torch.autograd import Variable
 import numpy as np
 import random
 import math
@@ -12,7 +13,6 @@ import os
 from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
-from torch.autograd import Variable
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
     import cPickle as pickle
@@ -45,7 +45,6 @@ class Sampling(nn.Module):
       std = z_log_var.mul(0.5).exp_()
       return eps.mul(std).add_(z_mean)
 
-
 class VariationalEncoder(nn.Module):
    def __init__(self, latent_dims):
       super(VariationalEncoder, self).__init__()
@@ -70,10 +69,10 @@ class VariationalEncoder(nn.Module):
       #z = mu + sigma*self.N.sample(mu.shape)
       #self.kl = -0.5 * torch.sum(1 + sigma - mu.pow(2) - sigma.exp())
       #return z
-      #z = self.sampling(z_mean, z_log_var)
-      epsilon = torch.randn_like(z_mean)
-      z_reparametrized = z_mean + z_log_var*epsilon
-      return z_mean, z_log_var, z_reparametrized
+      z = self.sampling(z_mean, z_log_var)
+      #epsilon = torch.randn_like(z_mean)
+      #z_reparametrized = z_mean + z_log_var*epsilon
+      return z_mean, z_log_var, z
 
 class Decoder(nn.Module):
    def __init__(self, latent_dims):
@@ -84,11 +83,11 @@ class Decoder(nn.Module):
       self.linear4 = nn.Linear(6, 8)
 
    def forward(self, z):
-      z = torch.tanh(self.linear1(z)) #F.relu
-      z = torch.tanh(self.linear2(z))
-      z = torch.tanh(self.linear3(z))
-      z = self.linear4(z)
-      #z = torch.sigmoid(self.linear4(z))
+      z = torch.relu(self.linear1(z)) #F.relu
+      z = torch.relu(self.linear2(z))
+      z = torch.relu(self.linear3(z))
+      z = torch.sigmoid(self.linear4(z))
+      #z = torch.tanh(self.linear4(z))
       return z
       #return z.reshape((-1, 1, 28, 28))
 
@@ -116,19 +115,23 @@ class Habituation(object):
       # see Appendix B from VAE paper:
       # Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
       # https://arxiv.org/abs/1312.6114
-      KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-      return KLD.mean()
+      #KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+      #return KLD.mean()
       #return KLD
+      KLD_element = mu.pow(2).add_(logvar.exp()).mul_(-1).add_(1).add_(logvar)
+      KLD = torch.sum(KLD_element).mul_(-0.5)
+      return KLD
 
    def reconstruction_loss(self, x_reconstructed, x):
-      mse_loss = nn.MSELoss()
-      return mse_loss(x_reconstructed, x)
+      bce_loss = nn.BCELoss()
+      return bce_loss(x_reconstructed, x)
 
    def vae_loss(self, y_pred, y_true):
       mu, logvar, recon_x = y_pred
       self.recon_loss = self.reconstruction_loss(recon_x, y_true)
       self.kld_loss = self.vae_gaussian_kl_loss(mu, logvar)
-      return 50 * self.recon_loss + self.kld_loss
+      return 500 * self.recon_loss + self.kld_loss
+      #return (self.recon_loss + self.kld_loss) / self.nb_data
 
    def train(self, data, epochs=6000):
       kl_weight = 0.8
@@ -138,11 +141,11 @@ class Habituation(object):
       last_loss = 10
       stop = False
       i = 0
-      nb_data = len(data)
+      self.nb_data = len(data)
       
       #for epoch in range(epochs):
       while not stop:
-         random.shuffle(data)
+         #random.shuffle(data)
          for sample, y in data:
             self.vae.train()
             s = sample.to(device) # GPU
@@ -161,15 +164,14 @@ class Habituation(object):
             
             pred = self.vae(s)
             loss = self.vae_loss(pred, s)
-            print("loss reconstruct : ",self.recon_loss.item())
-            print("loss KL : ",self.kld_loss.item())
+            print("loss reconstruct : ",self.recon_loss)
+            #print("loss KL : ",self.kld_loss)
             #print("loss total : ",loss)
             loss.backward()
             opt.step()
             i += 1
-            if self.kld_loss < 0.005 and self.recon_loss < 0.001:
+            if self.kld_loss < 0.005 and self.recon_loss < 0.0001:
                stop = True
-               break
             #last_loss = loss_mse
             #if nb_data > 1:
             #   if loss_mse < 9e-5 and loss_kl < 9e-5:
@@ -200,7 +202,7 @@ if __name__ == "__main__":
    #     batch_size=128,
    #     shuffle=True)
    goal = [0.1,0.1,0.5,0.2,0.3,0.25,0.65,0.9]
-   sec_goal = [0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4]
+   sec_goal = [0.4,0.4,0.1,0.6,0.1,0.6,0.1,0.45]
    third_goal = [0.2,0.34,0.12,0.43,0.8,0.85,0.45,0.76]
    test_goal = [0.6,0.7,0.4,0.15,0.67,0.77,0.8,0.35]
    test_goal2 = [0.8,0.6,0.1,0.3,0.5,0.45,0.9,0.1]
@@ -234,17 +236,16 @@ if __name__ == "__main__":
    data.append([tensor_rdgoal,c_g])
    data.append([tensor_test,c_y])
    data.append([tensor_test2,c_p])
-   #data.append([ts1,c_c])
-   #data.append([ts2,c_o])
-   #data.append([ts3,c_pu])
-   #data.append([ts4,c_br])
-   #data.append([ts5,c_gr])
+   data.append([ts1,c_c])
+   data.append([ts2,c_o])
+   data.append([ts3,c_pu])
+   data.append([ts4,c_br])
+   data.append([ts5,c_gr])
    habit = Habituation()
    habit.train(data)
    res = habit.vae.forward(tensor_goal)
    print("original : ",tensor_goal)
    print("reconstructed : ",res)
-   data.append([ts1,c_c])
     #res2 = vae.forward(tensor_secgoal)
     #res3 = vae.forward(tensor_rdgoal)
     #print("RECONSTRUCTION ",res)
