@@ -1,0 +1,3 @@
+<launch>
+    <node name="habituation" pkg="habituation" type="vae.py" output="screen"/>
+</launch>
