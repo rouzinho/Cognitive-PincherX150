@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 from std_msgs.msg import Float64
+from std_msgs.msg import Int16
 import torch;
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,6 +16,8 @@ from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
 from torch.autograd import Variable
+from motion.msg import Dmp
+from detector.msg import Outcome
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
     import cPickle as pickle
@@ -110,11 +113,14 @@ class VariationalAutoencoder(nn.Module):
       # return the mean, log variance and the reconstructed image
       return z_mean, z_log_var, reconstruction
 
-class Habituation(object):
-   def __init__(self):
-      rospy.init_node('skills', anonymous=True)
-      
+class VariationalAE(object):
+   def __init__(self,id_object):
       self.vae = VariationalAutoencoder(2)
+      self.memory = []
+      self.id = id_object
+
+   def add_to_memory(self):
+      pass
 
    def vae_gaussian_kl_loss(self, mu, logvar):
       KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
@@ -177,6 +183,36 @@ class Habituation(object):
                print(col,z)
                z = z.to('cpu').detach().numpy()
                plt.scatter(z[0], z[1], c=col, cmap='tab10')
+
+
+class Habituation(object):
+   def __init__(self):
+      rospy.init_node('habituation', anonymous=True)
+      rospy.Subscriber("/habituation/dmp", Dmp, self.callback_dmp)
+      rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
+      rospy.Subscriber("/habituation/id_object", Int16, self.callback_outc)
+      self.incoming_dmp = False
+      self.incoming_outcome = False
+      self.dmp = Dmp()
+      self.outcome = Outcome()
+      self.objects_vae = []
+
+   def callback_dmp(self, msg):
+      self.dmp.v_x = msg.v_x
+      self.dmp.v_y = msg.v_y
+      self.dmp.v_pitch = msg.v_pitch
+      self.dmp.roll = msg.roll
+      self.dmp.grasp = msg.grasp
+      self.incoming_dmp = True
+      if(self.incoming_dmp and self.incoming_outcome):
+         self.add_to_memory
+
+   def callback_outcome(self, msg):
+      self.outcome.x = msg.x
+      self.outcome.y = msg.y
+      self.outcome.roll = msg.roll
+      self.outcome.touch = msg.touch
+      self.incoming_outcome = True
 
 if __name__ == "__main__":
    torch.manual_seed(58)
