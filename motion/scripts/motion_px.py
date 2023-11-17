@@ -97,6 +97,7 @@ class Motion(object):
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
+    self.pub_dmp_habit = rospy.Publisher("/habituation/dmp", Dmp, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -406,7 +407,6 @@ class Motion(object):
     nr = "r"+str(round(self.dmp.roll,1))
     gr = "g"+str(round(self.dmp.grasp,0))
     name = name + nx + ny + np + nr + gr + "end.bag"
-    print(name)
 
     return name
     
@@ -440,6 +440,7 @@ class Motion(object):
     resp = self.makeLFDRequest(traj)
     n = self.name_dmp()
     self.write_dmp_bag(resp,n)
+    self.pub_dmp_habit.publish(self.dmp)
 
   def play_motion_dmp(self):
     tmp = self.js_positions
