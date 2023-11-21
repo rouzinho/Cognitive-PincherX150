@@ -36,6 +36,7 @@ from som.msg import PoseRPY
 from som.msg import GripperOrientation
 from som.msg import VectorAction
 from motion.msg import Dmp
+from motion.msg import Action
 from som.msg import ListPose
 from som.srv import *
 import os
@@ -97,7 +98,8 @@ class Motion(object):
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
-    self.pub_dmp_habit = rospy.Publisher("/habituation/dmp", Dmp, queue_size=1, latch=True)
+    self.pub_dmp_habit = rospy.Publisher("/motion_pincher/dmp_param", Dmp, queue_size=1, latch=True)
+    self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -105,9 +107,10 @@ class Motion(object):
     rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
+    rospy.Subscriber('/depth_perception/sample_success', Bool, self.callback_succes)
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
-    rospy.Subscriber('/motion_pincher/dmp', Dmp, self.callback_dmp)
+    rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/depth_perception/ready', Bool, self.callback_ready_depth)
     rospy.Subscriber('/outcome_detector/ready', Bool, self.callback_ready_outcome)
     rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready_robot)
@@ -239,10 +242,19 @@ class Motion(object):
       self.bool_last_p = False
       self.bool_act = False
       print("PLAN NEW ACTION")
-      if self.recording_dmp:
+      if self.recording_dmp and self.explore:
         self.make_dmp()
         self.delete_js_bag()
         self.recording_dmp = False
+
+  def callback_success(self, msg):
+    if msg.data == True:
+      sample = Action()
+      sample.lpos_x = self.last_pose.x
+      sample.lpos_y = self.last_pose.y
+      sample.lpos_pitch = self.last_pose.pitch
+      self.pub_action_sample.publish(sample)
+
 
   def callback_retry(self,msg):
     if msg.data == True:

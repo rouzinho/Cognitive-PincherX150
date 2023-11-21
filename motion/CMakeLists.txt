@@ -57,7 +57,9 @@ find_package(catkin REQUIRED COMPONENTS
 add_message_files(
   DIRECTORY msg
   FILES
+  Action.msg
   Dmp.msg
+  DmpAction.msg
 )
 
 ## Generate services in the 'srv' folder
