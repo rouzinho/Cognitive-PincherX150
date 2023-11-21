@@ -37,6 +37,7 @@ from som.msg import GripperOrientation
 from som.msg import VectorAction
 from motion.msg import Dmp
 from motion.msg import Action
+from motion.msg import DmpAction
 from som.msg import ListPose
 from som.srv import *
 import os
@@ -98,8 +99,8 @@ class Motion(object):
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
-    self.pub_dmp_habit = rospy.Publisher("/motion_pincher/dmp_param", Dmp, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
+    self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp_action", Action, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -144,7 +145,8 @@ class Motion(object):
     self.threshold_touch_max = 0.03
     self.explore = True
     self.exploit = False
-    self.dmp = Dmp()
+    self.dmp_exploit = Dmp()
+    self.dmp_explore = DmpAction()
     self.dmp_name = ""
     self.dmp_found = False
     self.goal_dmp = False
@@ -178,9 +180,11 @@ class Motion(object):
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
-      self.dmp.v_x = self.last_pose.x - self.first_pose.x
-      self.dmp.v_y = self.last_pose.y - self.first_pose.y
-      self.dmp.v_pitch = self.last_pose.pitch - self.first_pose.pitch
+      self.dmp_explore.v_x = self.last_pose.x - self.first_pose.x
+      self.dmp_explore.v_y = self.last_pose.y - self.first_pose.y
+      self.dmp_explore.v_pitch = self.last_pose.pitch - self.first_pose.pitch
+      self.dmp_explore.lpos_x = self.last_pose.x
+      self.dmp_explore.lpos_y = self.last_pose.y
       self.bool_last_p = True
       self.got_action = True
       self.pub_display_lpose.publish(msg)
@@ -222,10 +226,11 @@ class Motion(object):
       self.write_joints_bag(self.name_ee,self.prop)
 
   def callback_dmp(self,msg):
-    self.dmp.x = msg.x
-    self.dmp.y = msg.y
-    self.dmp.roll = msg.roll
-    self.dmp.grasp = msg.grasp
+    self.dmp_exploit.v_x = msg.v_x
+    self.dmp_exploit.v_y = msg.v_y
+    self.dmp_exploit.v_pitch = msg.v_pitch
+    self.dmp_exploit.roll = msg.roll
+    self.dmp_exploit.grasp = msg.grasp
     self.dmp_found, self.dmp_name = self.find_dmp(msg)
     if self.dmp_found:
       print("found DMP : ",self.dmp_name)
@@ -245,6 +250,7 @@ class Motion(object):
       if self.recording_dmp and self.explore:
         self.make_dmp()
         self.delete_js_bag()
+        self.pub_dmp_action.publish(self.dmp_explore)
         self.recording_dmp = False
 
   def callback_success(self, msg):
@@ -413,11 +419,11 @@ class Motion(object):
   #naming the DMP
   def name_dmp(self):
     name = "/home/altair/interbotix_ws/src/motion/dmp/"
-    nx = "x"+str(round(self.dmp.v_x,2))
-    ny = "y"+str(round(self.dmp.v_y,2))
-    np = "p"+str(round(self.dmp.v_pitch,1))
-    nr = "r"+str(round(self.dmp.roll,1))
-    gr = "g"+str(round(self.dmp.grasp,0))
+    nx = "x"+str(round(self.dmp_explore.v_x,2))
+    ny = "y"+str(round(self.dmp_explore.v_y,2))
+    np = "p"+str(round(self.dmp_explore.v_pitch,1))
+    nr = "r"+str(round(self.dmp_explore.roll,1))
+    gr = "g"+str(round(self.dmp_explore.grasp,0))
     name = name + nx + ny + np + nr + gr + "end.bag"
 
     return name
@@ -441,7 +447,7 @@ class Motion(object):
         y = float(y)
         r = float(r)
         g = float(g)
-        if dmp.x - x < 0.05 and dmp.y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05:
+        if dmp.v_x - x < 0.05 and dmp.v_y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05:
             found = True
             right_file = file
     right_file = name_dir + right_file
@@ -452,7 +458,6 @@ class Motion(object):
     resp = self.makeLFDRequest(traj)
     n = self.name_dmp()
     self.write_dmp_bag(resp,n)
-    self.pub_dmp_habit.publish(self.dmp)
 
   def play_motion_dmp(self):
     tmp = self.js_positions
@@ -463,7 +468,7 @@ class Motion(object):
     #print("Get DMP :")
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
-    goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.03,self.dmp.roll,self.dmp.pitch) 
+    goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.03,self.dmp_exploit.roll,self.dmp_exploit.pitch) 
     print("goal : ",goal)
     print("cartesian goal : ",self.last_pose)
     if found:
@@ -544,8 +549,8 @@ class Motion(object):
       print("EXECUTING ACTION")
       r = random.choice(self.possible_roll)
       g = random.choice(self.possible_grasp)
-      self.dmp.roll = r
-      self.dmp.grasp = g
+      self.dmp_explore.roll = r
+      self.dmp_explore.grasp = g
       #print("roll ",r)
       #print("grasp ",g)
       self.bot.gripper.set_pressure(0.4)
