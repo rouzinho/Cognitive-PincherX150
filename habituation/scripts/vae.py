@@ -210,7 +210,7 @@ class VariationalAE(object):
 class Habituation(object):
    def __init__(self):
       rospy.init_node('habituation', anonymous=True)
-      rospy.Subscriber("/habituation/dmp", Dmp, self.callback_dmp)
+      rospy.Subscriber("/motion_pincher/dmp_param", Dmp, self.callback_dmp)
       rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
       rospy.Subscriber("/habituation/id_object", Int16, self.callback_id)
       self.pub_latent_space = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
