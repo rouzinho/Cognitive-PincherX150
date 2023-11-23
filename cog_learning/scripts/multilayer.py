@@ -26,7 +26,7 @@ else:
     device = torch.device("cpu")
     print("GPU not available, CPU used")
 
-class MultiLayer(nn.Module):
+class MultiLayerGA(nn.Module):
     def __init__(self,input_layer,middle_layer1,middle_layer2,output_layer):
         super().__init__()
         self.layers = nn.Sequential(
@@ -35,6 +35,21 @@ class MultiLayer(nn.Module):
             nn.Linear(middle_layer1, middle_layer2),
             nn.Tanh(),
             nn.Linear(middle_layer2, output_layer),
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x):
+        return self.layers(x)
+    
+class MultiLayerP(nn.Module):
+    def __init__(self,input_layer,middle_layer,output_layer):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(input_layer, middle_layer),
+            nn.Tanh(),
+            nn.Linear(middle_layer, middle_layer),
+            nn.Tanh(),
+            nn.Linear(middle_layer, output_layer),
             nn.Sigmoid()
         )
         

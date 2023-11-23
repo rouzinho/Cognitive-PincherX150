@@ -4,9 +4,13 @@ from multilayer import *
 
 class Skill(object):
     def __init__(self):
-        self.inverse_model = MultiLayer(6,5,4,3)
+        #7 3
+        #I:x_object, y_object, angle_object, vx_object, vy_object, vangle_object, touch_object O: lposx, lposy, lpospitch
+        self.inverse_model = MultiLayerP(7,5,3)
         self.inverse_model.to(device)
-        self.forward_model = MultiLayer(3,4,5,6)
+        #6 4
+        #I: x_object, y_object, angle_object, lposx, lposy, lpospitch O: vx_object, vy_object, vangle_object, touch_object
+        self.forward_model = MultiLayerP(6,5,4)
         self.forward_model.to(device)
         self.memory_size = 20
         self.memory = []

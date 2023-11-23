@@ -1,15 +1,45 @@
 #!/usr/bin/env python3
 from multilayer import *
-
+from hebb_server import *
+from skill import *
 
 class NNGoalAction(object):
     def __init__(self):
-        self.encoder = MultiLayer(8,6,4,2)
+        self.encoder = MultiLayerGA(9,6,4,2)
         self.encoder.to(device)
-        self.decoder = MultiLayer(2,4,6,8)
+        self.decoder = MultiLayerGA(2,4,6,9)
         self.decoder.to(device)
         self.memory_size = 20
         self.memory = []
+        self.hebbian = HebbServer()
+        self.skills = []
+
+    def create_skill(self):
+        new_skill = Skill()
+        self.skills.append(new_skill)
+        ind = len(self.skills) - 1
+        return ind
+    
+    def hebbian_learning(self):
+        pass
+
+    def bootstrap_learning(self, outcome, dmp):
+        tmp_sample = [outcome.x,outcome.y,outcome.roll,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
+        tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
+        sample_inp_fwd = [outcome.state_x,outcome.state_y,outcome.state_roll,dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
+        sample_out_fwd = [outcome.x,outcome.y,outcome.roll,outcome.touch]
+        sample_inp_inv = [outcome.state_x,outcome.state_y,outcome.state_roll,outcome.x,outcome.y,outcome.roll,outcome.touch]
+        sample_out_inv = [dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
+        t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
+        t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
+        t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
+        t_out_inv = torch.tensor(sample_out_inv,dtype=torch.float)
+        self.add_to_memory(tensor_sample_go)
+        ind_skill = self.create_skill()
+        t_inputs = self.encoder(tensor_sample_go)
+        inputs = t_inputs.numpy()
+        self.hebbian.hebbianLearning(inputs,ind_skill)
+        self.trainDecoder()
 
     def trainDecoder(self):
         current_cost = 0
