@@ -17,7 +17,7 @@ from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
 from torch.autograd import Variable
-from motion.msg import Dmp
+from motion.msg import DmpAction
 from detector.msg import Outcome
 from habituation.msg import LatentPos
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
@@ -219,7 +219,7 @@ class Habituation(object):
       self.count_color = 0
       self.incoming_dmp = False
       self.incoming_outcome = False
-      self.dmp = Dmp()
+      self.dmp = DmpAction()
       self.outcome = Outcome()
       self.objects_vae = []
       self.habit = VariationalAE(1)
