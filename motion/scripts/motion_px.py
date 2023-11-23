@@ -100,7 +100,7 @@ class Motion(object):
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
-    self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp_action", Action, queue_size=1, latch=True)
+    self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp_action", DmpAction, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
