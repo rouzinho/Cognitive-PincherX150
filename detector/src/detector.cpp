@@ -220,7 +220,7 @@ class Detector
                 detector::Outcome res;
                 res.x = 0.0 - first_pose.pose.position.x;
                 res.y = 0.0 - first_pose.pose.position.y;
-                res.roll = 0.0;
+                res.angle = 0.0;
                 res.touch = 1.0;
                 pub_outcome.publish(res);
             }
@@ -237,7 +237,7 @@ class Detector
                 detector::Outcome res;
                 res.x = 0.0 - first_pose.pose.position.x;
                 res.y = 0.0 - first_pose.pose.position.y;
-                res.roll = 0.0;
+                res.angle = 0.0;
                 res.touch = 1.0;
                 pub_outcome.publish(res);
             }
@@ -397,7 +397,7 @@ class Detector
         float t_y = second.pose.position.y - first.pose.position.y;
         res.x = t_x;
         res.y = t_y;
-        res.roll = rot[2];
+        res.angle = rot[2];
         if(touch == true)
         {
             res.touch = 1.0;
@@ -439,7 +439,7 @@ class Detector
         std::cout<<"Angle difference : "<<diff<<"\n";
         //std::cout<<"vec x : "<<res.x<<"\n";
         //std::cout<<"vec y : "<<res.y<<"\n";
-        res.roll = diff;
+        res.angle = diff;
         writeDataset(first_ang,res);
         std_msgs::Bool tmp;
         tmp.data = true;
@@ -564,7 +564,7 @@ class Detector
     {
       std::ofstream ofile;
       ofile.open("/home/altair/interbotix_ws/src/detector/dataset/samples.txt", std::ios::app);
-      ofile << object_state << " " << robot_action << " " << sample.x <<" "<<sample.y<<" "<<sample.roll<<" "<<sample.touch<< " " <<success_sample<<std::endl;
+      ofile << object_state << " " << robot_action << " " << sample.x <<" "<<sample.y<<" "<<sample.angle<<" "<<sample.touch<< " " <<success_sample<<std::endl;
       ofile.close();
     }
 
