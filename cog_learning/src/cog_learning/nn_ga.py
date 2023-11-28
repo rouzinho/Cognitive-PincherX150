@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-from multilayer import *
-from hebb_server import *
-from skill import *
+from cog_learning.multilayer import *
+from cog_learning.hebb_server import *
+from cog_learning.skill import *
 from detector.msg import Outcome
 from motion.msg import DmpAction
 from sklearn.preprocessing import MinMaxScaler

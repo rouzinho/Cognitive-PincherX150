@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from multilayer import *
+from cog_learning.multilayer import *
 
 
 class Skill(object):

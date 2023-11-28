@@ -1,0 +1,3 @@
+<launch> 
+    <node name="exploitation" pkg="cog_learning" type="exploitation.py" output="screen"/>
+</launch>
