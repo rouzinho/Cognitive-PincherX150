@@ -12,10 +12,10 @@ class Skill(object):
         #I: x_object, y_object, angle_object, lposx, lposy, lpospitch O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(6,5,4)
         self.forward_model.to(device)
-        self.memory_size = 20
+        self.memory_size = 30
         self.memory = []
 
-    def addToMemory(self,sample):
+    def add_to_memory(self,sample):
         self.memory.append(sample)
         s = len(self.memory)
         if s > self.memory_size:

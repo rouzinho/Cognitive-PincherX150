@@ -13,6 +13,8 @@ import os
 from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
+from sklearn.preprocessing import MinMaxScaler
+import copy
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
     import cPickle as pickle
@@ -191,8 +193,25 @@ class Habituation(object):
                z = z.to('cpu').detach().numpy()
                plt.scatter(z[0], z[1], c=col, cmap='tab10')
 
+def scaleDatasPosition(ee, min_, max_):
+    n_x = np.array(ee)
+    n_x = n_x.reshape(-1,1)
+    scaler_x = MinMaxScaler()
+    x_minmax = np.array([min_, max_])
+    scaler_x.fit(x_minmax[:, np.newaxis])
+    n_x = scaler_x.transform(n_x)
+    n_x = n_x.reshape(1,-1)
+    n_x = n_x.flatten()
+    data = []
+        
+    return n_x[0]
+
 if __name__ == "__main__":
-   torch.manual_seed(58)
+   x = 0.2
+   d = scaleDatasPosition(x,0.18,0.67)
+   print(d)
+
+   """"torch.manual_seed(58)
    latent_dims = 2
    data = []
    #data = torch.utils.data.DataLoader(
@@ -253,4 +272,4 @@ if __name__ == "__main__":
     #print("RECONSTRUCTION 3",res3)
     #data.append([tensor_test,c_y])
    habit.plot_latent(data)
-   plt.show()
+   plt.show()"""
