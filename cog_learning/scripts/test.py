@@ -196,7 +196,7 @@ class Habituation(object):
 def scaleDatasPosition(ee, min_, max_):
     n_x = np.array(ee)
     n_x = n_x.reshape(-1,1)
-    scaler_x = MinMaxScaler()
+    scaler_x = MinMaxScaler(feature_range=(-1,1))
     x_minmax = np.array([min_, max_])
     scaler_x.fit(x_minmax[:, np.newaxis])
     n_x = scaler_x.transform(n_x)
@@ -206,10 +206,44 @@ def scaleDatasPosition(ee, min_, max_):
         
     return n_x[0]
 
+def UnScaleDatasFromTensor(tensor_):
+    tmp = tensor_.tolist()
+    n_x = np.array(tmp[0])
+    n_x = n_x.reshape(-1,1)
+    n_y = np.array(tmp[1])
+    n_y = n_y.reshape(-1,1)
+    scaler_x = MinMaxScaler(feature_range=(0.18,0.67))
+    scaler_y = MinMaxScaler(feature_range=(-0.35,0.35))
+    x_minmax = np.array([0, 1])
+    y_minmax = np.array([0, 1])
+    scaler_x.fit(x_minmax[:, np.newaxis])
+    scaler_y.fit(y_minmax[:, np.newaxis])
+    n_x = scaler_x.transform(n_x)
+    n_x = n_x.reshape(1,-1)
+    n_x = n_x.flatten()
+    n_y = scaler_y.transform(n_y)
+    n_y = n_y.reshape(1,-1)
+    n_y = n_y.flatten()
+    data = []
+    for u,v in zip(n_x,n_y):
+        tup = [u,v]
+        data.append(copy.deepcopy(tup))
+        
+    return data[0]
+
 if __name__ == "__main__":
-   x = 0.2
-   d = scaleDatasPosition(x,0.18,0.67)
-   print(d)
+   x = 0.42
+   #d = scaleDatasPosition(x,0.18,0.67)
+   #print(d)
+   bottom = 0
+   top = 1
+   x = 0.57
+   p = 0.5733
+   y = bottom + (top - bottom) / (1 + math.exp(-x))
+   x = np.log((p - bottom) / (top - p))
+   print(x)
+   x = np.log((x - bottom) / (top - x))
+   print(x)
 
    """"torch.manual_seed(58)
    latent_dims = 2

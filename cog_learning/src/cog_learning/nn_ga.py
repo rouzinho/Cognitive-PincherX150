@@ -9,9 +9,9 @@ import copy
 
 class NNGoalAction(object):
     def __init__(self):
-        self.encoder = MultiLayerGA(9,6,4,2)
+        self.encoder = MultiLayerEncoder(9,5,4,2)#9,6,4,2
         self.encoder.to(device)
-        self.decoder = MultiLayerGA(2,4,6,9)
+        self.decoder = MultiLayerDecoder(2,4,6,9)
         self.decoder.to(device)
         self.memory_size = 20
         self.memory = []
@@ -33,7 +33,7 @@ class NNGoalAction(object):
         self.max_roll = 1.5
         self.min_angle = -180
         self.max_angle = 180
-        torch.manual_seed(88)
+        torch.manual_seed(32)
         
 
     def create_skill(self):
@@ -45,7 +45,7 @@ class NNGoalAction(object):
     def scale_data(self, data, min_, max_):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler()
+        scaler_x = MinMaxScaler(feature_range=(-1,1))
         x_minmax = np.array([min_, max_])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -97,20 +97,21 @@ class NNGoalAction(object):
         sample.append(t_out_inv)
         sample.append(t_inp_fwd)
         sample.append(t_inp_inv)
-        print("input fwd : ",t_inp_fwd)
-        print("output fwd :", t_out_fwd)
-        print("input inv : ",t_inp_inv)
-        print("output inv : ", t_out_inv)
+        #print("input fwd : ",t_inp_fwd)
+        #print("output fwd :", t_out_fwd)
+        #print("input inv : ",t_inp_inv)
+        #print("output inv : ", t_out_inv)
+        print("Input NNGA ; ",tmp_sample)
         self.skills[ind_skill].add_to_memory(sample)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         t_inputs = self.encoder(tensor_sample_go)
         inpts_f = t_inputs.detach().numpy()
         print(inpts_f)
-        inputs = [round(inpts_f[0]*100),round(inpts_f[1]*100)]
-        print(inputs)
-        self.hebbian.hebbianLearning(inputs,ind_skill)
-        self.trainDecoder()
+        #inputs = [round(inpts_f[0]*100),round(inpts_f[1]*100)]
+        #print(inputs)
+        #self.hebbian.hebbianLearning(inputs,ind_skill)
+        #self.trainDecoder()
 
     def trainDecoder(self):
         current_cost = 0

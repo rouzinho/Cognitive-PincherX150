@@ -18,6 +18,7 @@ except ModuleNotFoundError:
 
 is_cuda = torch.cuda.is_available()
 #device = torch.device("cpu")
+torch.manual_seed(32)
 
 if not is_cuda:
     device = torch.device("cuda")
@@ -26,7 +27,22 @@ else:
     device = torch.device("cpu")
     print("GPU not available, CPU used")
 
-class MultiLayerGA(nn.Module):
+class MultiLayerEncoder(nn.Module):
+    def __init__(self,input_layer,middle_layer1,middle_layer2,output_layer):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(input_layer, middle_layer1),
+            nn.Tanh(),
+            #nn.Linear(middle_layer1, middle_layer2),
+            #nn.Tanh(),
+            nn.Linear(middle_layer1, output_layer),
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x):
+        return self.layers(x)
+    
+class MultiLayerDecoder(nn.Module):
     def __init__(self,input_layer,middle_layer1,middle_layer2,output_layer):
         super().__init__()
         self.layers = nn.Sequential(
@@ -35,7 +51,7 @@ class MultiLayerGA(nn.Module):
             nn.Linear(middle_layer1, middle_layer2),
             nn.Tanh(),
             nn.Linear(middle_layer2, output_layer),
-            nn.Sigmoid()
+            nn.Tanh()
         )
         
     def forward(self, x):
@@ -50,7 +66,7 @@ class MultiLayerP(nn.Module):
             nn.Linear(middle_layer, middle_layer),
             nn.Tanh(),
             nn.Linear(middle_layer, output_layer),
-            nn.Sigmoid()
+            nn.Tanh()
         )
         
     def forward(self, x):
