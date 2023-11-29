@@ -14,6 +14,7 @@ class Skill(object):
         self.forward_model.to(device)
         self.memory_size = 30
         self.memory = []
+        torch.manual_seed(58)
 
     def add_to_memory(self,sample):
         self.memory.append(sample)
@@ -24,11 +25,11 @@ class Skill(object):
     def getMemory(self):
         return self.memory
 
-    def trainInverseModel(self):
+    def train_inverse_model(self):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
-        epochs = 1
+        epochs = 10
 
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
@@ -40,6 +41,8 @@ class Skill(object):
             sample = self.memory[-1]
             inputs = sample[3]
             targets = sample[1]
+            print("input inverse : ",inputs)
+            print("output inverse : ",targets)
             inputs = inputs.to(device)
             targets = targets.to(device)
             outputs = self.inverse_model(inputs)
@@ -60,21 +63,20 @@ class Skill(object):
                 cost = criterion(outputs,targets)
                 cost.backward()
                 optimizer.step()
-                #current_cost = current_cost + cost.item()
-            #print("Epoch: {}/{}...".format(i, epochs),
-                                #"MSE : ",current_cost)
-
+                current_cost = current_cost + cost.item()
+            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            current_cost = 0
             #if current_cost > last_cost:
             #    break
             #last_cost = current_cost
             #current_cost = 0
 
     #takes object location and motor command as input and produces the expected future object location as output
-    def trainForwardModel(self):
+    def train_forward_model(self):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
-        epochs = 1
+        epochs = 10
         data_input = []
         self.forward_model.to(device)
         criterion = torch.nn.MSELoss()
@@ -86,13 +88,15 @@ class Skill(object):
             sample = self.memory[-1]
             inputs = sample[2]
             targets = sample[0]
+            print("input forward : ",inputs)
+            print("output forward : ",targets)
             inputs = inputs.to(device)
             targets = targets.to(device)
             outputs = self.forward_model(inputs)
             cost = criterion(outputs,targets)
             cost.backward()
             optimizer.step()
-            current_cost = current_cost + cost.item()
+            #current_cost = current_cost + cost.item()
         for i in range(0,epochs):
             for j in range(0,len(self.memory)):
                 self.forward_model.train()
@@ -106,10 +110,9 @@ class Skill(object):
                 cost = criterion(outputs,targets)
                 cost.backward()
                 optimizer.step()
-                #current_cost = current_cost + cost.item()
-            #print("Epoch: {}/{}...".format(i, epochs),
-                                #"MSE : ",current_cost)
-
+                current_cost = current_cost + cost.item()
+            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            current_cost = 0
             #if current_cost > last_cost:
             #    break
             #last_cost = current_cost

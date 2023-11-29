@@ -33,6 +33,7 @@ class NNGoalAction(object):
         self.max_roll = 1.5
         self.min_angle = -180
         self.max_angle = 180
+        torch.manual_seed(88)
         
 
     def create_skill(self):
@@ -61,7 +62,7 @@ class NNGoalAction(object):
         new_outcome.state_angle = self.scale_data(outcome.state_angle, self.min_angle, self.max_angle)
         new_outcome.x = self.scale_data(outcome.x, self.min_vx, self.max_vx)
         new_outcome.y = self.scale_data(outcome.y, self.min_vy, self.max_vy)
-        new_outcome.roll = self.scale_data(outcome.roll, self.min_angle, self.max_angle)
+        new_outcome.angle = self.scale_data(outcome.angle, self.min_angle, self.max_angle)
         new_outcome.touch = outcome.touch
         new_dmp = DmpAction()
         new_dmp.v_x = self.scale_data(dmp.v_x, self.min_vx, self.max_vx)
@@ -79,11 +80,11 @@ class NNGoalAction(object):
     #bootstrap learning when we discover first skill during exploration
     def bootstrap_learning(self, outcome_, dmp_):
         outcome, dmp = self.scale_samples(outcome_, dmp_)
-        tmp_sample = [outcome.x,outcome.y,outcome.roll,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
+        tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
         tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
         sample_inp_fwd = [outcome.state_x,outcome.state_y,outcome.state_angle,dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
-        sample_out_fwd = [outcome.x,outcome.y,outcome.roll,outcome.touch]
-        sample_inp_inv = [outcome.state_x,outcome.state_y,outcome.state_angle,outcome.x,outcome.y,outcome.roll,outcome.touch]
+        sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
+        sample_inp_inv = [outcome.state_x,outcome.state_y,outcome.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
         sample_out_inv = [dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
         t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
         t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
@@ -96,9 +97,18 @@ class NNGoalAction(object):
         sample.append(t_out_inv)
         sample.append(t_inp_fwd)
         sample.append(t_inp_inv)
+        print("input fwd : ",t_inp_fwd)
+        print("output fwd :", t_out_fwd)
+        print("input inv : ",t_inp_inv)
+        print("output inv : ", t_out_inv)
         self.skills[ind_skill].add_to_memory(sample)
+        self.skills[ind_skill].train_forward_model()
+        self.skills[ind_skill].train_inverse_model()
         t_inputs = self.encoder(tensor_sample_go)
-        inputs = t_inputs.numpy()
+        inpts_f = t_inputs.detach().numpy()
+        print(inpts_f)
+        inputs = [round(inpts_f[0]*100),round(inpts_f[1]*100)]
+        print(inputs)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.trainDecoder()
 
@@ -140,8 +150,9 @@ class NNGoalAction(object):
                 cost = criterion(outputs,targets)
                 cost.backward()
                 optimizer.step()
-                current_cost = cost.item()
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+                current_cost = current_cost + cost.item()
+            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            current_cost = 0
 
     def forward_encoder(self, data):
         data = data.to(device)
