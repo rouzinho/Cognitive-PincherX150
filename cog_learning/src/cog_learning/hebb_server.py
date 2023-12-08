@@ -37,7 +37,11 @@ class HebbServer(object):
 
     def hebbianLearning(self, point_ga, ind_fwdinv): #lupdate weights when there is a incoming field with reward
         #one shot learning, setting weights directly to one for faster processing
-        self.weights[point_ga[0],point_ga[1],ind_fwdinv] = 1
+        # learninf a small patch, easier to retrieve with DNF
+        for i in range(point_ga[0]-1,point_ga[0]+2):
+            for j in range(point_ga[1]-1,point_ga[1]+2):
+                self.weights[i,j,ind_fwdinv] = 1
+        
 
     def hebbianActivation(self, point_ga):
         ind = -1

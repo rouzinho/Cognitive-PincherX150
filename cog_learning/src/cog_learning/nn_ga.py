@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
+import rospy
+from std_msgs.msg import Float64
 from cog_learning.multilayer import *
 from cog_learning.hebb_server import *
 from cog_learning.skill import *
 from detector.msg import Outcome
 from motion.msg import DmpAction
+from cog_learning.msg import Goal
 from sklearn.preprocessing import MinMaxScaler
 import copy
 
 class NNGoalAction(object):
     def __init__(self):
-        self.encoder = MultiLayerEncoder(9,5,4,2)#9,6,4,2
+        self.pub_update_lp = rospy.Publisher('/intrinsic/learning_error', Goal, latch=True, queue_size=1)
+        self.pub_update_lp = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
+        self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
         self.decoder = MultiLayerDecoder(2,4,6,9)
         self.decoder.to(device)
@@ -54,6 +59,18 @@ class NNGoalAction(object):
             
         return n_x[0]
     
+    def scale_latent(self, data, min_, max_):
+        n_x = np.array(data)
+        n_x = n_x.reshape(-1,1)
+        scaler_x = MinMaxScaler()
+        x_minmax = np.array([min_, max_])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        n_x = scaler_x.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+            
+        return n_x[0]
+
     def scale_samples(self, outcome, dmp):
         #scale sample betwen [0-1] for learning
         new_outcome = Outcome()
@@ -97,28 +114,40 @@ class NNGoalAction(object):
         sample.append(t_out_inv)
         sample.append(t_inp_fwd)
         sample.append(t_inp_inv)
-        #print("input fwd : ",t_inp_fwd)
-        #print("output fwd :", t_out_fwd)
-        #print("input inv : ",t_inp_inv)
-        #print("output inv : ", t_out_inv)
-        print("Input NNGA ; ",tmp_sample)
+        #print("Input NNGA ; ",tmp_sample)
         self.skills[ind_skill].add_to_memory(sample)
+        err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
+        err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
+        error_fwd = err_fwd.item()
+        error_inv = err_inv.item()
+        error_fwd = math.tanh(error_fwd)
+        #if error_fwd < 0.15:
+        #    error_fwd = error_fwd + 0.4
+        error_inv = math.tanh(error_inv)
+
+        t_inputs = self.encoder(tensor_sample_go)
+        output_l = t_inputs.detach().numpy()
+        #print(output_l)
+        t0 = self.scale_latent(output_l[0],-1,1)
+        t1 = self.scale_latent(output_l[1],-1,1)
+        print(t0,t1)
+        inputs = [round(t0*100),round(t1*100)]
+        print(inputs)
+        print("Hebbian learning")
+        self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
-        t_inputs = self.encoder(tensor_sample_go)
-        inpts_f = t_inputs.detach().numpy()
-        print(inpts_f)
-        #inputs = [round(inpts_f[0]*100),round(inpts_f[1]*100)]
-        #print(inputs)
-        #self.hebbian.hebbianLearning(inputs,ind_skill)
-        #self.trainDecoder()
+        self.trainDecoder()
+        test = Int32()
+        test.data = 3
+        self.pub_update_lp.publish(test)
 
     def trainDecoder(self):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
         epochs = 150
-
+        print("Train NNGA DECODER")
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.decoder.parameters(),lr=learning_rate)        
@@ -169,3 +198,7 @@ class NNGoalAction(object):
 
     def add_to_memory(self, data):
         self.memory.append(data)
+
+#if __name__ == "__main__":
+    
+#    rospy.spin()

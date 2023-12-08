@@ -28,15 +28,15 @@ else:
     print("GPU not available, CPU used")
 
 class MultiLayerEncoder(nn.Module):
-    def __init__(self,input_layer,middle_layer1,middle_layer2,output_layer):
+    def __init__(self,input_layer,output_layer):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(input_layer, middle_layer1),
-            nn.Tanh(),
-            #nn.Linear(middle_layer1, middle_layer2),
+            nn.Linear(input_layer, output_layer),
             #nn.Tanh(),
-            nn.Linear(middle_layer1, output_layer),
-            nn.Sigmoid()
+            #nn.Linear(middle_layer1, middle_layer2),
+            nn.Tanh()
+            #nn.Linear(middle_layer1, output_layer),
+            ##nn.Sigmoid()
         )
         
     def forward(self, x):
