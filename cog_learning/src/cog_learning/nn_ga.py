@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rospy
 from std_msgs.msg import Float64
+from std_msgs.msg import Bool
 from cog_learning.multilayer import *
 from cog_learning.hebb_server import *
 from cog_learning.skill import *
@@ -12,8 +13,10 @@ import copy
 
 class NNGoalAction(object):
     def __init__(self):
-        self.pub_update_lp = rospy.Publisher('/intrinsic/learning_error', Goal, latch=True, queue_size=1)
-        self.pub_update_lp = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
+        self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
+        self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
+        self.pub_timing = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
+        self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
         self.decoder = MultiLayerDecoder(2,4,6,9)
@@ -39,7 +42,30 @@ class NNGoalAction(object):
         self.min_angle = -180
         self.max_angle = 180
         torch.manual_seed(32)
+
+    def update_learning_progress(self, data, error):
+        update_lp = Goal()
+        update_lp.x = data[0]
+        update_lp.y = data[1]
+        update_lp.value = error
+        self.pub_update_lp.publish(update_lp)
         
+    def send_new_goal(self, data):
+        new_goal = Goal()
+        new_goal.x = data[0]
+        new_goal.y = data[1]
+        new_goal.value = 1.0
+        self.pub_new_goal.publish(new_goal)
+
+    def pub_timing(self, value):
+        v = Float64()
+        v.data = value
+        self.pub_timing.publish(v)
+
+    def end_action(self,status):
+        v = Bool()
+        v.data = status
+        self.pub_end.publish(v)
 
     def create_skill(self):
         new_skill = Skill()
@@ -124,7 +150,8 @@ class NNGoalAction(object):
         #if error_fwd < 0.15:
         #    error_fwd = error_fwd + 0.4
         error_inv = math.tanh(error_inv)
-
+        print("ERROR INVERSE : ",error_inv)
+        print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
         #print(output_l)
@@ -132,15 +159,23 @@ class NNGoalAction(object):
         t1 = self.scale_latent(output_l[1],-1,1)
         print(t0,t1)
         inputs = [round(t0*100),round(t1*100)]
+        #publish new goal and fwd error
+        self.update_learning_progress(inputs,error_fwd)
+        self.send_new_goal(inputs)
+        self.pub_timing(1.0)
+        rospy.sleep(1)
+        self.update_learning_progress(inputs,0)
+        self.pub_timing(0.0)
+        self.end_action(True)
+        rospy.sleep(1)
+        self.end_action(False)
+        
         print(inputs)
         print("Hebbian learning")
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         self.trainDecoder()
-        test = Int32()
-        test.data = 3
-        self.pub_update_lp.publish(test)
 
     def trainDecoder(self):
         current_cost = 0
