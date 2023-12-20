@@ -1,0 +1,2 @@
+float32 latent_x
+float32 latent_y

@@ -73,6 +73,7 @@ class NNGoalAction(object):
         ind = len(self.skills) - 1
         return ind
     
+    #scale value from min max to [-1,1]
     def scale_data(self, data, min_, max_):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
@@ -85,20 +86,45 @@ class NNGoalAction(object):
             
         return n_x[0]
     
-    def scale_latent(self, data, min_, max_):
+    #scale latent variable to [0,1] for dft
+    def scale_latent(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler()
-        x_minmax = np.array([min_, max_])
+        x_minmax = np.array([-1, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
         n_x = n_x.flatten()
             
         return n_x[0]
+    
+    def scale_dnf_to_latent(self, data):
+        n_x = np.array(data)
+        n_x = n_x.reshape(-1,1)
+        scaler_x = MinMaxScaler(feature_range=(-1,1))
+        x_minmax = np.array([0, 1])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        n_x = scaler_x.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+                    
+        return n_x[0]
+    
+    def reconstruct_latent(self, data, min_, max_):
+        n_x = np.array(data)
+        n_x = n_x.reshape(-1,1)
+        scaler_x = MinMaxScaler(feature_range=(min_,max_))
+        x_minmax = np.array([-1, 1])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        n_x = scaler_x.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+                    
+        return n_x[0]
 
     def scale_samples(self, outcome, dmp):
-        #scale sample betwen [0-1] for learning
+        #scale sample betwen [-1,1] for learning
         new_outcome = Outcome()
         new_outcome.state_x = self.scale_data(outcome.state_x, self.min_x, self.max_x)
         new_outcome.state_y = self.scale_data(outcome.state_y, self.min_y, self.max_y)
@@ -155,8 +181,8 @@ class NNGoalAction(object):
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
         #print(output_l)
-        t0 = self.scale_latent(output_l[0],-1,1)
-        t1 = self.scale_latent(output_l[1],-1,1)
+        t0 = self.scale_latent(output_l[0])
+        t1 = self.scale_latent(output_l[1])
         print(t0,t1)
         inputs = [round(t0*100),round(t1*100)]
         #publish new goal and fwd error
