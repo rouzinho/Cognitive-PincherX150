@@ -29,7 +29,7 @@ class Skill(object):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
-        epochs = 10
+        epochs = 50
 
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
@@ -76,7 +76,7 @@ class Skill(object):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
-        epochs = 10
+        epochs = 50
         data_input = []
         self.forward_model.to(device)
         criterion = torch.nn.MSELoss()
