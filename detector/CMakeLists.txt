@@ -64,6 +64,7 @@ find_package(Open3D REQUIRED)
 add_message_files(
   FILES
   Outcome.msg
+  State.msg
 )
 
 ## Generate services in the 'srv' folder
