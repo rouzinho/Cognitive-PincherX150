@@ -12,7 +12,7 @@ from sklearn.preprocessing import MinMaxScaler
 import copy
 
 class NNGoalAction(object):
-    def __init__(self):
+    def __init__(self, id_obj):
         self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
         self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
         self.pub_timing = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
@@ -24,6 +24,8 @@ class NNGoalAction(object):
         self.memory_size = 20
         self.memory = []
         self.hebbian = HebbServer()
+        self.id_nnga =  id_obj
+        self.index_skill = -1
         self.skills = []
         self.min_x = 0.18
         self.max_x = 0.67
@@ -260,6 +262,11 @@ class NNGoalAction(object):
     def add_to_memory(self, data):
         self.memory.append(data)
 
-#if __name__ == "__main__":
+    def get_id(self):
+        return self.id_nnga
     
-#    rospy.spin()
+    def activate_dmp(self, goal):
+        pass
+
+    def activate_hebbian(self, goal):
+        pass
