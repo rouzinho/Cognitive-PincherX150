@@ -1,0 +1,2 @@
+int32 latent_x
+int32 latent_y

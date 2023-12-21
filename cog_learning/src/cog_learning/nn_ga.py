@@ -89,7 +89,7 @@ class NNGoalAction(object):
         return n_x[0]
     
     #scale latent variable to [0,1] for dft
-    def scale_latent(self, data):
+    def scale_latent_to_dnf(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler()
@@ -183,8 +183,8 @@ class NNGoalAction(object):
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
         #print(output_l)
-        t0 = self.scale_latent(output_l[0])
-        t1 = self.scale_latent(output_l[1])
+        t0 = self.scale_latent_to_dnf(output_l[0])
+        t1 = self.scale_latent_to_dnf(output_l[1])
         print(t0,t1)
         inputs = [round(t0*100),round(t1*100)]
         #publish new goal and fwd error
