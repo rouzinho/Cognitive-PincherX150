@@ -7,6 +7,7 @@ from cog_learning.hebb_server import *
 from cog_learning.skill import *
 from detector.msg import Outcome
 from motion.msg import DmpAction
+from motion.msg import Dmp
 from cog_learning.msg import Goal
 from sklearn.preprocessing import MinMaxScaler
 import copy
@@ -15,8 +16,10 @@ class NNGoalAction(object):
     def __init__(self, id_obj):
         self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
         self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
-        self.pub_timing = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
+        self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
+        self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
+        self.pub_ready = rospy.Publisher('/cog_learning/ready', Bool, queue_size=10)
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
         self.decoder = MultiLayerDecoder(2,4,6,9)
@@ -41,6 +44,8 @@ class NNGoalAction(object):
         self.max_vpitch = 1.2
         self.min_roll = -1.5
         self.max_roll = 1.5
+        self.min_grasp = 0
+        self.max_grasp = 1
         self.min_angle = -180
         self.max_angle = 180
         torch.manual_seed(32)
@@ -62,7 +67,12 @@ class NNGoalAction(object):
     def pub_timing(self, value):
         v = Float64()
         v.data = value
-        self.pub_timing.publish(v)
+        self.pub_timer.publish(v)
+
+    def send_ready(self, value):
+        b = Bool()
+        b.data = value
+        self.pub_ready.publish(b)
 
     def end_action(self,status):
         v = Bool()
@@ -140,7 +150,7 @@ class NNGoalAction(object):
         new_dmp.v_y = self.scale_data(dmp.v_y, self.min_vy, self.max_vy)
         new_dmp.v_pitch = self.scale_data(dmp.v_pitch, self.min_vpitch, self.max_vpitch)
         new_dmp.roll = self.scale_data(dmp.roll, self.min_roll, self.max_roll)
-        new_dmp.grasp = dmp.grasp
+        new_dmp.grasp = self.scale_data(dmp.grasp, self.min_grasp, self.max_grasp)
         new_dmp.lpos_x = self.scale_data(dmp.lpos_x, self.min_x, self.max_x)
         new_dmp.lpos_y = self.scale_data(dmp.lpos_y, self.min_y, self.max_y)
         new_dmp.lpos_pitch = self.scale_data(dmp.lpos_pitch, self.min_pitch, self.max_pitch)
@@ -151,7 +161,9 @@ class NNGoalAction(object):
     #bootstrap learning when we discover first skill during exploration
     def bootstrap_learning(self, outcome_, dmp_):
         outcome, dmp = self.scale_samples(outcome_, dmp_)
+        #ouput of decoder
         tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
+        print("scaled dmp : ",tmp_sample)
         tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
         sample_inp_fwd = [outcome.state_x,outcome.state_y,outcome.state_angle,dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
@@ -174,19 +186,20 @@ class NNGoalAction(object):
         err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
         error_fwd = err_fwd.item()
         error_inv = err_inv.item()
-        error_fwd = math.tanh(error_fwd)
+        #error_fwd = math.tanh(error_fwd)
         #if error_fwd < 0.15:
         #    error_fwd = error_fwd + 0.4
-        error_inv = math.tanh(error_inv)
+        #error_inv = math.tanh(error_inv)
         print("ERROR INVERSE : ",error_inv)
         print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
-        #print(output_l)
+        print("latent space : ",output_l)
         t0 = self.scale_latent_to_dnf(output_l[0])
         t1 = self.scale_latent_to_dnf(output_l[1])
-        print(t0,t1)
+        
         inputs = [round(t0*100),round(t1*100)]
+        print("dnf input : ",inputs)
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs)
@@ -197,13 +210,13 @@ class NNGoalAction(object):
         self.end_action(True)
         rospy.sleep(1)
         self.end_action(False)
-        
         print(inputs)
-        print("Hebbian learning")
+        print("Hebbian learning, index : ",ind_skill)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         self.trainDecoder()
+        #self.send_ready(True)
 
     def trainDecoder(self):
         current_cost = 0
@@ -229,7 +242,7 @@ class NNGoalAction(object):
             cost.backward()
             optimizer.step()
             #current_cost = current_cost + cost.item()
-        for i in range(0,epochs):
+        while last_cost > 0.0001:
             for j in range(0,len(self.memory)):
                 self.decoder.train()
                 optimizer.zero_grad()
@@ -244,8 +257,10 @@ class NNGoalAction(object):
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+                last_cost = current_cost
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
+        print("finish training NNGA")
 
     def forward_encoder(self, data):
         data = data.to(device)
@@ -266,7 +281,19 @@ class NNGoalAction(object):
         return self.id_nnga
     
     def activate_dmp(self, goal):
-        pass
+        tmp = [goal.latent_x,goal.latent_y]
+        tensor_latent = torch.tensor(tmp,dtype=torch.float)
+        output = self.decoder(tensor_latent)
+        out = output.detach().numpy()
+        dmp = Dmp()
+        dmp.v_x = self.reconstruct_latent(out[4],self.min_vx,self.max_vx)
+        dmp.v_y = self.reconstruct_latent(out[5],self.min_vy,self.max_vy)
+        dmp.v_pitch = self.reconstruct_latent(out[6],self.min_vpitch,self.max_vpitch)
+        dmp.roll = self.reconstruct_latent(out[7],self.min_roll,self.max_roll)
+        dmp.grasp = self.reconstruct_latent(out[8],self.min_grasp,self.max_vx)
+        self.pub_dmp.publish(dmp)
 
     def activate_hebbian(self, goal):
-        pass
+        tmp = [goal.latent_x,goal.latent_y]
+        self.index_skill = self.hebbian.hebbianActivation(tmp)
+        print("index models : ",self.index_skill)

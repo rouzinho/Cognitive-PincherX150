@@ -41,8 +41,8 @@ class Skill(object):
             sample = self.memory[-1]
             inputs = sample[3]
             targets = sample[1]
-            print("input inverse : ",inputs)
-            print("output inverse : ",targets)
+            #print("input inverse : ",inputs)
+            #print("output inverse : ",targets)
             inputs = inputs.to(device)
             targets = targets.to(device)
             outputs = self.inverse_model(inputs)
@@ -64,7 +64,7 @@ class Skill(object):
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
             #if current_cost > last_cost:
             #    break
@@ -88,8 +88,8 @@ class Skill(object):
             sample = self.memory[-1]
             inputs = sample[2]
             targets = sample[0]
-            print("input forward : ",inputs)
-            print("output forward : ",targets)
+            #print("input forward : ",inputs)
+            #print("output forward : ",targets)
             inputs = inputs.to(device)
             targets = targets.to(device)
             outputs = self.forward_model(inputs)
@@ -111,7 +111,7 @@ class Skill(object):
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
             #if current_cost > last_cost:
             #    break
