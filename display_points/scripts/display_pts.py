@@ -89,7 +89,7 @@ class DisplayPts(object):
    
    def setup_plot_latent(self):
       self.scat_o = self.ax.scatter(self.latent_y, self.latent_x,s=100, c=self.colors,cmap="jet", edgecolor="k")
-      self.ax.axis([-1, 1, -1.0, 1.0])
+      self.ax.axis([-2, 2, -2.0, 2.0])
       # For FuncAnimation's sake, we need to return the artist we'll be using
       # Note that it expects a sequence of artists, thus the trailing comma.
       return self.scat_o,

@@ -144,7 +144,7 @@ class NNGoalAction(object):
         new_outcome.x = self.scale_data(outcome.x, self.min_vx, self.max_vx)
         new_outcome.y = self.scale_data(outcome.y, self.min_vy, self.max_vy)
         new_outcome.angle = self.scale_data(outcome.angle, self.min_angle, self.max_angle)
-        new_outcome.touch = outcome.touch
+        new_outcome.touch = self.scale_data(outcome.touch, self.min_grasp, self.max_grasp)
         new_dmp = DmpAction()
         new_dmp.v_x = self.scale_data(dmp.v_x, self.min_vx, self.max_vx)
         new_dmp.v_y = self.scale_data(dmp.v_y, self.min_vy, self.max_vy)
