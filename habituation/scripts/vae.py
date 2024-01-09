@@ -221,6 +221,8 @@ class Habituation(object):
       rospy.Subscriber("/habituation/id_object", Int16, self.callback_id)
       self.pub_latent_space = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
+      self.exploration_mode = rospy.get_param("exploration")
+      print(self.exploration_mode)
       self.id_vae = -1
       self.count_color = 0
       self.incoming_dmp = False
