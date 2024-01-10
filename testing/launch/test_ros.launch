@@ -1,0 +1,3 @@
+<launch>
+    <node name="test_vae" pkg="testing" type="test.py" output="screen"/>
+</launch>
