@@ -120,6 +120,65 @@ class VariationalAE(object):
       self.vae = VariationalAutoencoder(2)
       self.memory = []
       self.id = id_object
+      self.list_latent = []
+      self.list_latent_scaled = []
+      self.scale_factor = 50
+
+   def set_latent_dnf(self,exploration):
+      ext_x, ext_y = self.get_static_latent_extremes()
+      print("min max X : ",ext_x)
+      print("min max Y : ",ext_y)
+      print("Latent space : ",self.list_latent)
+
+
+   #get min max of x and y in latent space, used for scaling
+   def get_static_latent_extremes(self):
+      best_min_x = 1
+      best_max_x = -1
+      ind_min_x = 0
+      ind_max_x = 0
+      best_min_y = 0
+      best_max_y = 0
+      ind_min_y = 0
+      ind_max_y = 0
+      for i in range(0,len(self.list_latent)):
+         if self.list_latent[i][0] < best_min_x:
+            ind_min_x = i
+            best_min_x = self.list_latent[i][0]
+         if self.list_latent[i][0] > best_max_x:
+            ind_max_x = i
+            best_max_x = self.list_latent[i][0]
+         if self.list_latent[i][1] < best_min_y:
+            ind_min_y = i
+            best_min_y = self.list_latent[i][1]
+         if self.list_latent[i][1] > best_max_y:
+            ind_max_y = i
+            best_max_y = self.list_latent[i][1]
+
+      if len(self.list_latent) > 0:
+         min_x = self.list_latent[ind_min_x][0]
+         max_x = self.list_latent[ind_max_x][0]
+         min_y = self.list_latent[ind_min_y][1]
+         max_y = self.list_latent[ind_max_y][1]
+         ext_x = [min_x,max_x]
+         ext_y = [min_y,max_y]
+      else:
+         ext_x = []
+         ext_y = []
+
+      return ext_x, ext_y
+
+   def scale_latent_to_dnf_static(self, data, min_, max_):
+      n_x = np.array(data)
+      n_x = n_x.reshape(-1,1)
+      scaler_x = MinMaxScaler()
+      x_minmax = np.array([min_, max_])
+      scaler_x.fit(x_minmax[:, np.newaxis])
+      n_x = scaler_x.transform(n_x)
+      n_x = n_x.reshape(1,-1)
+      n_x = n_x.flatten()
+            
+      return n_x[0]
 
    def add_to_memory(self, data):
       self.memory.append(data)
@@ -138,11 +197,9 @@ class VariationalAE(object):
       self.recon_loss = self.reconstruction_loss(recon_x, y_true)
       self.kld_loss = self.vae_gaussian_kl_loss(mu, logvar)
       return 200 * self.recon_loss + self.kld_loss
-      #return self.recon_loss + 2 * self.kld_loss
 
-   def train(self, epochs=6000):
+   def train(self):
       kl_weight = 0.8
-      #opt = torch.optim.Adam(list(self.vae.encoder.parameters()) + list(self.vae.decoder.parameters()), lr=0.001)
       opt = torch.optim.Adam(self.vae.parameters(), lr=0.01)
       train_loss = 0.0
       last_loss = 10
@@ -150,7 +207,6 @@ class VariationalAE(object):
       i = 0
       min_err = 1.0
       err_rec = 1.0
-      #for epoch in range(epochs):
       while not stop:
          random.shuffle(self.memory)
          for sample, y in self.memory:
@@ -160,31 +216,25 @@ class VariationalAE(object):
             pred = self.vae(s)
             loss = self.vae_loss(pred, s)
             err_rec = self.recon_loss.item()
-            print("loss reconstruct : ",self.recon_loss.item())
-            print("loss KL : ",self.kld_loss.item())
+            #print("loss reconstruct : ",self.recon_loss.item())
+            #print("loss KL : ",self.kld_loss.item())
             #print("loss total : ",loss)
             loss.backward()
             opt.step()
             i += 1
             if err_rec < min_err:
                min_err = err_rec
-               print("min reconstructed : ",min_err)
-               print("loss KL : ",self.kld_loss.item())
+               #print("min reconstructed : ",min_err)
+               #print("loss KL : ",self.kld_loss.item())
             if self.kld_loss < 0.04 and self.recon_loss < 0.0005:
                stop = True
                break
-            #last_loss = loss_mse
-            #if nb_data > 1:
-            #   if loss_mse < 9e-5 and loss_kl < 9e-5:
-            #      stop = True
-            #      print("epochs : ",i)
-            #else:
-            #   if i > 10000:
-            #      stop = True
       print("END TRAINING")
 
+   #send latent space for display and keep it in memory
    def plot_latent(self, num_batches=100):
       msg_latent = LatentPos()
+      self.list_latent = []
       for i in range(0,1):
          for sample, col in self.memory:
             self.vae.eval()
@@ -194,6 +244,7 @@ class VariationalAE(object):
             msg_latent.x.append(z[0])
             msg_latent.y.append(z[1])
             msg_latent.colors.append(col)
+            self.list_latent.append(z)
             #plt.scatter(z[0], z[1], c=col, cmap='tab10')
             
       return msg_latent
@@ -258,6 +309,7 @@ class Habituation(object):
       self.time = 0
       self.first = True
 
+   #scale inputs from real values to [-1,1]
    def scale_data(self, data, min_, max_):
       n_x = np.array(data)
       n_x = n_x.reshape(-1,1)
@@ -290,9 +342,9 @@ class Habituation(object):
          self.pub_latent_space.publish(msg)
          self.incoming_dmp = False
          self.incoming_outcome = False
-         #rospy.sleep(10.0)
          self.pub_ready.publish(True)
-         self.test_reconstruct()
+         #self.test_reconstruct()
+         self.habit.set_latent_dnf("test")
          t = self.time - rospy.get_time()
          print("Time elapsed : ",t)
 
@@ -315,9 +367,9 @@ class Habituation(object):
          self.pub_latent_space.publish(msg)
          self.incoming_dmp = False
          self.incoming_outcome = False
-         #rospy.sleep(10.0)
          self.pub_ready.publish(True)
-         self.test_reconstruct()
+         #self.test_reconstruct()
+         self.habit.set_latent_dnf("test")
          t = self.time - rospy.get_time()
          print("Time elapsed : ",t)
 
