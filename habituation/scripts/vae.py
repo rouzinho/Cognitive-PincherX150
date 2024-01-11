@@ -132,7 +132,7 @@ class VariationalAE(object):
       self.bound_y = 0
 
    def set_latent_dnf(self,exploration):
-      ext_x, ext_y = self.get_latent_extremes()
+      ext_x, ext_y = self.get_latent_extremes(self.list_latent)
       self.list_latent_scaled = []
       if exploration == "fixed":
          self.bound_x = 100
@@ -150,16 +150,16 @@ class VariationalAE(object):
          max_bound_x = (dist_x * self.scale_factor)
          max_bound_y = (dist_y * self.scale_factor) 
          #padding to avoid having extreme values on the edge of DNF
-         padding_x = max_bound_x * 0.1
-         padding_y = max_bound_y * 0.1
+         padding_x = round(max_bound_x * 0.1)
+         padding_y = round(max_bound_y * 0.1)
          self.bound_x = round(max_bound_x)
          self.bound_y = round(max_bound_y)
-         print("max bound X ",max_bound_x)
-         print("max bound Y ",max_bound_y)
+         print("max bound X ",self.bound_x)
+         print("max bound Y ",self.bound_y)
          if len(self.list_latent) > 1:
             for i in self.list_latent:
-               x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
-               y = self.scale_latent_to_dnf_dynamic(i[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
+               x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,self.bound_x-padding_x)
+               y = self.scale_latent_to_dnf_dynamic(i[1],ext_y[0],ext_y[1],padding_y,self.bound_y-padding_y)
                self.list_latent_scaled.append([round(x),round(y)])
          else:
             self.list_latent_scaled.append([5,5])
@@ -168,12 +168,30 @@ class VariationalAE(object):
 
    def set_eval_to_latent_dnf(self, z, exploration):
       eval_value = LatentGoalDnf()
-      ext_x, ext_y = self.get_latent_extremes()
+      list_eval = self.list_latent
+      list_eval.append(z)
+      ext_x, ext_y = self.get_latent_extremes(list_eval)
       if exploration == "fixed":
          x = self.scale_latent_to_dnf_static(z[0],ext_x[0],ext_x[1])
          y = self.scale_latent_to_dnf_static(z[1],ext_y[0],ext_y[1])
          eval_value.latent_x = round(x)
          eval_value.latent_y = round(y)
+      else:
+         dist_x = abs(ext_x[0]) + abs(ext_x[1])
+         dist_y = abs(ext_y[0]) + abs(ext_y[1])
+         max_bound_x = (dist_x * self.scale_factor)
+         max_bound_y = (dist_y * self.scale_factor) 
+         #padding to avoid having extreme values on the edge of DNF
+         padding_x = round(max_bound_x * 0.1)
+         padding_y = round(max_bound_y * 0.1)
+         max_bound_x = round(max_bound_x)
+         max_bound_y = round(max_bound_y)
+         x = self.scale_latent_to_dnf_dynamic(z[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
+         y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
+         eval_value.latent_x = round(x)
+         eval_value.latent_y = round(y)
+
+      return eval_value
 
 
    def get_latent_space_dnf(self):
@@ -186,7 +204,7 @@ class VariationalAE(object):
       return self.bound_y
 
    #get min max of x and y in latent space, used for scaling
-   def get_latent_extremes(self):
+   def get_latent_extremes(self, l_lat):
       best_min_x = 1
       best_max_x = -1
       ind_min_x = 0
@@ -195,25 +213,25 @@ class VariationalAE(object):
       best_max_y = 0
       ind_min_y = 0
       ind_max_y = 0
-      for i in range(0,len(self.list_latent)):
-         if self.list_latent[i][0] < best_min_x:
+      for i in range(0,len(l_lat)):
+         if l_lat[i][0] < best_min_x:
             ind_min_x = i
-            best_min_x = self.list_latent[i][0]
-         if self.list_latent[i][0] > best_max_x:
+            best_min_x = l_lat[i][0]
+         if l_lat[i][0] > best_max_x:
             ind_max_x = i
-            best_max_x = self.list_latent[i][0]
-         if self.list_latent[i][1] < best_min_y:
+            best_max_x = l_lat[i][0]
+         if l_lat[i][1] < best_min_y:
             ind_min_y = i
-            best_min_y = self.list_latent[i][1]
-         if self.list_latent[i][1] > best_max_y:
+            best_min_y = l_lat[i][1]
+         if l_lat[i][1] > best_max_y:
             ind_max_y = i
-            best_max_y = self.list_latent[i][1]
+            best_max_y = l_lat[i][1]
 
-      if len(self.list_latent) > 0:
-         min_x = self.list_latent[ind_min_x][0]
-         max_x = self.list_latent[ind_max_x][0]
-         min_y = self.list_latent[ind_min_y][1]
-         max_y = self.list_latent[ind_max_y][1]
+      if len(self.l_lat) > 0:
+         min_x = l_lat[ind_min_x][0]
+         max_x = l_lat[ind_max_x][0]
+         min_y = l_lat[ind_min_y][1]
+         max_y = l_lat[ind_max_y][1]
          ext_x = [min_x,max_x]
          ext_y = [min_y,max_y]
       else:
