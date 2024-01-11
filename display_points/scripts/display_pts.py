@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.animation
 from som.msg import GripperOrientation
 from habituation.msg import LatentPos
+from cog_learning.msg import LatentGoalNN
 
 class DisplayPts(object):
    def __init__(self):
@@ -16,6 +17,7 @@ class DisplayPts(object):
       self.sub_fp = rospy.Subscriber('/display/first_pose', GripperOrientation, self.callback_first_pose)
       self.sub_lp = rospy.Subscriber('/display/last_pose', GripperOrientation, self.callback_last_pose)
       self.sub_latent = rospy.Subscriber('/display/latent_space', LatentPos, self.callback_latent)
+      self.sub_test = rospy.Subscriber('/display/latent_test', LatentGoalNN, self.callback_latent_test)
       self.x_object = np.array([0.3])
       self.y_object = np.array([0.0])
       self.x_gauss = np.array([0.3])
@@ -23,7 +25,9 @@ class DisplayPts(object):
       self.x_fpose = np.array([0.0])
       self.y_fpose = np.array([-0.4])
       self.x_lpose = np.array([0.0])
-      self.y_lpose = np.array([-0.4])
+      self.y_lpose = np.array([0.0])
+      self.x_test = np.array([0.0])
+      self.y_test = np.array([0.0])
       self.latent_x = np.array([0.0])
       self.latent_y = np.array([0.0])
       self.fig, self.ax = plt.subplots()
@@ -75,7 +79,11 @@ class DisplayPts(object):
       self.latent_x = np.array(msg.x)
       self.latent_y = np.array(msg.y)
       self.colors = msg.colors
-      print(self.colors)
+      #print(self.colors)
+
+   def callback_latent_test(self, msg):
+      self.x_test = np.array(msg.latent_x)
+      self.y_test = np.array(msg.latent_y)
 
    def setup_plot_pos(self):
       self.scat_o = self.ax.scatter(self.y_object, self.x_object, c='red')
@@ -88,11 +96,12 @@ class DisplayPts(object):
       return self.scat_o, self.scat_g, self.scat_f, self.scat_l
    
    def setup_plot_latent(self):
-      self.scat_o = self.ax.scatter(self.latent_y, self.latent_x,s=100, c=self.colors,cmap="jet", edgecolor="k")
+      self.scat_o = self.ax.scatter(self.latent_x, self.latent_y,s=100, c=self.colors,cmap="jet", edgecolor="k")
+      self.scat_l = self.ax.scatter(self.x_test, self.y_test, c='lime')
       self.ax.axis([-2, 2, -2.0, 2.0])
       # For FuncAnimation's sake, we need to return the artist we'll be using
       # Note that it expects a sequence of artists, thus the trailing comma.
-      return self.scat_o,
+      return self.scat_o, self.scat_l,
 
    def update_pos(self, i):
       # Set x and y data...
@@ -114,13 +123,15 @@ class DisplayPts(object):
    
    def update_latent(self, i):
       # Set x and y data...
-      X = np.c_[self.latent_y, self.latent_x]
+      X = np.c_[self.latent_x, self.latent_y]
+      X_b = np.c_[self.x_test, self.y_test]
       self.scat_o.set_offsets(X)
+      self.scat_l.set_offsets(X_b)
       #self.scat.set_sizes(300 * abs(data[:, 2])**1.5 + 100)
       # Set colors..
       #self.scat_o.set_array(self.colors)
 
-      return self.scat_o,
+      return self.scat_o, self.scat_l,
 
 if __name__ == '__main__':
    rospy.init_node("display")

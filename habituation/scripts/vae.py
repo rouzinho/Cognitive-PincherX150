@@ -22,6 +22,10 @@ from motion.msg import Dmp
 from detector.msg import Outcome
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
+from cog_learning.msg import LatentGoalDnf
+from cog_learning.msg import LatentDNF
+from cog_learning.msg import LatentGoalNN
+
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
     import cPickle as pickle
@@ -122,17 +126,67 @@ class VariationalAE(object):
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.scale_factor = 50
+      self.scale_factor = 40
+      self.tmp_list = []
+      self.bound_x = 0
+      self.bound_y = 0
 
    def set_latent_dnf(self,exploration):
-      ext_x, ext_y = self.get_static_latent_extremes()
-      print("min max X : ",ext_x)
-      print("min max Y : ",ext_y)
-      print("Latent space : ",self.list_latent)
+      ext_x, ext_y = self.get_latent_extremes()
+      self.list_latent_scaled = []
+      if exploration == "fixed":
+         self.bound_x = 100
+         self.bound_y = 100
+         if len(self.list_latent) > 1:
+            for i in self.list_latent:
+               x = self.scale_latent_to_dnf_static(i[0],ext_x[0],ext_x[1])
+               y = self.scale_latent_to_dnf_static(i[1],ext_y[0],ext_y[1])
+               self.list_latent_scaled.append([round(x),round(y)])
+         else:
+            self.list_latent_scaled.append([50,50])
+      else:
+         dist_x = abs(ext_x[0]) + abs(ext_x[1])
+         dist_y = abs(ext_y[0]) + abs(ext_y[1])
+         max_bound_x = (dist_x * self.scale_factor)
+         max_bound_y = (dist_y * self.scale_factor) 
+         #padding to avoid having extreme values on the edge of DNF
+         padding_x = max_bound_x * 0.1
+         padding_y = max_bound_y * 0.1
+         self.bound_x = round(max_bound_x)
+         self.bound_y = round(max_bound_y)
+         print("max bound X ",max_bound_x)
+         print("max bound Y ",max_bound_y)
+         if len(self.list_latent) > 1:
+            for i in self.list_latent:
+               x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
+               y = self.scale_latent_to_dnf_dynamic(i[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
+               self.list_latent_scaled.append([round(x),round(y)])
+         else:
+            self.list_latent_scaled.append([5,5])
+            self.bound_x = round(10)
+            self.bound_y = round(10)
 
+   def set_eval_to_latent_dnf(self, z, exploration):
+      eval_value = LatentGoalDnf()
+      ext_x, ext_y = self.get_latent_extremes()
+      if exploration == "fixed":
+         x = self.scale_latent_to_dnf_static(z[0],ext_x[0],ext_x[1])
+         y = self.scale_latent_to_dnf_static(z[1],ext_y[0],ext_y[1])
+         eval_value.latent_x = round(x)
+         eval_value.latent_y = round(y)
+
+
+   def get_latent_space_dnf(self):
+      return self.list_latent_scaled
+   
+   def get_bound_x(self):
+      return self.bound_x
+   
+   def get_bound_y(self):
+      return self.bound_y
 
    #get min max of x and y in latent space, used for scaling
-   def get_static_latent_extremes(self):
+   def get_latent_extremes(self):
       best_min_x = 1
       best_max_x = -1
       ind_min_x = 0
@@ -171,8 +225,20 @@ class VariationalAE(object):
    def scale_latent_to_dnf_static(self, data, min_, max_):
       n_x = np.array(data)
       n_x = n_x.reshape(-1,1)
-      scaler_x = MinMaxScaler()
+      scaler_x = MinMaxScaler(feature_range=(10,90))
       x_minmax = np.array([min_, max_])
+      scaler_x.fit(x_minmax[:, np.newaxis])
+      n_x = scaler_x.transform(n_x)
+      n_x = n_x.reshape(1,-1)
+      n_x = n_x.flatten()
+            
+      return n_x[0]
+   
+   def scale_latent_to_dnf_dynamic(self, data, min_v, max_v, min_b, max_b):
+      n_x = np.array(data)
+      n_x = n_x.reshape(-1,1)
+      scaler_x = MinMaxScaler(feature_range=(min_b,max_b))
+      x_minmax = np.array([min_v, max_v])
       scaler_x.fit(x_minmax[:, np.newaxis])
       n_x = scaler_x.transform(n_x)
       n_x = n_x.reshape(1,-1)
@@ -231,18 +297,27 @@ class VariationalAE(object):
                break
       print("END TRAINING")
 
+   def evaluate_new_sample(self, sample):
+      self.vae.eval()
+      z, z_log, recon = self.vae.encoder(sample)
+      z = z.to('cpu').detach().numpy()
+
+      return z
+
    #send latent space for display and keep it in memory
    def plot_latent(self, num_batches=100):
       msg_latent = LatentPos()
       self.list_latent = []
+      self.tmp_list = []
       for i in range(0,1):
          for sample, col in self.memory:
             self.vae.eval()
             z, z_log, recon = self.vae.encoder(sample)
-            #print(col,z)
             z = z.to('cpu').detach().numpy()
             msg_latent.x.append(z[0])
             msg_latent.y.append(z[1])
+            t = [z[0],z[1],col]
+            self.tmp_list.append(t)
             msg_latent.colors.append(col)
             self.list_latent.append(z)
             #plt.scatter(z[0], z[1], c=col, cmap='tab10')
@@ -263,6 +338,9 @@ class VariationalAE(object):
    def reset_model(self):
       self.vae = VariationalAutoencoder(2)
 
+   def get_memory_size(self):
+      return len(self.memory)
+
 
 class Habituation(object):
    def __init__(self):
@@ -270,10 +348,11 @@ class Habituation(object):
       rospy.Subscriber("/habituation/dmp", Dmp, self.callback_dmp)
       rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
       rospy.Subscriber("/habituation/id_object", Int16, self.callback_id)
-      self.pub_latent_space = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
+      self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
+      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
+      self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
-      print(self.exploration_mode)
       self.id_vae = -1
       self.count_color = 0
       self.incoming_dmp = False
@@ -321,6 +400,24 @@ class Habituation(object):
       n_x = n_x.flatten()
             
       return n_x[0]
+   
+   def send_latent_space(self):
+      ls = self.habit.get_latent_space_dnf()
+      msg_latent = LatentDNF()
+      msg_latent.max_x = self.habit.get_bound_x()
+      msg_latent.max_y = self.habit.get_bound_y()
+      for i in ls:
+         lg = LatentGoalDnf() 
+         lg.latent_x = i[0]
+         lg.latent_y = i[1]
+         msg_latent.list_latent.append(lg)
+      self.pub_latent_space_dnf.publish(msg_latent)
+
+   def send_latent_test(self, v):
+      tmp = LatentGoalNN()
+      tmp.latent_x = v[0]
+      tmp.latent_y = v[1]
+      self.pub_test_latent.publish(tmp)
 
    def callback_dmp(self, msg):
       print("got DMP")
@@ -334,18 +431,16 @@ class Habituation(object):
       self.dmp.grasp = self.scale_data(msg.grasp,self.min_grasp,self.max_grasp)
       self.incoming_dmp = True
       if(self.incoming_dmp and self.incoming_outcome):
-         torch.manual_seed(24)
-         self.habit.reset_model()
-         self.add_to_memory()
-         self.habit.train()
-         msg = self.habit.plot_latent()
-         self.pub_latent_space.publish(msg)
-         self.incoming_dmp = False
-         self.incoming_outcome = False
-         self.pub_ready.publish(True)
-         #self.test_reconstruct()
-         self.habit.set_latent_dnf("test")
+         sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
+         tensor_sample = torch.tensor(sample,dtype=torch.float)
+         if self.habit.get_memory_size() > 0:
+            print("Testing new sample...")
+            z = self.habit.evaluate_new_sample(tensor_sample)
+            self.send_latent_test(z)
+            rospy.sleep(10.0)
+         self.learn_new_latent(tensor_sample)
          t = self.time - rospy.get_time()
+         rospy.sleep(10.0)
          print("Time elapsed : ",t)
 
    def callback_outcome(self, msg):
@@ -359,27 +454,37 @@ class Habituation(object):
       self.outcome.touch = self.scale_data(msg.touch, self.min_grasp, self.max_grasp)
       self.incoming_outcome = True
       if(self.incoming_dmp and self.incoming_outcome):
-         torch.manual_seed(24)
-         self.habit.reset_model()
-         self.add_to_memory()
-         self.habit.train()
-         msg = self.habit.plot_latent()
-         self.pub_latent_space.publish(msg)
-         self.incoming_dmp = False
-         self.incoming_outcome = False
-         self.pub_ready.publish(True)
-         #self.test_reconstruct()
-         self.habit.set_latent_dnf("test")
+         sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
+         tensor_sample = torch.tensor(sample,dtype=torch.float)
+         if self.habit.get_memory_size() > 0:
+            print("Testing new sample...")
+            z = self.habit.evaluate_new_sample(tensor_sample)
+            self.send_latent_test(z)
+            rospy.sleep(10.0)
+         self.learn_new_latent(tensor_sample)
          t = self.time - rospy.get_time()
+         rospy.sleep(10.0)
          print("Time elapsed : ",t)
+
+   def learn_new_latent(self, sample):
+      torch.manual_seed(24)
+      self.habit.reset_model()
+      self.add_to_memory(sample)
+      self.habit.train()
+      msg = self.habit.plot_latent()
+      self.pub_latent_space_display.publish(msg)
+      self.habit.set_latent_dnf(self.exploration_mode)
+      self.send_latent_space()
+      self.incoming_dmp = False
+      self.incoming_outcome = False
+      self.pub_ready.publish(True)
+      #self.test_reconstruct()
 
    def callback_id(self, msg):
       self.id_vae = msg.data
 
-   def add_to_memory(self):
-      sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
-      tensor_sample = torch.tensor(sample,dtype=torch.float)
-      self.habit.add_to_memory([tensor_sample,self.colors[self.count_color]])
+   def add_to_memory(self, sample):
+      self.habit.add_to_memory([sample,self.colors[self.count_color]])
       self.outcome = Outcome()
       self.dmp = Dmp()
       self.count_color += 1
@@ -391,68 +496,3 @@ class Habituation(object):
 if __name__ == "__main__":
    habituation = Habituation()
    rospy.spin()
-   """latent_dims = 2
-   data = []
-   #data = torch.utils.data.DataLoader(
-   #     torchvision.datasets.MNIST('./data',
-   #            transform=torchvision.transforms.ToTensor(),
-   #            download=True),
-   #     batch_size=128,
-   #     shuffle=True)
-   goal = [0.1,0.1,0.5,0.2,0.3,0.25,0.65,0.9,0.0]
-   sec_goal = [0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.4,0.0]
-   third_goal = [0.2,0.34,0.12,0.43,0.8,0.85,0.45,0.76,0.0]
-   test_goal = [0.6,0.7,0.4,0.15,0.67,0.77,0.8,0.35,1.0]
-   test_goal2 = [0.8,0.6,0.1,0.3,0.5,0.45,0.9,0.1,0.0]
-   sim1 = [0.1,0.1,0.5,0.2,0.3,0.25,0.4,0.9,0.0]
-   sim2 = [0.4,0.4,0.1,0.3,0.1,0.6,0.1,0.45,0.0]
-   sim3 = [0.2,0.34,0.12,0.43,0.8,0.85,0.45,0.9,0.0]
-   sim4 = [0.6,0.7,0.9,0.15,0.67,0.77,0.8,0.35,1.0]
-   sim5 = [0.8,0.6,0.1,0.3,0.5,0.15,0.9,0.1,0.0]
-   tensor_goal = torch.tensor(goal,dtype=torch.float)
-   tensor_secgoal = torch.tensor(sec_goal,dtype=torch.float)
-   tensor_rdgoal = torch.tensor(third_goal,dtype=torch.float)
-   tensor_test = torch.tensor(test_goal,dtype=torch.float)
-   tensor_test2 = torch.tensor(test_goal2,dtype=torch.float)
-   ts1 = torch.tensor(sim1,dtype=torch.float)
-   ts2 = torch.tensor(sim2,dtype=torch.float)
-   ts3 = torch.tensor(sim3,dtype=torch.float)
-   ts4 = torch.tensor(sim4,dtype=torch.float)
-   ts5 = torch.tensor(sim5,dtype=torch.float)
-   c_r = "red"
-   c_b = "blue"
-   c_g = "green"
-   c_y = "yellow"
-   c_p = "pink"
-   c_c = "cyan"
-   c_o = "orange"
-   c_pu = "purple"
-   c_br = "brown"
-   c_gr = "gray"
-   data.append([tensor_goal,c_r])
-   data.append([tensor_secgoal,c_b])
-   data.append([tensor_rdgoal,c_g])
-   data.append([tensor_test,c_y])
-   data.append([tensor_test2,c_p])
-   #habit = VariationalAE(1)
-   #habit.train(data)
-   data.append([ts1,c_c])
-   data.append([ts2,c_o])
-   data.append([ts3,c_pu])
-   data.append([ts4,c_br])
-   data.append([ts5,c_gr])
-   habit = VariationalAE(1)
-   habit.train(data)
-   res = habit.vae.forward(tensor_goal)
-   print("original : ",tensor_goal)
-   print("reconstructed : ",res[2])
-   #data.append([ts1,c_c])
-    #res2 = vae.forward(tensor_secgoal)
-    #res3 = vae.forward(tensor_rdgoal)
-    #print("RECONSTRUCTION ",res)
-    #print("RECONSTRUCTION 2",res2)
-    #print("RECONSTRUCTION 3",res3)
-    #data.append([tensor_test,c_y])
-   habit.plot_latent(data)
-   plt.show()
-   rospy.spin()"""

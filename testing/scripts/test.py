@@ -55,8 +55,8 @@ if __name__ == "__main__":
    dmp4 = [0.15,0.0,0.6,0.0,1.0]
    outcome5 = [-0.1,0.1,10.0,0.0]
    dmp5 = [-0.1,0.1,-0.2,0.0,0.0]
-   sim1_out = [0.1,0.1,0.5,0.0]
-   sim1_dmp = [0.3,0.25,0.4,0.9,0.0]
+   sim1_out = [0.1,0.1,30.0,0.0]
+   sim1_dmp = [0.1,0.11,1.0,0.6,0.0]
    sim2_out = [0.4,0.4,0.1,0.0]
    sim2_dmp = [0.1,0.6,0.1,0.45,0.0]
    sim3_out = [0.2,0.34,0.12,0.0]
@@ -67,6 +67,7 @@ if __name__ == "__main__":
    sim5_dmp = [0.5,0.15,0.9,0.1,0.0]
    data.append([outcome1,dmp1])
    data.append([outcome2,dmp2])
+   data.append([sim1_out,sim1_dmp])
    data.append([outcome3,dmp3])
    data.append([outcome4,dmp4])
    data.append([outcome5,dmp5])
@@ -79,7 +80,7 @@ if __name__ == "__main__":
    i = 0
    seconds = 0
    while not rospy.is_shutdown():
-      if(test.get_ready() and i < 5):
+      if(test.get_ready() and i < 6):
          test.publish_dmp(data[i][1])
          test.publish_outcome(data[i][0])
          test.set_ready(False)
