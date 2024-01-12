@@ -25,6 +25,7 @@ from sklearn.preprocessing import MinMaxScaler
 from cog_learning.msg import LatentGoalDnf
 from cog_learning.msg import LatentDNF
 from cog_learning.msg import LatentGoalNN
+import copy
 
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
@@ -131,13 +132,13 @@ class VariationalAE(object):
       self.bound_x = 0
       self.bound_y = 0
 
-   def set_latent_dnf(self,exploration):
-      ext_x, ext_y = self.get_latent_extremes(self.list_latent)
+   def set_latent_dnf(self, l_values, exploration):
+      ext_x, ext_y = self.get_latent_extremes(l_values)
       self.list_latent_scaled = []
       if exploration == "static":
          self.bound_x = 100
          self.bound_y = 100
-         if len(self.list_latent) > 1:
+         if len(self.list_latent) >= 1:
             for i in self.list_latent:
                print("Latent Value : ",i)
                print("extreme values X : ",ext_x)
@@ -164,7 +165,7 @@ class VariationalAE(object):
          self.bound_y = round(max_bound_y)
          print("max bound X ",self.bound_x)
          print("max bound Y ",self.bound_y)
-         if len(self.list_latent) > 1:
+         if len(self.list_latent) >= 1:
             for i in self.list_latent:
                x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,self.bound_x-padding_x)
                y = self.scale_latent_to_dnf_dynamic(i[1],ext_y[0],ext_y[1],padding_y,self.bound_y-padding_y)
@@ -173,7 +174,7 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
-      print("Latent DNF : ",self.list_latent_scaled)
+      #print("Latent DNF : ",self.list_latent_scaled)
 
 
    def set_eval_to_latent_dnf(self, z, exploration):
@@ -210,9 +211,13 @@ class VariationalAE(object):
 
       return new_latent
 
+   def get_latent_space(self):
+      cp_val = copy.deepcopy(self.list_latent)
+      return cp_val
 
    def get_latent_space_dnf(self):
-      return self.list_latent_scaled
+      cp_val = copy.deepcopy(self.list_latent_scaled)
+      return cp_val
    
    def get_bound_x(self):
       return self.bound_x
@@ -476,8 +481,17 @@ class Habituation(object):
          tensor_sample = torch.tensor(sample,dtype=torch.float)
          self.candidate.append(sample)
          if self.habit.get_memory_size() > 0:
-            print("Testing new sample...")
+            print("GOT SAMPLE")
             z = self.habit.get_sample_latent(tensor_sample)
+            #resize current latent space with testing value without displaying it
+            print("resize latent without evaluation value")
+            l = self.habit.get_latent_space()
+            l.append(z)
+            self.habit.set_latent_dnf(l,self.exploration_mode)
+            self.send_latent_space()
+            rospy.sleep(10.0)
+            #test new value
+            print("TESTING new sample...")
             msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
@@ -504,8 +518,18 @@ class Habituation(object):
          tensor_sample = torch.tensor(sample,dtype=torch.float)
          self.candidate.append(sample)
          if self.habit.get_memory_size() > 0:
-            print("Testing new sample...")
+            print("GOT SAMPLE")
             z = self.habit.get_sample_latent(tensor_sample)
+            #resize current latent space with testing value without displaying it
+            print("resize latent without evaluation value")
+            l = []
+            l = self.habit.get_latent_space()
+            l.append(z)
+            self.habit.set_latent_dnf(l,self.exploration_mode)
+            self.send_latent_space()
+            rospy.sleep(10.0)
+            #test new value
+            print("TESTING new sample...")
             msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
@@ -525,7 +549,8 @@ class Habituation(object):
       self.habit.train()
       msg = self.habit.plot_latent()
       self.pub_latent_space_display.publish(msg)
-      self.habit.set_latent_dnf(self.exploration_mode)
+      tmp = self.habit.get_latent_space()
+      self.habit.set_latent_dnf(tmp,self.exploration_mode)
       self.send_latent_space()
       self.incoming_dmp = False
       self.incoming_outcome = False

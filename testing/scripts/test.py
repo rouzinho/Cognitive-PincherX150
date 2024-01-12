@@ -82,6 +82,7 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if(test.get_ready() and i < 5):
          test.publish_dmp(data[i][1])
+         rospy.sleep(0.5)
          test.publish_outcome(data[i][0])
          test.set_ready(False)
          i += 1
