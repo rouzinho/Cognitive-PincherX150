@@ -1,4 +1,4 @@
 <launch>
-    <param name="exploration" type="string" value="dynamic" />
+    <param name="exploration" type="string" value="static" />
     <node name="habituation" pkg="habituation" type="vae.py" output="screen"/>
 </launch>

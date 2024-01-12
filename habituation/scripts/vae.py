@@ -126,7 +126,7 @@ class VariationalAE(object):
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.scale_factor = 40
+      self.scale_factor = 50
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
@@ -134,11 +134,14 @@ class VariationalAE(object):
    def set_latent_dnf(self,exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
       self.list_latent_scaled = []
-      if exploration == "fixed":
+      if exploration == "static":
          self.bound_x = 100
          self.bound_y = 100
          if len(self.list_latent) > 1:
             for i in self.list_latent:
+               print("Latent Value : ",i)
+               print("extreme values X : ",ext_x)
+               print("extreme values Y : ",ext_y)
                x = self.scale_latent_to_dnf_static(i[0],ext_x[0],ext_x[1])
                y = self.scale_latent_to_dnf_static(i[1],ext_y[0],ext_y[1])
                self.list_latent_scaled.append([round(x),round(y)])
@@ -148,7 +151,12 @@ class VariationalAE(object):
          dist_x = abs(ext_x[0]) + abs(ext_x[1])
          dist_y = abs(ext_y[0]) + abs(ext_y[1])
          max_bound_x = (dist_x * self.scale_factor)
-         max_bound_y = (dist_y * self.scale_factor) 
+         max_bound_y = (dist_y * self.scale_factor)
+         #control on bounding
+         if max_bound_x < 1:
+            max_bound_x = 1
+         if max_bound_y < 1:
+            max_bound_y = 1 
          #padding to avoid having extreme values on the edge of DNF
          padding_x = round(max_bound_x * 0.1)
          padding_y = round(max_bound_y * 0.1)
@@ -165,13 +173,18 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
+      print("Latent DNF : ",self.list_latent_scaled)
+
 
    def set_eval_to_latent_dnf(self, z, exploration):
+      new_latent = LatentDNF()
       eval_value = LatentGoalDnf()
       list_eval = self.list_latent
       list_eval.append(z)
       ext_x, ext_y = self.get_latent_extremes(list_eval)
-      if exploration == "fixed":
+      if exploration == "static":
+         new_latent.max_x = 100
+         new_latent.max_y = 100
          x = self.scale_latent_to_dnf_static(z[0],ext_x[0],ext_x[1])
          y = self.scale_latent_to_dnf_static(z[1],ext_y[0],ext_y[1])
          eval_value.latent_x = round(x)
@@ -190,8 +203,12 @@ class VariationalAE(object):
          y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
          eval_value.latent_x = round(x)
          eval_value.latent_y = round(y)
+         new_latent.max_x = max_bound_x
+         new_latent.max_y = max_bound_y
+      new_latent.list_latent.append(eval_value)
+      #print("Eval DNF : ",new_latent)
 
-      return eval_value
+      return new_latent
 
 
    def get_latent_space_dnf(self):
@@ -227,7 +244,7 @@ class VariationalAE(object):
             ind_max_y = i
             best_max_y = l_lat[i][1]
 
-      if len(self.l_lat) > 0:
+      if len(l_lat) > 0:
          min_x = l_lat[ind_min_x][0]
          max_x = l_lat[ind_max_x][0]
          min_y = l_lat[ind_min_y][1]
@@ -315,7 +332,7 @@ class VariationalAE(object):
                break
       print("END TRAINING")
 
-   def evaluate_new_sample(self, sample):
+   def get_sample_latent(self, sample):
       self.vae.eval()
       z, z_log, recon = self.vae.encoder(sample)
       z = z.to('cpu').detach().numpy()
@@ -370,6 +387,7 @@ class Habituation(object):
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
+      self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.id_vae = -1
       self.count_color = 0
@@ -379,6 +397,7 @@ class Habituation(object):
       self.outcome = Outcome()
       self.objects_vae = []
       self.habit = VariationalAE(1)
+      self.candidate = []
       self.max_pitch = 1.5
       self.min_vx = -0.2
       self.max_vx = 0.2
@@ -429,6 +448,7 @@ class Habituation(object):
          lg.latent_x = i[0]
          lg.latent_y = i[1]
          msg_latent.list_latent.append(lg)
+      #print("Latent space DNF : ",msg_latent)
       self.pub_latent_space_dnf.publish(msg_latent)
 
    def send_latent_test(self, v):
@@ -437,8 +457,11 @@ class Habituation(object):
       tmp.latent_y = v[1]
       self.pub_test_latent.publish(tmp)
 
+   def send_eval_latent(self,msg):
+      self.pub_eval_latent.publish(msg)
+
    def callback_dmp(self, msg):
-      print("got DMP")
+      #print("got DMP")
       if self.first:
          self.time = rospy.get_time()
          self.first = False
@@ -451,18 +474,23 @@ class Habituation(object):
       if(self.incoming_dmp and self.incoming_outcome):
          sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
          tensor_sample = torch.tensor(sample,dtype=torch.float)
+         self.candidate.append(sample)
          if self.habit.get_memory_size() > 0:
             print("Testing new sample...")
-            z = self.habit.evaluate_new_sample(tensor_sample)
+            z = self.habit.get_sample_latent(tensor_sample)
+            msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
+            self.send_eval_latent(msg)
             self.send_latent_test(z)
-            rospy.sleep(10.0)
+            rospy.sleep(20.0)
+            l = LatentDNF()
+            self.send_eval_latent(l)
          self.learn_new_latent(tensor_sample)
          t = self.time - rospy.get_time()
-         rospy.sleep(10.0)
+         rospy.sleep(5.0)
          print("Time elapsed : ",t)
 
    def callback_outcome(self, msg):
-      print("got outcome")
+      #print("got outcome")
       if self.first:
          self.time = rospy.get_time()
          self.first = False
@@ -474,17 +502,23 @@ class Habituation(object):
       if(self.incoming_dmp and self.incoming_outcome):
          sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
          tensor_sample = torch.tensor(sample,dtype=torch.float)
+         self.candidate.append(sample)
          if self.habit.get_memory_size() > 0:
             print("Testing new sample...")
-            z = self.habit.evaluate_new_sample(tensor_sample)
+            z = self.habit.get_sample_latent(tensor_sample)
+            msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
+            self.send_eval_latent(msg)
             self.send_latent_test(z)
-            rospy.sleep(10.0)
+            rospy.sleep(20.0)
+            l = LatentDNF()
+            self.send_eval_latent(l)
          self.learn_new_latent(tensor_sample)
          t = self.time - rospy.get_time()
-         rospy.sleep(10.0)
+         rospy.sleep(5.0)
          print("Time elapsed : ",t)
 
    def learn_new_latent(self, sample):
+      print("TRAINING...")
       torch.manual_seed(24)
       self.habit.reset_model()
       self.add_to_memory(sample)
