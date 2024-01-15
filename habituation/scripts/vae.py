@@ -140,11 +140,20 @@ class VariationalAE(object):
          self.bound_y = 100
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
-               print("Latent Value : ",i)
-               print("extreme values X : ",ext_x)
-               print("extreme values Y : ",ext_y)
-               x = self.scale_latent_to_dnf_static(i[0],ext_x[0],ext_x[1])
-               y = self.scale_latent_to_dnf_static(i[1],ext_y[0],ext_y[1])
+               #print("Latent Value : ",i)
+               #print("extreme values X : ",ext_x)
+               #print("extreme values Y : ",ext_y)
+               min_x = -1
+               max_x = 1
+               min_y = -1
+               max_y = 1
+               if (ext_x[0] < -1 or ext_x[1] > 1) or (ext_y[0] < -1 or ext_y[1] > 1):
+                  min_x = ext_x[0]
+                  max_x = ext_x[1]
+                  min_y = ext_y[0]
+                  max_y = ext_y[1]
+               x = self.scale_latent_to_dnf_static(i[0],min_x,max_x)
+               y = self.scale_latent_to_dnf_static(i[1],min_y,max_y)
                self.list_latent_scaled.append([round(x),round(y)])
          else:
             self.list_latent_scaled.append([50,50])
@@ -180,14 +189,23 @@ class VariationalAE(object):
    def set_eval_to_latent_dnf(self, z, exploration):
       new_latent = LatentDNF()
       eval_value = LatentGoalDnf()
-      list_eval = self.list_latent
+      list_eval = copy.deepcopy(self.list_latent)
       list_eval.append(z)
       ext_x, ext_y = self.get_latent_extremes(list_eval)
       if exploration == "static":
          new_latent.max_x = 100
          new_latent.max_y = 100
-         x = self.scale_latent_to_dnf_static(z[0],ext_x[0],ext_x[1])
-         y = self.scale_latent_to_dnf_static(z[1],ext_y[0],ext_y[1])
+         min_x = -1
+         max_x = 1
+         min_y = -1
+         max_y = 1
+         if (ext_x[0] < -1 or ext_x[1] > 1) or (ext_y[0] < -1 or ext_y[1] > 1):
+            min_x = ext_x[0]
+            max_x = ext_x[1]
+            min_y = ext_y[0]
+            max_y = ext_y[1]
+         x = self.scale_latent_to_dnf_static(z[0],min_x,max_x)
+         y = self.scale_latent_to_dnf_static(z[1],min_y,max_y)
          eval_value.latent_x = round(x)
          eval_value.latent_y = round(y)
       else:
@@ -489,13 +507,13 @@ class Habituation(object):
             l.append(z)
             self.habit.set_latent_dnf(l,self.exploration_mode)
             self.send_latent_space()
-            rospy.sleep(10.0)
+            rospy.sleep(5.0)
             #test new value
             print("TESTING new sample...")
             msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
-            rospy.sleep(20.0)
+            rospy.sleep(5.0)
             l = LatentDNF()
             self.send_eval_latent(l)
          self.learn_new_latent(tensor_sample)
@@ -527,13 +545,13 @@ class Habituation(object):
             l.append(z)
             self.habit.set_latent_dnf(l,self.exploration_mode)
             self.send_latent_space()
-            rospy.sleep(10.0)
+            rospy.sleep(5.0)
             #test new value
             print("TESTING new sample...")
             msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
-            rospy.sleep(20.0)
+            rospy.sleep(5.0)
             l = LatentDNF()
             self.send_eval_latent(l)
          self.learn_new_latent(tensor_sample)
