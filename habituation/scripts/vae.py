@@ -424,6 +424,7 @@ class VariationalAE(object):
          self.vae.save(n)
 
    def load_nn(self, name_folder):
+      self.vae.load(name_folder)
       
 
 
@@ -619,6 +620,10 @@ class Habituation(object):
 
    def save_nn(self):
       self.habit.saveNN(self.folder_habituation, self.id_object)
+
+   def load_nn(self):
+      list_dir = os.listdir(self.folder_habituation)
+      print(len(list_dir))
 
 
 if __name__ == "__main__":
