@@ -119,6 +119,18 @@ class VariationalAutoencoder(nn.Module):
       reconstruction = self.decoder(z)
       # return the mean, log variance and the reconstructed image
       return z_mean, z_log_var, reconstruction
+   
+   def save(self, name):
+      torch.save({
+            'encoder': self.encoder.state_dict(),
+            'decoder': self.decoder.state_dict(),
+            }, name)
+      
+   def load(self, name):
+      checkpoint = torch.load(name)
+      self.encoder.load_state_dict(checkpoint['encoder'])
+      self.decoder.load_state_dict(checkpoint['decoder'])
+      
 
 class VariationalAE(object):
    def __init__(self,id_object):
@@ -398,6 +410,21 @@ class VariationalAE(object):
 
    def get_memory_size(self):
       return len(self.memory)
+   
+   def saveNN(self, name_folder, id_obj):
+      name_dir = name_folder + str(id_obj) 
+      n = name_dir + "/habituation.pt"
+      path = os.path.join(name_folder, str(id_obj)) 
+      access = 0o755
+      if os.path.isdir(path):
+         os.remove(n)
+         self.vae.save(n)
+      else:
+         os.makedirs(path,access)  
+         self.vae.save(n)
+
+   def load_nn(self, name_folder):
+      
 
 
 class Habituation(object):
@@ -412,7 +439,9 @@ class Habituation(object):
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
+      self.folder_habituation = rospy.get_param("habituation_folder")
       self.id_vae = -1
+      self.id_object = 0
       self.count_color = 0
       self.incoming_dmp = False
       self.incoming_outcome = False
@@ -573,6 +602,7 @@ class Habituation(object):
       self.incoming_dmp = False
       self.incoming_outcome = False
       self.pub_ready.publish(True)
+      self.save_nn()
       #self.test_reconstruct()
 
    def callback_id(self, msg):
@@ -586,6 +616,9 @@ class Habituation(object):
 
    def test_reconstruct(self):
       self.habit.test_reconstruct()
+
+   def save_nn(self):
+      self.habit.saveNN(self.folder_habituation, self.id_object)
 
 
 if __name__ == "__main__":
