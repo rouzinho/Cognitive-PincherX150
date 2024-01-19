@@ -11,6 +11,7 @@ class Testing(object):
       rospy.init_node('test_vae', anonymous=True)
       self.pub_dmp = rospy.Publisher("/habituation/dmp", Dmp, queue_size=1, latch=True)
       self.pub_outcome = rospy.Publisher("/outcome_detector/outcome", Outcome, queue_size=1, latch=True)
+      self.pub_id = rospy.Publisher("/cog_learning/id_object", Int16, queue_size=1, latch=True)
       rospy.Subscriber("/habituation/ready", Bool, self.callback_ready)
       self.ready = True
 
@@ -40,10 +41,16 @@ class Testing(object):
    def set_ready(self, val):
       self.ready = val
 
+   def send_id(self):
+      tmp = Int16()
+      tmp.data = 0
+      self.pub_id.publish(tmp)
+
 
 
 if __name__ == "__main__":
    test = Testing()
+   test.send_id()
    data = []
    outcome1 = [0.1,0.1,40.0,0.0]
    dmp1 = [0.1,0.1,1.0,0.5,0.0]

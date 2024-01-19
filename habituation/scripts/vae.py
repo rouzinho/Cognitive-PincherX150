@@ -254,6 +254,9 @@ class VariationalAE(object):
    
    def get_bound_y(self):
       return self.bound_y
+   
+   def get_id(self):
+      return self.id
 
    #get min max of x and y in latent space, used for scaling
    def get_latent_extremes(self, l_lat):
@@ -425,7 +428,36 @@ class VariationalAE(object):
 
    def load_nn(self, name_folder):
       self.vae.load(name_folder)
-      
+
+   def save_memory(self, name_folder, id_object):
+      n_mem = name_folder + str(id_object) + "/memory_samples.pkl"
+      n_latent = name_folder + str(id_object) + "/latent_space.pkl"
+      n_latent_scaled = name_folder + str(id_object) + "/latent_space_scaled.pkl"
+      exist = path.exists(n_mem)
+      if exist:
+         os.remove(n_mem)
+         os.remove(n_latent)
+         os.remove(n_latent_scaled)
+      filehandler = open(n_mem, 'wb')
+      pickle.dump(self.memory, filehandler)
+      filehandler_l = open(n_latent, 'wb')
+      pickle.dump(self.list_latent, filehandler_l)
+      filehandler_ls = open(n_latent_scaled, 'wb')
+      pickle.dump(self.list_latent_scaled, filehandler_ls)
+
+   def load_memory(self, name_folder):
+      n_mem = name_folder + "memory_samples.pkl"
+      n_l = name_folder + "latent_space.pkl"
+      n_ls = name_folder + "latent_space_scaled.pkl"
+      filehandler = open(n_mem, 'rb') 
+      mem = pickle.load(filehandler)
+      self.memory = mem
+      filehandler_l = open(n_l, 'rb') 
+      nl = pickle.load(filehandler_l)
+      self.list_latent = nl
+      filehandler_ls = open(n_ls, 'rb') 
+      nls = pickle.load(filehandler_ls)
+      self.list_latent_scaled = nls
 
 
 class Habituation(object):
@@ -433,7 +465,7 @@ class Habituation(object):
       rospy.init_node('habituation', anonymous=True)
       rospy.Subscriber("/habituation/dmp", Dmp, self.callback_dmp)
       rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
-      rospy.Subscriber("/habituation/id_object", Int16, self.callback_id)
+      rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
@@ -441,16 +473,15 @@ class Habituation(object):
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
-      self.id_vae = -1
+      self.load = rospy.get_param("load")
+      self.index_vae = -1
       self.id_object = 0
       self.count_color = 0
       self.incoming_dmp = False
       self.incoming_outcome = False
       self.dmp = Dmp()
       self.outcome = Outcome()
-      self.objects_vae = []
-      self.habit = VariationalAE(1)
-      self.candidate = []
+      self.habit = []
       self.max_pitch = 1.5
       self.min_vx = -0.2
       self.max_vx = 0.2
@@ -477,6 +508,8 @@ class Habituation(object):
       self.colors.append("gray")
       self.time = 0
       self.first = True
+      if(self.load):
+         self.load_nn()
 
    #scale inputs from real values to [-1,1]
    def scale_data(self, data, min_, max_):
@@ -492,10 +525,10 @@ class Habituation(object):
       return n_x[0]
    
    def send_latent_space(self):
-      ls = self.habit.get_latent_space_dnf()
+      ls = self.habit[self.index_vae].get_latent_space_dnf()
       msg_latent = LatentDNF()
-      msg_latent.max_x = self.habit.get_bound_x()
-      msg_latent.max_y = self.habit.get_bound_y()
+      msg_latent.max_x = self.habit[self.index_vae].get_bound_x()
+      msg_latent.max_y = self.habit[self.index_vae].get_bound_y()
       for i in ls:
          lg = LatentGoalDnf() 
          lg.latent_x = i[0]
@@ -527,20 +560,19 @@ class Habituation(object):
       if(self.incoming_dmp and self.incoming_outcome):
          sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
          tensor_sample = torch.tensor(sample,dtype=torch.float)
-         self.candidate.append(sample)
-         if self.habit.get_memory_size() > 0:
+         if self.habit[self.index_vae].get_memory_size() > 0:
             print("GOT SAMPLE")
             z = self.habit.get_sample_latent(tensor_sample)
             #resize current latent space with testing value without displaying it
             print("resize latent without evaluation value")
-            l = self.habit.get_latent_space()
+            l = self.habit[self.index_vae].get_latent_space()
             l.append(z)
-            self.habit.set_latent_dnf(l,self.exploration_mode)
+            self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
             self.send_latent_space()
             rospy.sleep(5.0)
             #test new value
             print("TESTING new sample...")
-            msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
+            msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
             rospy.sleep(5.0)
@@ -564,21 +596,20 @@ class Habituation(object):
       if(self.incoming_dmp and self.incoming_outcome):
          sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
          tensor_sample = torch.tensor(sample,dtype=torch.float)
-         self.candidate.append(sample)
-         if self.habit.get_memory_size() > 0:
+         if self.habit[self.index_vae].get_memory_size() > 0:
             print("GOT SAMPLE")
-            z = self.habit.get_sample_latent(tensor_sample)
+            z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
             #resize current latent space with testing value without displaying it
             print("resize latent without evaluation value")
             l = []
-            l = self.habit.get_latent_space()
+            l = self.habit[self.index_vae].get_latent_space()
             l.append(z)
-            self.habit.set_latent_dnf(l,self.exploration_mode)
+            self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
             self.send_latent_space()
             rospy.sleep(5.0)
             #test new value
             print("TESTING new sample...")
-            msg = self.habit.set_eval_to_latent_dnf(z,self.exploration_mode)
+            msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
             self.send_eval_latent(msg)
             self.send_latent_test(z)
             rospy.sleep(5.0)
@@ -589,41 +620,67 @@ class Habituation(object):
          rospy.sleep(5.0)
          print("Time elapsed : ",t)
 
+   def callback_id(self, msg):
+      self.id_object = msg.data
+      found = False
+      for i in range(0,len(self.habit)):
+         tmp = self.habbit[i].get_id()
+         if tmp == self.id_object:
+               self.index_vae = i
+               found = True
+      if not found:
+         print("Creating new VAE")
+         tmp_habbit = VariationalAE(self.id_object)
+         self.habit.append(tmp_habbit)
+         self.index_vae = len(self.habit) - 1
+
    def learn_new_latent(self, sample):
       print("TRAINING...")
       torch.manual_seed(24)
-      self.habit.reset_model()
+      self.habit[self.index_vae].reset_model()
       self.add_to_memory(sample)
-      self.habit.train()
-      msg = self.habit.plot_latent()
+      self.habit[self.index_vae].train()
+      msg = self.habit[self.index_vae].plot_latent()
       self.pub_latent_space_display.publish(msg)
-      tmp = self.habit.get_latent_space()
-      self.habit.set_latent_dnf(tmp,self.exploration_mode)
+      tmp = self.habit[self.index_vae].get_latent_space()
+      self.habit[self.index_vae].set_latent_dnf(tmp,self.exploration_mode)
       self.send_latent_space()
       self.incoming_dmp = False
       self.incoming_outcome = False
       self.pub_ready.publish(True)
       self.save_nn()
+      self.save_memory()
       #self.test_reconstruct()
 
-   def callback_id(self, msg):
-      self.id_vae = msg.data
-
    def add_to_memory(self, sample):
-      self.habit.add_to_memory([sample,self.colors[self.count_color]])
+      self.habit[self.index_vae].add_to_memory([sample,self.colors[self.count_color]])
       self.outcome = Outcome()
       self.dmp = Dmp()
       self.count_color += 1
 
    def test_reconstruct(self):
-      self.habit.test_reconstruct()
+      self.habit[self.index_vae].test_reconstruct()
 
    def save_nn(self):
-      self.habit.saveNN(self.folder_habituation, self.id_object)
+      self.habit[self.index_vae].saveNN(self.folder_habituation, self.id_object)
+
+   def save_memory(self):
+      self.habit[self.index_vae].save_memory(self.folder_habituation, self.id_object)
 
    def load_nn(self):
       list_dir = os.listdir(self.folder_habituation)
-      print(len(list_dir))
+      num_folder = len(list_dir) - 1
+      for i in range(0,len(list_dir)):
+         tmp_vae = VariationalAE(i)
+         n = self.folder_habituation + str(i) + "/habituation.pt"
+         n_f = self.folder_habituation + str(i) + "/"
+         tmp_vae.load_nn(n)
+         tmp_vae.load_memory(n_f)
+         self.habit.append(tmp_vae)
+      for i in self.habit:
+         print("memory : ",i.memory)
+         print("latent space : ",i.get_latent_space())
+         print("latent space scaled : ",i.get_latent_space_dnf())
 
 
 if __name__ == "__main__":
