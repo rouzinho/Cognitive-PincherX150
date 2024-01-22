@@ -206,10 +206,6 @@ class NNGoalAction(object):
         err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
         error_fwd = err_fwd.item()
         error_inv = err_inv.item()
-        #error_fwd = math.tanh(error_fwd)
-        #if error_fwd < 0.15:
-        #    error_fwd = error_fwd + 0.4
-        #error_inv = math.tanh(error_inv)
         print("ERROR INVERSE : ",error_inv)
         print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.encoder(tensor_sample_go)
@@ -217,9 +213,10 @@ class NNGoalAction(object):
         print("latent space : ",output_l)
         t0 = self.scale_latent_to_dnf(output_l[0])
         t1 = self.scale_latent_to_dnf(output_l[1])
-        
         inputs = [round(t0*100),round(t1*100)]
         print("dnf input : ",inputs)
+        self.latent_space.append(output_l)
+        self.latent_space_scaled.append(inputs)
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs)

@@ -22,7 +22,7 @@ class Skill(object):
         if s > self.memory_size:
             self.memory.pop(0)
 
-    def getMemory(self):
+    def get_memory(self):
         return self.memory
 
     def train_inverse_model(self):
