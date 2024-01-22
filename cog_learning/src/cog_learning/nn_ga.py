@@ -26,6 +26,8 @@ class NNGoalAction(object):
         self.decoder.to(device)
         self.memory_size = 20
         self.memory = []
+        self.latent_space = []
+        self.latent_space_scaled = []
         self.hebbian = HebbServer()
         self.id_nnga =  id_obj
         self.index_skill = -1
@@ -85,6 +87,24 @@ class NNGoalAction(object):
         ind = len(self.skills) - 1
         return ind
     
+    def save_memory(self, name_folder, id_object):
+      n_mem = name_folder + str(id_object) + "/memory_samples.pkl"
+      n_latent = name_folder + str(id_object) + "/latent_space.pkl"
+      n_latent_scaled = name_folder + str(id_object) + "/latent_space_scaled.pkl"
+      exist = path.exists(n_mem)
+      if exist:
+         os.remove(n_mem)
+         os.remove(n_latent)
+         os.remove(n_latent_scaled)
+      filehandler = open(n_mem, 'wb')
+      pickle.dump(self.memory, filehandler)
+      filehandler_l = open(n_latent, 'wb')
+      pickle.dump(self.list_latent, filehandler_l)
+      filehandler_ls = open(n_latent_scaled, 'wb')
+      pickle.dump(self.list_latent_scaled, filehandler_ls)
+
+
+
     #scale value from min max to [-1,1]
     def scale_data(self, data, min_, max_):
         n_x = np.array(data)
