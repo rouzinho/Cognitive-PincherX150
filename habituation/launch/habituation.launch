@@ -1,7 +1,6 @@
 <launch>
     <param name="load" type="bool" value="true" />
     <param name="exploration" type="string" value="static" />
-    <param name="habituation_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/habituation/" />
-    <param name="nnga_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/nn_ga/" />
+    <param name="habituation_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/habituation/" />
     <node name="habituation" pkg="habituation" type="vae.py" output="screen"/>
 </launch>

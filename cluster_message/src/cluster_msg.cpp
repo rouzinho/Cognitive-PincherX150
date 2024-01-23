@@ -11,96 +11,91 @@
 #include "cluster_message/Action.h"
 #include "cluster_message/OutcomeAE.h"
 #include "cluster_message/State.h"
+#include "motion/Dmp.h"
+#include "motion/DmpOutcome.h"
+#include "detector/Outcome.h"
 
 
 class ClusterMessage
 {
   private:
    ros::NodeHandle nh_;
-   ros::Subscriber sub_state;
-   ros::Subscriber sub_action;
+   ros::Subscriber sub_dmp;
    ros::Subscriber sub_outcome;
    ros::Publisher pub_datas;
-   std::vector<float> v_state;
-   std::vector<float> v_action;
-   std::vector<float> v_outcome;
-   std::vector<float> v_cluster;
+   detector::Outcome outcome;
+   motion::Dmp dmp;
    bool action;
-   bool outcome;
+   bool out;
 
   public:
    ClusterMessage()
    {
-      sub_state = nh_.subscribe("/perception/state", 1, &ClusterMessage::stateCallback,this);
-      sub_action = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::actionCallback,this);
-      sub_outcome = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &ClusterMessage::outcomeCallback,this);
-      pub_datas = nh_.advertise<cluster_message::ClusterMessage>("/vae/inputs",1);
-      v_state.resize(0);
-      v_action.resize(0);
-      v_outcome.resize(0);
-      v_cluster.resize(0);
+      sub_dmp = nh_.subscribe("/motion_pincher/dmp", 10, &ClusterMessage::CallbackDMP,this);
+      sub_outcome = nh_.subscribe("/outcome_detector/outcome", 10, &ClusterMessage::CallbackOutcome,this);
+      pub_datas = nh_.advertise<motion::DmpOutcome>("/cog_learning/dmp_outcome",1);
    }
    ~ClusterMessage()
    {
    }
 
-   void stateCallback(const cluster_message::StateConstPtr& msg)
+   void CallbackDMP(const motion::Dmp::ConstPtr& msg)
    {
-      v_state.resize(0);
-      for(int i = 0; i < msg->state.size(); i++)
-      {
-         v_state.push_back(msg->state[i]);
-      }
-
-      if(action && outcome)
-      {
-         int size_cl = v_state.size() + v_action.size() + v_outcome.size();
-         cluster_message::ClusterMessage cl_input;
-         cl_input.input.resize(0);
-         for(int i = 0; i < v_state.size(); i++)
-         {
-            cl_input.input.push_back(v_state[i]);
-         }
-         for(int i = 0; i < v_action.size(); i++)
-         {
-            cl_input.input.push_back(v_action[i]);
-         }
-         for(int i = 0; i < v_outcome.size(); i++)
-         {
-            cl_input.input.push_back(v_outcome[i]);
-         }
-         pub_datas.publish(cl_input);
-         action = false;
-         outcome = false;
-      }
-
-   }
-
-   void actionCallback(const cluster_message::ActionConstPtr& msg)
-   {
+      dmp.v_x = msg->v_x;
+      dmp.v_y = msg->v_y;
+      dmp.v_pitch = msg->v_pitch;
+      dmp.grasp = msg->grasp;
+      dmp.roll = msg->roll;  
       action = true;
-      v_action.resize(0);
-      for(int i = 0; i < msg->action.size(); i++)
+      if(action == true && out == true)
       {
-         v_action.push_back(msg->action[i]);
+         motion::DmpOutcome dmpout;
+         dmpout.v_x = dmp.v_x;
+         dmpout.v_y = dmp.v_y;
+         dmpout.v_pitch = dmp.v_pitch;
+         dmpout.grasp = dmp.grasp;
+         dmpout.roll = dmp.roll;
+         dmpout.x = outcome.x;
+         dmpout.y = outcome.y;
+         dmpout.angle = outcome.angle;
+         dmpout.touch = outcome.touch;
+         action = false;
+         out = false;
+         pub_datas.publish(dmpout);
       }
    }
 
-   void outcomeCallback(const cluster_message::OutcomeAEConstPtr& msg)
+   void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
    {
-      outcome = true;
-      v_outcome.resize(0);
-      for(int i = 0; i < msg->outcome.size(); i++)
+      outcome.x = msg->x;
+      outcome.y = msg->y;
+      outcome.angle = msg->angle;
+      outcome.touch = msg->touch;
+      out = true;
+      if(action == true && out == true)
       {
-         v_outcome.push_back(msg->outcome[i]);
+         motion::DmpOutcome dmpout;
+         dmpout.v_x = dmp.v_x;
+         dmpout.v_y = dmp.v_y;
+         dmpout.v_pitch = dmp.v_pitch;
+         dmpout.grasp = dmp.grasp;
+         dmpout.roll = dmp.roll;
+         dmpout.x = outcome.x;
+         dmpout.y = outcome.y;
+         dmpout.angle = outcome.angle;
+         dmpout.touch = outcome.touch;
+         action = false;
+         out = false;
+         pub_datas.publish(dmpout);
       }
    }
+
 };
     
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "depth_perceptions");
+  ros::init(argc, argv, "cluster_msgs");
   ClusterMessage ci;
   ros::spin();
 

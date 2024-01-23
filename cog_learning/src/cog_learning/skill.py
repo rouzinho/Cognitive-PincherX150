@@ -14,7 +14,33 @@ class Skill(object):
         self.forward_model.to(device)
         self.memory_size = 30
         self.memory = []
+        self.name_skill = ""
         torch.manual_seed(58)
+
+    def set_name(self, data):
+        self.name_skill = str(data[0]) + "_" + str(data[1]) 
+
+    def save_memory(self, pwd):
+        n = pwd + self.name_skill + "_memory.pkl"
+        exist = path.exists(n)
+        if exist:
+            os.remove(n)
+        filehandler = open(n, 'wb')
+        pickle.dump(self.memory, filehandler)
+
+    def save_fwd_nn(self,pwd):
+        n = pwd + self.name_skill + "_forward.pt"
+        exist = path.exists(n)
+        if exist:
+            os.remove(n)
+        torch.save({'forward': self.forward_model.state_dict()}, n)
+
+    def save_inv_nn(self,pwd):
+        n = pwd + self.name_skill + "_inverse.pt"
+        exist = path.exists(n)
+        if exist:
+            os.remove(n)
+        torch.save({'inverse': self.inverse_model.state_dict()}, n)
 
     def add_to_memory(self,sample):
         self.memory.append(sample)
@@ -118,13 +144,7 @@ class Skill(object):
             #last_cost = current_cost
             #current_cost = 0
             
-        
-
-    def saveNN(self):
-        name_inv = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/inverse_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pt"
-        torch.save(self.inverse_model, name_inv)
-        name_fwd = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/forward_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pt"
-        torch.save(self.forward_model, name_fwd)
+    
     
     #compute the error between the prediction and the actual data
     def getErrorPrediction(self,prediction,actual):
@@ -167,25 +187,3 @@ class Skill(object):
         #error = self.getErrorPrediction(out,targets)
 
         return error
-
-    def saveMemory(self):
-        #name = "/home/altair/PhD/catkin_noetic/rosbags/experiment/datas/goal_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pkl"
-        name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/goal_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pkl"
-        exist = path.exists(name)
-        if exist:
-            os.remove(name)
-        filehandler = open(name, 'wb')
-        pickle.dump(self.memory, filehandler)
-        #with open(name, 'wb') as outp:
-        #    pickle.dump(self.memory, outp, pickle.HIGHEST_PROTOCOL)
-
-    def retrieveMemory(self):
-        #name = "/home/altair/PhD/catkin_noetic/rosbags/experiment/datas/goal_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pkl"
-        #name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/neural_memory/goal_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pkl"
-        name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/goal_"+str(int(self.model_object.object))+"_"+str(int(self.model_object.goal))+".pkl"
-        #with open(name, 'rb') as inp:
-        #    mem = pickle.load(inp)
-        filehandler = open(name, 'rb') 
-        mem = pickle.load(filehandler)
-        self.memory = mem
-

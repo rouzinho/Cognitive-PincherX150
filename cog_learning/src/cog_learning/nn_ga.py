@@ -9,6 +9,7 @@ from detector.msg import Outcome
 from motion.msg import DmpAction
 from motion.msg import Dmp
 from cog_learning.msg import Goal
+from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
 
@@ -20,6 +21,9 @@ class NNGoalAction(object):
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
         self.pub_ready = rospy.Publisher('/cog_learning/ready', Bool, queue_size=10)
+        self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
+        self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
+        self.folder_nnga = rospy.get_param("nnga_folder")
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
         self.decoder = MultiLayerDecoder(2,4,6,9)
@@ -87,23 +91,75 @@ class NNGoalAction(object):
         ind = len(self.skills) - 1
         return ind
     
-    def save_memory(self, name_folder, id_object):
-      n_mem = name_folder + str(id_object) + "/memory_samples.pkl"
-      n_latent = name_folder + str(id_object) + "/latent_space.pkl"
-      n_latent_scaled = name_folder + str(id_object) + "/latent_space_scaled.pkl"
-      exist = path.exists(n_mem)
-      if exist:
-         os.remove(n_mem)
-         os.remove(n_latent)
-         os.remove(n_latent_scaled)
-      filehandler = open(n_mem, 'wb')
-      pickle.dump(self.memory, filehandler)
-      filehandler_l = open(n_latent, 'wb')
-      pickle.dump(self.list_latent, filehandler_l)
-      filehandler_ls = open(n_latent_scaled, 'wb')
-      pickle.dump(self.list_latent_scaled, filehandler_ls)
+    def plot_latent(self):
+        msg_latent = LatentPos()
+        for i in self.latent_space:
+            msg_latent.x.append(i[0])
+            msg_latent.y.append(i[1])
+            msg_latent.colors.append("blue")
+        self.pub_latent_space_display.publish(msg_latent)
+    
+    def save_memory(self):
+        n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
+        n_latent = self.folder_nnga + str(self.id_nnga) + "/latent_space.pkl"
+        n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
+        n_hebb = self.folder_nnga + str(self.id_nnga) + "/hebbian_weights.npy"
+        exist = path.exists(n_mem)
+        if exist:
+            os.remove(n_mem)
+            os.remove(n_latent)
+            os.remove(n_latent_scaled)
+            os.remove(n_hebb)
+        filehandler = open(n_mem, 'wb')
+        pickle.dump(self.memory, filehandler)
+        filehandler_l = open(n_latent, 'wb')
+        pickle.dump(self.latent_space, filehandler_l)
+        filehandler_ls = open(n_latent_scaled, 'wb')
+        pickle.dump(self.latent_space_scaled, filehandler_ls)
+        self.hebbian.saveWeights(n_hebb)
 
+    def save_nn(self):
+        name_dir = self.folder_nnga + str(self.id_nnga) 
+        n = name_dir + "/nn_ga.pt"
+        path = os.path.join(self.folder_nnga, str(self.id_nnga)) 
+        access = 0o755
+        if os.path.isdir(path):
+            os.remove(n)
+            torch.save({
+            'encoder': self.encoder.state_dict(),
+            'decoder': self.decoder.state_dict(),
+            }, n)
+        else:
+            os.makedirs(path,access)  
+            torch.save({
+            'encoder': self.encoder.state_dict(),
+            'decoder': self.decoder.state_dict(),
+            }, n)
+            
 
+    def scale_latent_to_expend(self, data):
+        n_x = np.array(data)
+        n_x = n_x.reshape(-1,1)
+        scaler_x = MinMaxScaler(feature_range=(-1.7,1.7))
+        x_minmax = np.array([-1, 1])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        n_x = scaler_x.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+            
+        return n_x[0]
+    
+    def scale_latent_to_reduce(self, data):
+        n_x = np.array(data)
+        n_x = n_x.reshape(-1,1)
+        scaler_x = MinMaxScaler(feature_range=(-1.0,1.0))
+        x_minmax = np.array([-1.7, 1.7])
+        scaler_x.fit(x_minmax[:, np.newaxis])
+        n_x = scaler_x.transform(n_x)
+        n_x = n_x.reshape(1,-1)
+        n_x = n_x.flatten()
+            
+        return n_x[0]
 
     #scale value from min max to [-1,1]
     def scale_data(self, data, min_, max_):
@@ -200,7 +256,7 @@ class NNGoalAction(object):
         sample.append(t_out_inv)
         sample.append(t_inp_fwd)
         sample.append(t_inp_inv)
-        #print("Input NNGA ; ",tmp_sample)
+        print("Input NNGA ; ",sample)
         self.skills[ind_skill].add_to_memory(sample)
         err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
         err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
@@ -211,12 +267,16 @@ class NNGoalAction(object):
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
         print("latent space : ",output_l)
-        t0 = self.scale_latent_to_dnf(output_l[0])
-        t1 = self.scale_latent_to_dnf(output_l[1])
+        e0 = self.scale_latent_to_expend(output_l[0])
+        e1 = self.scale_latent_to_expend(output_l[1])
+        t0 = self.scale_latent_to_dnf(e0)
+        t1 = self.scale_latent_to_dnf(e1)
         inputs = [round(t0*100),round(t1*100)]
+        self.skills[ind_skill].set_name(inputs)
         print("dnf input : ",inputs)
-        self.latent_space.append(output_l)
+        self.latent_space.append([output_l[0],output_l[1]])
         self.latent_space_scaled.append(inputs)
+        self.plot_latent()
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs)
@@ -227,13 +287,18 @@ class NNGoalAction(object):
         self.end_action(True)
         rospy.sleep(1)
         self.end_action(False)
-        print(inputs)
         print("Hebbian learning, index : ",ind_skill)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         self.trainDecoder()
-        #self.send_ready(True)
+        self.save_nn()
+        self.save_memory()
+        pwd = self.folder_nnga + str(self.id_nnga) + "/"
+        self.skills[ind_skill].save_memory(pwd)
+        self.skills[ind_skill].save_fwd_nn(pwd)
+        self.skills[ind_skill].save_inv_nn(pwd)
+        self.pub_ready.publish(True)
 
     def trainDecoder(self):
         current_cost = 0

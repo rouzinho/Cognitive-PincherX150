@@ -1,0 +1,3 @@
+<launch>
+    <node name="cluster_msg" pkg="cluster_message" type="cluster_message_node" output="screen"/>
+</launch>

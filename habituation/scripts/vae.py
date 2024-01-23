@@ -467,7 +467,7 @@ class Habituation(object):
       rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
-      self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
+      self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)

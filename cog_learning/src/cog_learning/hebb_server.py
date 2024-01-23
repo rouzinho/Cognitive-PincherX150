@@ -51,17 +51,8 @@ class HebbServer(object):
 
         return ind
 
-    def saveWeights(self):
-        w_ex = exists(self.weights_name)
-        dmp_ex = exists(self.name_dmps)
-        if w_ex:
-            os.remove(self.weights_name)
-        if dmp_ex:
-            os.remove(self.name_dmps)
-        
-        save(self.weights_name,self.weights)
-        filehandler = open(self.name_dmps, 'wb')
-        pickle.dump(self.list_dmp_ogoals, filehandler)
+    def saveWeights(self, name_weights):
+        save(name_weights,self.weights)
         
         
     def loadWeights(self):
