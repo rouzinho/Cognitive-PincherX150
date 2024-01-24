@@ -103,12 +103,14 @@ class NNGoalAction(object):
         n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
         n_latent = self.folder_nnga + str(self.id_nnga) + "/latent_space.pkl"
         n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
+        n_skills = self.folder_nnga + str(self.id_nnga) + "/list_skills.pkl"
         n_hebb = self.folder_nnga + str(self.id_nnga) + "/hebbian_weights.npy"
         exist = path.exists(n_mem)
         if exist:
             os.remove(n_mem)
             os.remove(n_latent)
             os.remove(n_latent_scaled)
+            os.remove(n_skills)
             os.remove(n_hebb)
         filehandler = open(n_mem, 'wb')
         pickle.dump(self.memory, filehandler)
@@ -116,6 +118,8 @@ class NNGoalAction(object):
         pickle.dump(self.latent_space, filehandler_l)
         filehandler_ls = open(n_latent_scaled, 'wb')
         pickle.dump(self.latent_space_scaled, filehandler_ls)
+        filehandler_s = open(n_skills, 'wb')
+        pickle.dump(self.skills, filehandler_s)
         self.hebbian.saveWeights(n_hebb)
 
     def save_nn(self):
@@ -135,7 +139,44 @@ class NNGoalAction(object):
             'encoder': self.encoder.state_dict(),
             'decoder': self.decoder.state_dict(),
             }, n)
-            
+
+    def load_memory(self, n):
+        n_mem = self.folder_nnga + str(n) + "/memory_samples.pkl"
+        n_latent = self.folder_nnga + str(n) + "/latent_space.pkl"
+        n_latent_scaled = self.folder_nnga + str(n) + "/latent_space_scaled.pkl"
+        n_skills = self.folder_nnga + str(n) + "/list_skills.pkl"
+        n_hebb = self.folder_nnga + str(n) + "/hebbian_weights.npy"
+        filehandler = open(n_mem, 'rb') 
+        mem = pickle.load(filehandler)
+        self.memory = mem
+        filehandler_l = open(n_latent, 'rb') 
+        nl = pickle.load(filehandler_l)
+        self.latent_space = nl
+        filehandler_ls = open(n_latent_scaled, 'rb') 
+        nls = pickle.load(filehandler_ls)
+        self.latent_space_scaled = nls
+        filehandler_s = open(n_skills, 'rb') 
+        s = pickle.load(filehandler_s)
+        self.skills = s
+        self.hebbian.loadWeights(n_hebb)
+
+    def load_nn(self, n):
+        nn = self.folder_nnga + str(n) + "/nn_ga.pt"
+        checkpoint = torch.load(nn)
+        self.encoder.load_state_dict(checkpoint['encoder'])
+        self.decoder.load_state_dict(checkpoint['decoder'])
+
+    def load_skills(self, n):
+        name = self.folder_nnga + str(n) + "/"
+        for i in range(0,len(self.skills)):
+            n = self.skills[i].get_name()
+            n_mem = name + n + "_memory.pkl"
+            n_fwd = name + n + "_forward.pt"
+            n_inv = name + n + "_inverse.pt"
+            self.skills[i].load_memory(n_mem)
+            self.skills[i].load_fwd_nn(n_fwd)
+            self.skills[i].load_inv_nn(n_inv)
+
 
     def scale_latent_to_expend(self, data):
         n_x = np.array(data)
@@ -361,6 +402,12 @@ class NNGoalAction(object):
 
     def get_id(self):
         return self.id_nnga
+    
+    def get_skills(self):
+        return self.skills
+    
+    def get_latent_space_dnf(self):
+        return self.latent_space_scaled
     
     def activate_dmp(self, goal):
         tmp = [goal.latent_x,goal.latent_y]

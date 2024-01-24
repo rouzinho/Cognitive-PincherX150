@@ -55,16 +55,8 @@ class HebbServer(object):
         save(name_weights,self.weights)
         
         
-    def loadWeights(self):
-        if self.loading == True:
-            print("loading Hebbian Weights")
-            self.weights = load(self.weights_name)
-            filehandler = open(self.name_dmps, 'rb') 
-            self.list_dmp_ogoals = pickle.load(filehandler)
-            print(self.list_dmp_ogoals)
-        else:
-            print("Initialize Random Weights")
-            self.init_weights()
+    def loadWeights(self, name_weights):
+        self.weights = load(name_weights)
 
 if __name__ == "__main__":
     hebb_srv = HebbServer()

@@ -20,6 +20,9 @@ class Skill(object):
     def set_name(self, data):
         self.name_skill = str(data[0]) + "_" + str(data[1]) 
 
+    def get_name(self):
+        return self.name_skill
+
     def save_memory(self, pwd):
         n = pwd + self.name_skill + "_memory.pkl"
         exist = path.exists(n)
@@ -27,6 +30,11 @@ class Skill(object):
             os.remove(n)
         filehandler = open(n, 'wb')
         pickle.dump(self.memory, filehandler)
+
+    def load_memory(self, pwd):
+        filehandler_l = open(pwd, 'rb') 
+        nl = pickle.load(filehandler_l)
+        self.memory = nl
 
     def save_fwd_nn(self,pwd):
         n = pwd + self.name_skill + "_forward.pt"
@@ -41,6 +49,14 @@ class Skill(object):
         if exist:
             os.remove(n)
         torch.save({'inverse': self.inverse_model.state_dict()}, n)
+
+    def load_fwd_nn(self,pwd):
+        checkpoint = torch.load(pwd)
+        self.forward_model.load_state_dict(checkpoint['forward'])
+
+    def load_inv_nn(self,pwd):
+        checkpoint = torch.load(pwd)
+        self.inverse_model.load_state_dict(checkpoint['inverse'])
 
     def add_to_memory(self,sample):
         self.memory.append(sample)
