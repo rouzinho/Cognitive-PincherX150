@@ -322,7 +322,7 @@ class NNGoalAction(object):
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs)
         self.pub_timing(1.0)
-        rospy.sleep(1)
+        rospy.sleep(10)
         self.update_learning_progress(inputs,0)
         self.pub_timing(0.0)
         self.end_action(True)

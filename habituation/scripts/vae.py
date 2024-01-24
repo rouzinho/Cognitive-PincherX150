@@ -669,7 +669,6 @@ class Habituation(object):
 
    def load_nn(self):
       list_dir = os.listdir(self.folder_habituation)
-      num_folder = len(list_dir) - 1
       for i in range(0,len(list_dir)):
          tmp_vae = VariationalAE(i)
          n = self.folder_habituation + str(i) + "/habituation.pt"
