@@ -29,8 +29,11 @@ class ClusterMessage
    ros::Subscriber sub_exploit;
    ros::Subscriber sub_state;
    ros::Subscriber sub_sample;
+   ros::Subscriber sub_ready_habituation;
+   ros::Subscriber sub_ready_nnga;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
+   ros::Publisher pub_ready;
    detector::Outcome outcome;
    detector::State state;
    motion::Action sample;
@@ -41,6 +44,8 @@ class ClusterMessage
    bool exploit;
    bool state_b;
    bool sample_b;
+   bool ready_h;
+   bool ready_nn;
 
   public:
    ClusterMessage()
@@ -51,8 +56,11 @@ class ClusterMessage
       sub_exploit = nh_.subscribe("/cog_learning/exploitation", 10, &ClusterMessage::CallbackExploit,this);
       sub_state = nh_.subscribe("/outcome_detector/state", 10, &ClusterMessage::CallbackState,this);
       sub_sample = nh_.subscribe("/motion_pincher/action_sample", 10, &ClusterMessage::CallbackSample,this);
-      pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cog_learning/sample_explore",1);
-      pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cog_learning/sample_exploit",1);
+      sub_ready_habituation = nh_.subscribe("/habituation/ready", 10, &ClusterMessage::CallbackReadyHabit,this);
+      sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 10, &ClusterMessage::CallbackReadyNN,this);
+      pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
+      pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
+      pub_ready = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       explore = false;
       exploit = false;
    }
@@ -143,6 +151,32 @@ class ClusterMessage
    void CallbackExploit(const std_msgs::Bool::ConstPtr& msg)
    {
       exploit = msg->data;
+   }
+
+   void CallbackReadyHabit(const std_msgs::Bool::ConstPtr& msg)
+   {
+      ready_h = msg->data;
+      if(ready_h && ready_nn)
+      {
+         std_msgs::Bool tmp;
+         tmp.data = true;
+         pub_ready.publish(tmp);
+         ready_h = false;
+         ready_nn = false;
+      }
+   }
+
+   void CallbackReadyNN(const std_msgs::Bool::ConstPtr& msg)
+   {
+      ready_nn = msg->data;
+      if(ready_h && ready_nn)
+      {
+         std_msgs::Bool tmp;
+         tmp.data = true;
+         pub_ready.publish(tmp);
+         ready_h = false;
+         ready_nn = false;
+      }
    }
 };
     

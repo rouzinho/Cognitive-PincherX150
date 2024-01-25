@@ -144,13 +144,15 @@ class VariationalAE(object):
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
+      self.max_bound_x = 0
+      self.max_bound_y = 0
 
    def set_latent_dnf(self, l_values, exploration):
       ext_x, ext_y = self.get_latent_extremes(l_values)
       self.list_latent_scaled = []
       if exploration == "static":
-         self.bound_x = 100
-         self.bound_y = 100
+         self.max_bound_x = 100
+         self.max_bound_y = 100
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
                #print("Latent Value : ",i)
@@ -173,20 +175,20 @@ class VariationalAE(object):
       else:
          dist_x = abs(ext_x[0]) + abs(ext_x[1])
          dist_y = abs(ext_y[0]) + abs(ext_y[1])
-         max_bound_x = (dist_x * self.scale_factor)
-         max_bound_y = (dist_y * self.scale_factor)
+         self.max_bound_x = (dist_x * self.scale_factor)
+         self.max_bound_y = (dist_y * self.scale_factor)
          #control on bounding
-         if max_bound_x < 1:
-            max_bound_x = 1
-         if max_bound_y < 1:
-            max_bound_y = 1 
+         if self.max_bound_x < 1:
+            self.max_bound_x = 1
+         if self.max_bound_y < 1:
+            self.max_bound_y = 1 
          #padding to avoid having extreme values on the edge of DNF
-         padding_x = round(max_bound_x * 0.1)
-         padding_y = round(max_bound_y * 0.1)
-         self.bound_x = round(max_bound_x)
-         self.bound_y = round(max_bound_y)
-         print("max bound X ",self.bound_x)
-         print("max bound Y ",self.bound_y)
+         padding_x = round(self.max_bound_x * 0.1)
+         padding_y = round(self.max_bound_y * 0.1)
+         self.bound_x = round(self.max_bound_x)
+         self.bound_y = round(self.max_bound_y)
+         #print("max bound X ",bound_x)
+         #print("max bound Y ",bound_y)
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
                x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,self.bound_x-padding_x)
@@ -197,6 +199,31 @@ class VariationalAE(object):
             self.bound_x = round(10)
             self.bound_y = round(10)
       #print("Latent DNF : ",self.list_latent_scaled)
+            
+   def set_dnf_to_latent(self, peak, exploration):
+      ext_x, ext_y = self.get_latent_extremes(self.list_latent)
+      latent_value = []
+      if exploration == "static":
+         self.bound_x = 100
+         self.bound_y = 100
+         if len(self.list_latent) >= 1:
+            #more generic scaling
+            x = self.scale_latent_to_dnf_dynamic(peak[0],10,90,ext_x[0],ext_x[1])
+            y = self.scale_latent_to_dnf_dynamic(peak[1],10,90,ext_y[0],ext_y[1])
+            latent_value.append(x)
+            latent_value.append(y)
+      else:
+         #padding to avoid having extreme values on the edge of DNF
+         padding_x = round(self.max_bound_x * 0.1)
+         padding_y = round(self.max_bound_y * 0.1)
+         print("max bound X ",self.bound_x)
+         print("max bound Y ",self.bound_y)
+         if len(self.list_latent) >= 1:
+            x = self.scale_latent_to_dnf_dynamic(peak[0],padding_x,self.bound_x-padding_x,ext_x[0],ext_x[1])
+            y = self.scale_latent_to_dnf_dynamic(peak[1],padding_y,self.bound_y-padding_y,ext_y[0],ext_y[1])
+            latent_value.append(x)
+            latent_value.append(y)
+      print("Latent value : ",latent_value)
 
 
    def set_eval_to_latent_dnf(self, z, exploration):
@@ -434,22 +461,34 @@ class VariationalAE(object):
       n_mem = name_folder + str(id_object) + "/memory_samples.pkl"
       n_latent = name_folder + str(id_object) + "/latent_space.pkl"
       n_latent_scaled = name_folder + str(id_object) + "/latent_space_scaled.pkl"
+      n_latent_bounds = name_folder + str(id_object) + "/bounds.pkl"
+      n_latent_max_bounds = name_folder + str(id_object) + "/max_bounds.pkl"
       exist = path.exists(n_mem)
       if exist:
          os.remove(n_mem)
          os.remove(n_latent)
          os.remove(n_latent_scaled)
+         os.remove(n_latent_bounds)
+         os.remove(n_latent_max_bounds)
       filehandler = open(n_mem, 'wb')
       pickle.dump(self.memory, filehandler)
       filehandler_l = open(n_latent, 'wb')
       pickle.dump(self.list_latent, filehandler_l)
       filehandler_ls = open(n_latent_scaled, 'wb')
       pickle.dump(self.list_latent_scaled, filehandler_ls)
+      filehandler_b = open(n_latent_bounds, 'wb')
+      t = [self.bound_x,self.bound_y]
+      pickle.dump(t, filehandler_b)
+      filehandler_mb = open(n_latent_max_bounds, 'wb')
+      mb = [self.max_bound_x,self.max_bound_y]
+      pickle.dump(mb, filehandler_mb)
 
    def load_memory(self, name_folder):
       n_mem = name_folder + "memory_samples.pkl"
       n_l = name_folder + "latent_space.pkl"
       n_ls = name_folder + "latent_space_scaled.pkl"
+      n_b = name_folder + "bounds.pkl"
+      n_mb = name_folder + "max_bounds.pkl"
       filehandler = open(n_mem, 'rb') 
       mem = pickle.load(filehandler)
       self.memory = mem
@@ -459,13 +498,24 @@ class VariationalAE(object):
       filehandler_ls = open(n_ls, 'rb') 
       nls = pickle.load(filehandler_ls)
       self.list_latent_scaled = nls
+      filehandler_b = open(n_b, 'rb') 
+      nb = pickle.load(filehandler_b)
+      t = nb
+      self.bound_x = t[0]
+      self.bound_y = t[1]
+      filehandler_mb = open(n_mb, 'rb') 
+      mb = pickle.load(filehandler_mb)
+      tmb = mb
+      self.max_bound_x = tmb[0]
+      self.max_bound_y = tmb[1]
 
 
 class Habituation(object):
    def __init__(self):
       rospy.init_node('habituation', anonymous=True)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
-      rospy.Subscriber("/cog_learning/sample_explore", SampleExplore, self.callback_sample_explore)
+      rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
+      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
@@ -584,7 +634,11 @@ class Habituation(object):
       t = self.time - rospy.get_time()
       #rospy.sleep(5.0)
       print("Time elapsed : ",t)
-         
+
+   def callback_input_latent(self, msg):
+      x_dnf = msg.latent_x
+      y_dnf = msg.latent_y      
+      self.habit[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
 
    def callback_id(self, msg):
       self.id_object = msg.data
