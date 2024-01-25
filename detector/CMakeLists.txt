@@ -65,6 +65,7 @@ add_message_files(
   FILES
   Outcome.msg
   State.msg
+  StateOutcome.msg
 )
 
 ## Generate services in the 'srv' folder

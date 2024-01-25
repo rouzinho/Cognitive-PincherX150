@@ -54,6 +54,8 @@ add_message_files(
   Action.msg
   OutcomeAE.msg
   State.msg
+  SampleExplore.msg
+  SampleExploit.msg
 )
 
 ## Generate services in the 'srv' folder

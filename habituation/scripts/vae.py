@@ -25,6 +25,7 @@ from sklearn.preprocessing import MinMaxScaler
 from cog_learning.msg import LatentGoalDnf
 from cog_learning.msg import LatentDNF
 from cog_learning.msg import LatentGoalNN
+from cluster_message.msg import SampleExplore
 import copy
 
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
@@ -463,9 +464,8 @@ class VariationalAE(object):
 class Habituation(object):
    def __init__(self):
       rospy.init_node('habituation', anonymous=True)
-      rospy.Subscriber("/habituation/dmp", Dmp, self.callback_dmp)
-      rospy.Subscriber("/outcome_detector/outcome", Outcome, self.callback_outcome)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+      rospy.Subscriber("/cog_learning/sample_explore", SampleExplore, self.callback_sample_explore)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
@@ -543,11 +543,10 @@ class Habituation(object):
       tmp.latent_y = v[1]
       self.pub_test_latent.publish(tmp)
 
-   def send_eval_latent(self,msg):
+   def send_eval_latent(self, msg):
       self.pub_eval_latent.publish(msg)
 
-   def callback_dmp(self, msg):
-      #print("got DMP")
+   def callback_sample_explore(self, msg):
       if self.first:
          self.time = rospy.get_time()
          self.first = False
@@ -556,69 +555,36 @@ class Habituation(object):
       self.dmp.v_pitch = self.scale_data(msg.v_pitch,self.min_vpitch,self.max_vpitch)
       self.dmp.roll = self.scale_data(msg.roll,self.min_roll,self.max_roll)
       self.dmp.grasp = self.scale_data(msg.grasp,self.min_grasp,self.max_grasp)
-      self.incoming_dmp = True
-      if(self.incoming_dmp and self.incoming_outcome):
-         sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
-         tensor_sample = torch.tensor(sample,dtype=torch.float)
-         if self.habit[self.index_vae].get_memory_size() > 0:
-            print("GOT SAMPLE")
-            z = self.habit.get_sample_latent(tensor_sample)
-            #resize current latent space with testing value without displaying it
-            print("resize latent without evaluation value")
-            l = self.habit[self.index_vae].get_latent_space()
-            l.append(z)
-            self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
-            self.send_latent_space()
-            rospy.sleep(5.0)
-            #test new value
-            print("TESTING new sample...")
-            msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
-            self.send_eval_latent(msg)
-            self.send_latent_test(z)
-            rospy.sleep(5.0)
-            l = LatentDNF()
-            self.send_eval_latent(l)
-         self.learn_new_latent(tensor_sample)
-         t = self.time - rospy.get_time()
-         rospy.sleep(5.0)
-         print("Time elapsed : ",t)
-
-   def callback_outcome(self, msg):
-      #print("got outcome")
-      if self.first:
-         self.time = rospy.get_time()
-         self.first = False
-      self.outcome.x = self.scale_data(msg.x, self.min_vx, self.max_vx)
-      self.outcome.y = self.scale_data(msg.y, self.min_vy, self.max_vy)
-      self.outcome.angle = self.scale_data(msg.angle, self.min_angle, self.max_angle)
-      self.outcome.touch = self.scale_data(msg.touch, self.min_grasp, self.max_grasp)
-      self.incoming_outcome = True
-      if(self.incoming_dmp and self.incoming_outcome):
-         sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
-         tensor_sample = torch.tensor(sample,dtype=torch.float)
-         if self.habit[self.index_vae].get_memory_size() > 0:
-            print("GOT SAMPLE")
-            z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
-            #resize current latent space with testing value without displaying it
-            print("resize latent without evaluation value")
-            l = []
-            l = self.habit[self.index_vae].get_latent_space()
-            l.append(z)
-            self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
-            self.send_latent_space()
-            rospy.sleep(5.0)
-            #test new value
-            print("TESTING new sample...")
-            msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
-            self.send_eval_latent(msg)
-            self.send_latent_test(z)
-            rospy.sleep(5.0)
-            l = LatentDNF()
-            self.send_eval_latent(l)
-         self.learn_new_latent(tensor_sample)
-         t = self.time - rospy.get_time()
-         rospy.sleep(5.0)
-         print("Time elapsed : ",t)
+      self.outcome.x = self.scale_data(msg.outcome_x, self.min_vx, self.max_vx)
+      self.outcome.y = self.scale_data(msg.outcome_y, self.min_vy, self.max_vy)
+      self.outcome.angle = self.scale_data(msg.outcome_angle, self.min_angle, self.max_angle)
+      self.outcome.touch = self.scale_data(msg.outcome_touch, self.min_grasp, self.max_grasp)
+      sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
+      tensor_sample = torch.tensor(sample,dtype=torch.float)
+      if self.habit[self.index_vae].get_memory_size() > 0:
+         print("GOT SAMPLE")
+         z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
+         #resize current latent space with testing value without displaying it
+         print("resize latent without evaluation value")
+         l = []
+         l = self.habit[self.index_vae].get_latent_space()
+         l.append(z)
+         self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
+         self.send_latent_space()
+         #rospy.sleep(5.0)
+         #test new value
+         print("TESTING new sample...")
+         msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
+         self.send_eval_latent(msg)
+         self.send_latent_test(z)
+         #rospy.sleep(5.0)
+         l = LatentDNF()
+         self.send_eval_latent(l)
+      self.learn_new_latent(tensor_sample)
+      t = self.time - rospy.get_time()
+      #rospy.sleep(5.0)
+      print("Time elapsed : ",t)
+         
 
    def callback_id(self, msg):
       self.id_object = msg.data

@@ -6,9 +6,12 @@ from cog_learning.multilayer import *
 from cog_learning.hebb_server import *
 from cog_learning.skill import *
 from detector.msg import Outcome
+from detector.msg import State
 from motion.msg import DmpAction
 from motion.msg import Dmp
+from motion.msg import Action
 from cog_learning.msg import Goal
+from cog_learning.msg import LatentGoalDnf
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
@@ -33,6 +36,8 @@ class NNGoalAction(object):
         self.latent_space = []
         self.latent_space_scaled = []
         self.hebbian = HebbServer()
+        self.current_dmp = Dmp()
+        self.current_goal = LatentGoalDnf()
         self.id_nnga =  id_obj
         self.index_skill = -1
         self.skills = []
@@ -251,52 +256,104 @@ class NNGoalAction(object):
         n_x = n_x.flatten()
                     
         return n_x[0]
-
-    def scale_samples(self, outcome, dmp):
-        #scale sample betwen [-1,1] for learning
-        new_outcome = Outcome()
-        new_outcome.state_x = self.scale_data(outcome.state_x, self.min_x, self.max_x)
-        new_outcome.state_y = self.scale_data(outcome.state_y, self.min_y, self.max_y)
-        new_outcome.state_angle = self.scale_data(outcome.state_angle, self.min_angle, self.max_angle)
-        new_outcome.x = self.scale_data(outcome.x, self.min_vx, self.max_vx)
-        new_outcome.y = self.scale_data(outcome.y, self.min_vy, self.max_vy)
-        new_outcome.angle = self.scale_data(outcome.angle, self.min_angle, self.max_angle)
-        new_outcome.touch = self.scale_data(outcome.touch, self.min_grasp, self.max_grasp)
-        new_dmp = DmpAction()
-        new_dmp.v_x = self.scale_data(dmp.v_x, self.min_vx, self.max_vx)
-        new_dmp.v_y = self.scale_data(dmp.v_y, self.min_vy, self.max_vy)
-        new_dmp.v_pitch = self.scale_data(dmp.v_pitch, self.min_vpitch, self.max_vpitch)
-        new_dmp.roll = self.scale_data(dmp.roll, self.min_roll, self.max_roll)
-        new_dmp.grasp = self.scale_data(dmp.grasp, self.min_grasp, self.max_grasp)
-        new_dmp.lpos_x = self.scale_data(dmp.lpos_x, self.min_x, self.max_x)
-        new_dmp.lpos_y = self.scale_data(dmp.lpos_y, self.min_y, self.max_y)
-        new_dmp.lpos_pitch = self.scale_data(dmp.lpos_pitch, self.min_pitch, self.max_pitch)
-
-        return new_outcome, new_dmp
-
-
-    #bootstrap learning when we discover first skill during exploration
-    def bootstrap_learning(self, outcome_, dmp_):
-        outcome, dmp = self.scale_samples(outcome_, dmp_)
-        #ouput of decoder
-        tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
-        print("scaled dmp : ",tmp_sample)
-        tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
-        sample_inp_fwd = [outcome.state_x,outcome.state_y,outcome.state_angle,dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
+    
+    def create_skill_sample(self, state, outcome, sample_action):
+        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
-        sample_inp_inv = [outcome.state_x,outcome.state_y,outcome.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
-        sample_out_inv = [dmp.lpos_x,dmp.lpos_y,dmp.lpos_pitch]
+        sample_inp_inv = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
+        sample_out_inv = [sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch]
         t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
         t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
         t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
         t_out_inv = torch.tensor(sample_out_inv,dtype=torch.float)
-        self.add_to_memory(tensor_sample_go)
-        ind_skill = self.create_skill()
         sample = []
         sample.append(t_out_fwd)
         sample.append(t_out_inv)
         sample.append(t_inp_fwd)
         sample.append(t_inp_inv)
+
+        return sample
+
+    def scale_samples_new_skill(self, sample):
+        #scale sample betwen [-1,1] for learning
+        new_state = State()
+        new_outcome = Outcome()
+        new_dmp = Dmp()
+        new_action = Action()
+        new_state.state_x = self.scale_data(sample.state_x, self.min_x, self.max_x)
+        new_state.state_y = self.scale_data(sample.state_y, self.min_y, self.max_y)
+        new_state.state_angle = self.scale_data(sample.state_angle, self.min_angle, self.max_angle)
+        new_outcome.x = self.scale_data(sample.outcome_x, self.min_vx, self.max_vx)
+        new_outcome.y = self.scale_data(sample.outcome_y, self.min_vy, self.max_vy)
+        new_outcome.angle = self.scale_data(sample.outcome_angle, self.min_angle, self.max_angle)
+        new_outcome.touch = self.scale_data(sample.outcome_touch, self.min_grasp, self.max_grasp)
+        new_dmp.v_x = self.scale_data(sample.v_x, self.min_vx, self.max_vx)
+        new_dmp.v_y = self.scale_data(sample.v_y, self.min_vy, self.max_vy)
+        new_dmp.v_pitch = self.scale_data(sample.v_pitch, self.min_vpitch, self.max_vpitch)
+        new_dmp.roll = self.scale_data(sample.roll, self.min_roll, self.max_roll)
+        new_dmp.grasp = self.scale_data(sample.grasp, self.min_grasp, self.max_grasp)
+        new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
+        new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
+        new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+
+        return new_state, new_dmp, new_outcome, new_action
+    
+    def scale_samples_existing_skill(self, sample):
+        new_state = State()
+        new_outcome = Outcome()
+        new_action = Action()
+        new_state.state_x = self.scale_data(sample.state_x, self.min_x, self.max_x)
+        new_state.state_y = self.scale_data(sample.state_y, self.min_y, self.max_y)
+        new_state.state_angle = self.scale_data(sample.state_angle, self.min_angle, self.max_angle)
+        new_outcome.x = self.scale_data(sample.outcome_x, self.min_vx, self.max_vx)
+        new_outcome.y = self.scale_data(sample.outcome_y, self.min_vy, self.max_vy)
+        new_outcome.angle = self.scale_data(sample.outcome_angle, self.min_angle, self.max_angle)
+        new_outcome.touch = self.scale_data(sample.outcome_touch, self.min_grasp, self.max_grasp)
+        new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
+        new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
+        new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+
+        return new_state, new_outcome, new_action
+
+    def continue_learning(self, data):
+        state, outcome, sample_action = self.scale_samples_existing_skill(data)
+        sample = self.create_skill_sample(state,outcome,sample_action)
+        self.skills[self.index_skill].add_to_memory(sample)
+        err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
+        err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
+        error_fwd = err_fwd.item()
+        error_inv = err_inv.item()
+        print("ERROR INVERSE : ",error_inv)
+        print("ERROR FORWARD : ",error_fwd)
+        inputs = [self.current_goal.latent_x,self.current_goal.latent_y]
+        #publish new goal and fwd error
+        self.update_learning_progress(inputs,error_fwd)
+        #self.send_new_goal(inputs)
+        self.pub_timing(1.0)
+        #rospy.sleep(10)
+        self.update_learning_progress(inputs,0)
+        self.pub_timing(0.0)
+        self.end_action(True)
+        rospy.sleep(1)
+        self.end_action(False)
+        self.skills[self.index_skill].train_forward_model()
+        self.skills[self.index_skill].train_inverse_model()
+        pwd = self.folder_nnga + str(self.id_nnga) + "/"
+        self.skills[self.index_skill].save_memory(pwd)
+        self.skills[self.index_skill].save_fwd_nn(pwd)
+        self.skills[self.index_skill].save_inv_nn(pwd)
+        self.pub_ready.publish(True)
+
+    #bootstrap learning when we discover first skill during exploration
+    def bootstrap_learning(self, sample):
+        state, dmp, outcome, sample_action = self.scale_samples_new_skill(sample)
+        #ouput of decoder
+        tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
+        print("scaled dmp : ",tmp_sample)
+        tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
+        self.add_to_memory(tensor_sample_go)
+        ind_skill = self.create_skill()
+        sample = self.create_skill_sample(state,outcome,sample_action)
         print("Input NNGA ; ",sample)
         self.skills[ind_skill].add_to_memory(sample)
         err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
@@ -424,5 +481,7 @@ class NNGoalAction(object):
 
     def activate_hebbian(self, goal):
         tmp = [goal.latent_x,goal.latent_y]
+        self.current_goal.latent_x = goal.latent_x
+        self.current_goal.latent_y = goal.latent_y
         self.index_skill = self.hebbian.hebbianActivation(tmp)
         print("index models : ",self.index_skill)

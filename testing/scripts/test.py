@@ -15,7 +15,9 @@ class Testing(object):
       self.pub_outcome = rospy.Publisher("/outcome_detector/outcome", Outcome, queue_size=1, latch=True)
       self.pub_id = rospy.Publisher("/cog_learning/id_object", Int16, queue_size=1, latch=True)
       self.pub_action_sample = rospy.Publisher('/motion_pincher/action_sample', Action, latch=True, queue_size=1)
-      self.pub_state = rospy.Publisher('/cog_learning/object_state', State, latch=True, queue_size=1)
+      self.pub_state = rospy.Publisher('/outcome_detector/state', State, latch=True, queue_size=1)
+      self.pub_explore = rospy.Publisher('/cog_learning/exploration', Bool, latch=True, queue_size=1)
+      self.pub_exploit = rospy.Publisher('/cog_learning/exploitation', Bool, latch=True, queue_size=1)
       rospy.Subscriber("/cog_learning/ready", Bool, self.callback_ready)
       self.ready = True
 
@@ -63,6 +65,16 @@ class Testing(object):
       tmp = Int16()
       tmp.data = 0
       self.pub_id.publish(tmp)
+
+   def pub_exploration(self):
+      tmp = Bool()
+      tmp.data = True
+      self.pub_explore.publish(tmp)
+
+   def pub_exploitation(self):
+      tmp = Bool()
+      tmp.data = True
+      self.pub_exploit.publish(tmp)
 
 
 
@@ -126,14 +138,27 @@ if __name__ == "__main__":
 
    i = 0
    seconds = 0
+   explore = True
    while not rospy.is_shutdown():
-      if(test.get_ready() and i < 5):
-         test.publish_dmp(data[i][1])
-         test.publish_state(states[i])
-         test.publish_action(actions[i])
-         rospy.sleep(0.5)
-         test.publish_outcome(data[i][0])
-         test.set_ready(False)
-         i += 1
+      if explore:
+         test.pub_exploration()
+         if(test.get_ready() and i < 5):
+            test.publish_state(states[i])
+            test.publish_dmp(data[i][1])
+            test.publish_action(actions[i])
+            rospy.sleep(0.5)
+            test.publish_outcome(data[i][0])
+            test.set_ready(False)
+            i += 1
+      else:
+         test.pub_exploitation()
+         if(test.get_ready() and i < 5):
+            test.publish_state(states[i])
+            #test.publish_dmp(data[i][1])
+            test.publish_action(actions[i])
+            rospy.sleep(0.5)
+            test.publish_outcome(data[i][0])
+            test.set_ready(False)
+            i += 1
 
    rospy.spin()
