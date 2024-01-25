@@ -27,6 +27,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
+        torch.manual_seed(24)
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
         self.decoder = MultiLayerDecoder(2,4,6,9)
@@ -59,7 +60,7 @@ class NNGoalAction(object):
         self.max_grasp = 1
         self.min_angle = -180
         self.max_angle = 180
-        torch.manual_seed(32)
+        
 
     def update_learning_progress(self, data, error):
         update_lp = Goal()
@@ -186,7 +187,7 @@ class NNGoalAction(object):
     def scale_latent_to_expend(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(-1.7,1.7))
+        scaler_x = MinMaxScaler(feature_range=(-1.5,1.5))
         x_minmax = np.array([-1, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -295,6 +296,21 @@ class NNGoalAction(object):
         new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
         new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
         new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+        """print("state x before ", sample.state_x, " after : ", new_state.state_x)
+        print("state y before ", sample.state_y, " after : ", new_state.state_y)
+        print("state angle before ", sample.state_angle, " after : ", new_state.state_angle)
+        print("outcome x before ", sample.outcome_x, " after : ", new_outcome.x)
+        print("outcome y before ", sample.outcome_y, " after : ", new_outcome.y)
+        print("outcome angle before ", sample.outcome_angle, " after : ", new_outcome.angle)
+        print("outcome touch before ", sample.outcome_touch, " after : ", new_outcome.touch)
+        print("dmp vx before ", sample.v_x, " after : ", new_dmp.v_x)
+        print("dmp vy before ", sample.v_y, " after : ", new_dmp.v_y)
+        print("dmp vpitch before ", sample.v_pitch, " after : ", new_dmp.v_pitch)
+        print("dmp roll before ", sample.roll, " after : ", new_dmp.roll)
+        print("dmp grasp before ", sample.grasp, " after : ", new_dmp.grasp)
+        print("action lposx before ", sample.lpos_x, " after : ", new_action.lpos_x)
+        print("action lposy before ", sample.lpos_y, " after : ", new_action.lpos_y)
+        print("action lpospitch before ", sample.lpos_pitch, " after : ", new_action.lpos_pitch)"""
 
         return new_state, new_dmp, new_outcome, new_action
     
@@ -316,15 +332,17 @@ class NNGoalAction(object):
         return new_state, new_outcome, new_action
 
     def continue_learning(self, data):
+        #print("CONTINUAL sample before scaling : ",data)
         state, outcome, sample_action = self.scale_samples_existing_skill(data)
         sample = self.create_skill_sample(state,outcome,sample_action)
         self.skills[self.index_skill].add_to_memory(sample)
+        #self.skills[self.index_skill].print_memory()
         err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
         err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
         error_fwd = err_fwd.item()
         error_inv = err_inv.item()
-        print("ERROR INVERSE : ",error_inv)
-        print("ERROR FORWARD : ",error_fwd)
+        #print("ERROR INVERSE : ",error_inv)
+        #print("ERROR FORWARD : ",error_fwd)
         inputs = [self.current_goal.latent_x,self.current_goal.latent_y]
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
@@ -346,32 +364,34 @@ class NNGoalAction(object):
 
     #bootstrap learning when we discover first skill during exploration
     def bootstrap_learning(self, sample):
+        #print("BOOTSTRAP sample before scaling : ",sample)
         state, dmp, outcome, sample_action = self.scale_samples_new_skill(sample)
         #ouput of decoder
         tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
-        print("scaled dmp : ",tmp_sample)
+        #print("scaled dmp : ",tmp_sample)
         tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
         self.add_to_memory(tensor_sample_go)
         ind_skill = self.create_skill()
         sample = self.create_skill_sample(state,outcome,sample_action)
-        print("Input NNGA ; ",sample)
+        #print("Input NNGA ; ",sample)
         self.skills[ind_skill].add_to_memory(sample)
+        #self.skills[ind_skill].print_memory()
         err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
         err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
         error_fwd = err_fwd.item()
         error_inv = err_inv.item()
-        print("ERROR INVERSE : ",error_inv)
-        print("ERROR FORWARD : ",error_fwd)
+        #print("ERROR INVERSE : ",error_inv)
+        #print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
-        print("latent space : ",output_l)
+        #print("latent space : ",output_l)
         e0 = self.scale_latent_to_expend(output_l[0])
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
         inputs = [round(t0*100),round(t1*100)]
         self.skills[ind_skill].set_name(inputs)
-        print("dnf input : ",inputs)
+        #print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
         self.latent_space_scaled.append(inputs)
         self.plot_latent()
@@ -379,13 +399,14 @@ class NNGoalAction(object):
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs)
         self.pub_timing(1.0)
-        rospy.sleep(10)
+        #rospy.sleep(10)
         self.update_learning_progress(inputs,0)
         self.pub_timing(0.0)
         self.end_action(True)
         rospy.sleep(1)
         self.end_action(False)
         print("Hebbian learning, index : ",ind_skill)
+        print("Inputs Hebbian : ",inputs)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()

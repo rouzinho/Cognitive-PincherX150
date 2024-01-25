@@ -66,6 +66,10 @@ class Skill(object):
 
     def get_memory(self):
         return self.memory
+    
+    def print_memory(self):
+        print("size memory : ",len(self.memory))
+        print("memory skills : ",self.memory)
 
     def train_inverse_model(self):
         current_cost = 0

@@ -61,9 +61,9 @@ class Testing(object):
    def set_ready(self, val):
       self.ready = val
 
-   def send_id(self):
+   def send_id(self, n):
       tmp = Int16()
-      tmp.data = 0
+      tmp.data = n
       self.pub_id.publish(tmp)
 
    def pub_exploration(self):
@@ -80,13 +80,13 @@ class Testing(object):
 
 if __name__ == "__main__":
    test = Testing()
-   test.send_id()
+   test.send_id(0)
    data = []
    actions = []
    states = []
    outcome1 = [0.1,0.1,40.0,0.0]
    dmp1 = [0.1,0.1,1.0,0.5,0.0]
-   action1 = [0.1,0.1,1.0]
+   action1 = [0.18,0.1,1.0]
    state1 = [0.2,0.0,20.0]
    outcome2 = [-0.1,-0.1,10.0,0.0]
    dmp2 = [-0.1,-0.1,0.2,0.1,0.0]
@@ -94,15 +94,15 @@ if __name__ == "__main__":
    state2 = [0.3,0.1,60.0]
    outcome3 = [0.1,0.0,100.0,0.0]
    dmp3 = [0.1,0.0,0.3,-0.5,0.0]
-   action3 = [-0.1,0.1,0.5]
+   action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
    outcome4 = [0.0,0.0,0.0,1.0]
    dmp4 = [0.15,0.0,0.6,0.0,1.0]
-   action4 = [0.2,-0.1,1.2]
+   action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
    outcome5 = [-0.1,0.1,10.0,0.0]
    dmp5 = [-0.1,0.1,-0.2,0.0,0.0]
-   action5 = [-0.1,-0.1,1.0]
+   action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    sim1_out = [0.1,0.1,30.0,0.0]
    sim1_dmp = [0.1,0.11,1.0,0.6,0.0]
@@ -142,7 +142,10 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if explore:
          test.pub_exploration()
-         if(test.get_ready() and i < 5):
+         if(test.get_ready() and i < 2):
+            if i == 1:
+               test.send_id(1)
+               rospy.sleep(0.5)
             test.publish_state(states[i])
             test.publish_dmp(data[i][1])
             test.publish_action(actions[i])
@@ -152,6 +155,8 @@ if __name__ == "__main__":
             i += 1
       else:
          test.pub_exploitation()
+         test.send_id(0)
+         rospy.sleep(0.5)
          if(test.get_ready() and i < 5):
             test.publish_state(states[i])
             #test.publish_dmp(data[i][1])

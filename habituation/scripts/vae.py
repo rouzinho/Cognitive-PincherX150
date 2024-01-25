@@ -590,15 +590,16 @@ class Habituation(object):
       self.id_object = msg.data
       found = False
       for i in range(0,len(self.habit)):
-         tmp = self.habbit[i].get_id()
+         tmp = self.habit[i].get_id()
          if tmp == self.id_object:
                self.index_vae = i
                found = True
       if not found:
-         print("Creating new VAE")
          tmp_habbit = VariationalAE(self.id_object)
          self.habit.append(tmp_habbit)
          self.index_vae = len(self.habit) - 1
+         print("Creation new VAE : ",self.id_object)
+
 
    def learn_new_latent(self, sample):
       print("TRAINING...")
@@ -643,7 +644,8 @@ class Habituation(object):
          tmp_vae.load_memory(n_f)
          self.habit.append(tmp_vae)
       for i in self.habit:
-         print("memory : ",i.memory)
+         print("VAE : ",i.get_id())
+         print("memory : ",len(i.memory))
          print("latent space : ",i.get_latent_space())
          print("latent space scaled : ",i.get_latent_space_dnf())
 
