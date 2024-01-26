@@ -199,13 +199,14 @@ class VariationalAE(object):
             self.bound_x = round(10)
             self.bound_y = round(10)
       #print("Latent DNF : ",self.list_latent_scaled)
+      #print(" LATENT FORMED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
             
    def set_dnf_to_latent(self, peak, exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
       latent_value = []
       if exploration == "static":
-         self.bound_x = 100
-         self.bound_y = 100
+         self.max_bound_x = 100
+         self.max_bound_y = 100
          if len(self.list_latent) >= 1:
             #more generic scaling
             x = self.scale_latent_to_dnf_dynamic(peak[0],10,90,ext_x[0],ext_x[1])
@@ -216,14 +217,14 @@ class VariationalAE(object):
          #padding to avoid having extreme values on the edge of DNF
          padding_x = round(self.max_bound_x * 0.1)
          padding_y = round(self.max_bound_y * 0.1)
-         print("max bound X ",self.bound_x)
-         print("max bound Y ",self.bound_y)
          if len(self.list_latent) >= 1:
             x = self.scale_latent_to_dnf_dynamic(peak[0],padding_x,self.bound_x-padding_x,ext_x[0],ext_x[1])
             y = self.scale_latent_to_dnf_dynamic(peak[1],padding_y,self.bound_y-padding_y,ext_y[0],ext_y[1])
             latent_value.append(x)
             latent_value.append(y)
-      print("Latent value : ",latent_value)
+      #print("Latent value : ",latent_value)
+      #print("LATENT TESTED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
+      return latent_value
 
 
    def set_eval_to_latent_dnf(self, z, exploration):
@@ -282,6 +283,12 @@ class VariationalAE(object):
    
    def get_bound_y(self):
       return self.bound_y
+   
+   def get_max_bound_x(self):
+      return self.max_bound_x
+   
+   def get_max_bound_y(self):
+      return self.max_bound_y
    
    def get_id(self):
       return self.id
@@ -404,6 +411,14 @@ class VariationalAE(object):
       z = z.to('cpu').detach().numpy()
 
       return z
+   
+   def reconstruct_latent(self, sample):
+      self.vae.eval()
+      sample = sample.to(device)
+      output = self.vae.decoder(sample)
+      out = output.to('cpu').detach().numpy()
+
+      return out
 
    #send latent space for display and keep it in memory
    def plot_latent(self, num_batches=100):
@@ -574,6 +589,19 @@ class Habituation(object):
             
       return n_x[0]
    
+   #scale output of decoder VAE to real values
+   def scale_data_to_real(self, data, min_, max_):
+      n_x = np.array(data)
+      n_x = n_x.reshape(-1,1)
+      scaler_x = MinMaxScaler(feature_range=(min_,max_))
+      x_minmax = np.array([-1, 1])
+      scaler_x.fit(x_minmax[:, np.newaxis])
+      n_x = scaler_x.transform(n_x)
+      n_x = n_x.reshape(1,-1)
+      n_x = n_x.flatten()
+            
+      return n_x[0]
+   
    def send_latent_space(self):
       ls = self.habit[self.index_vae].get_latent_space_dnf()
       msg_latent = LatentDNF()
@@ -638,7 +666,23 @@ class Habituation(object):
    def callback_input_latent(self, msg):
       x_dnf = msg.latent_x
       y_dnf = msg.latent_y      
-      self.habit[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
+      latent_value = self.habit[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
+      t_latent = torch.tensor(latent_value,dtype=torch.float)
+      output = self.habit[self.index_vae].reconstruct_latent(t_latent)
+      dmp = Dmp()
+      outcome = Outcome()
+      dmp.v_x = self.scale_data_to_real(output[4],self.min_vx,self.max_vx)
+      dmp.v_y = self.scale_data_to_real(output[5],self.min_vy,self.max_vy)
+      dmp.v_pitch = self.scale_data_to_real(output[6],self.min_vpitch,self.max_vpitch)
+      dmp.roll = self.scale_data_to_real(output[7],self.min_roll,self.max_roll)
+      dmp.grasp = self.scale_data_to_real(output[8],self.min_grasp,self.max_grasp)
+      outcome.x = self.scale_data_to_real(output[0], self.min_vx, self.max_vx)
+      outcome.y = self.scale_data_to_real(output[1], self.min_vy, self.max_vy)
+      outcome.angle = self.scale_data_to_real(output[2], self.min_angle, self.max_angle)
+      outcome.touch = self.scale_data_to_real(output[3], self.min_grasp, self.max_grasp)
+      print("DMP : ",dmp)
+      print("Outcome : ",outcome)
+      
 
    def callback_id(self, msg):
       self.id_object = msg.data
@@ -671,6 +715,13 @@ class Habituation(object):
       self.pub_ready.publish(True)
       self.save_nn()
       self.save_memory()
+      print("Latent Space : ",self.habit[self.index_vae].get_latent_space())
+      print("Latent Space DNF : ",self.habit[self.index_vae].get_latent_space_dnf())
+      bx = self.habit[self.index_vae].get_bound_x()
+      by = self.habit[self.index_vae].get_bound_y()
+      mbx = self.habit[self.index_vae].get_max_bound_x()
+      mby = self.habit[self.index_vae].get_max_bound_y()
+      print("LATENT FORMED bound x ", bx, " bound y ", by," max_bound_x ", mbx, " max_bound_y ", mby)
       #self.test_reconstruct()
 
    def add_to_memory(self, sample):
