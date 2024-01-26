@@ -187,17 +187,6 @@ class DepthInterface
         vec_ref.x = corners[0].x + corners[0].x;
         vec_ref.y = corners[0].y + corners[0].y;
         float dot_prod = (vec_s.x*vec_ref.x) + (vec_s.y*vec_ref.y);
-        /*float abs_s = sqrt(pow(vec_s.x,2) + pow(vec_s.y,2));
-        float abs_ref = sqrt(pow(vec_ref.x,2) + pow(vec_ref.y,2));
-        float tmp = dot_prod / abs_s * abs_ref;
-        if(dot_prod < 0)
-        {
-          rad = 3.14159 - acos(tmp);
-        }
-        else{
-          rad = acos(tmp);
-        }*/
-        
         float det = (vec_s.x*vec_ref.y) - (vec_s.y*vec_ref.x);
         float rad = atan2(det,dot_prod);
         deg = rad * (180.0/3.141592653589793238463);
