@@ -63,8 +63,9 @@ class Detector
         ros::Publisher pub_aruco;
         ros::Publisher pub_ready;
         ros::Publisher pub_ready_robot;
-        ros::Publisher pub_object_rot;
+        ros::Publisher pub_state_object;
         ros::Subscriber sub_activate;
+        ros::Subscriber sub_trigger_state;
         ros::Subscriber sub_object;
         ros::Subscriber sub_touch;
         ros::Subscriber sub_angle;
@@ -119,6 +120,7 @@ class Detector
     {
         sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
+        sub_trigger_state = nh_.subscribe("/outcome_detector/trigger_state", 1, &Detector::activateTrigger,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
         sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
@@ -131,7 +133,7 @@ class Detector
         pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
-        pub_object_rot = nh_.advertise<geometry_msgs::PoseStamped>("/object/pose",1);
+        pub_state_object = nh_.advertise<detector::State>("/outcome_detector/state",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -246,6 +248,17 @@ class Detector
         }
     }
 
+    void activateTrigger(const std_msgs::BoolConstPtr& msg)
+    {
+        if(msg->data)
+        {
+            state_object.state_x = pose_object.pose.position.x;
+            state_object.state_y = pose_object.pose.position.y;
+            state_object.state_angle = object_state_angle;
+            pub_state_object.publish(state_object);
+        }
+    }
+
     void touchCallback(const std_msgs::BoolConstPtr& msg)
     {
         touch = msg->data;
@@ -299,17 +312,24 @@ class Detector
         {
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
+        //fill state
+        //state_object.state_x = pose_object.pose.position.x;
+        //state_object.state_y = pose_object.pose.position.y;
+        //state_object.state_angle = object_state_angle;
+        //pub_state_object.publish(state_object);
+
         tf2::Quaternion q_orig(0,0,0,1);
         tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
-        geometry_msgs::Point vec_orth;
-        geometry_msgs::PoseStamped p;
-        p.header = msg->header;
+        //geometry_msgs::Point vec_orth;
+        //geometry_msgs::PoseStamped p;
+
+        /*p.header = msg->header;
         p.header.frame_id = "px150/base_link";
         p.pose.position.x = pose_object.pose.position.x;
         p.pose.position.y = pose_object.pose.position.y;
-        p.pose.position.z = pose_object.pose.position.z;
+        p.pose.position.z = pose_object.pose.position.z;*/
         
         vec_ori.x = pose_object.pose.position.x;
         vec_ori.y = pose_object.pose.position.y;
@@ -322,12 +342,7 @@ class Detector
         q_rot.setRPY(0,0,ang);
         q_vector = q_rot*q_orig;
         q_vector.normalize();
-        tf2::convert(q_vector, p.pose.orientation);
-        pose_object.pose.orientation.x = p.pose.orientation.x;
-        pose_object.pose.orientation.y = p.pose.orientation.y;
-        pose_object.pose.orientation.z = p.pose.orientation.z;
-        pose_object.pose.orientation.w = p.pose.orientation.w;
-        pub_object_rot.publish(pose_object);
+        //tf2::convert(q_vector, p.pose.orientation);
     }
 
     //sending 2D corners to be transform in 3D space
