@@ -34,6 +34,7 @@
 #include <std_msgs/String.h>
 #include <std_msgs/Float32.h>
 #include "detector/Outcome.h"
+#include "detector/State.h"
 #include <opencv2/aruco.hpp>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
@@ -108,6 +109,7 @@ class Detector
         std::string robot_action;
         bool success_sample;
         tf2::Quaternion q_vector;
+        detector::State state_object;
 
     public:
 
@@ -251,6 +253,7 @@ class Detector
 
     void AngleCallback(const std_msgs::Float32ConstPtr& msg)
     {
+        object_state_angle = msg->data;
         if(first_time && activate_angle)
         {
             cout<<"Recording first angle\n";
@@ -312,7 +315,6 @@ class Detector
         vec_ori.y = pose_object.pose.position.y;
         vec_ori.x = pose_object.pose.position.x + vec_ori.x;
         vec_ori.y = pose_object.pose.position.y + vec_ori.y;
-        //vec_orth.y = (vec_ori.x*vec_orth.x)/-vec_ori.y;
         float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
         float det = (vec_ori.x*0) + (vec_ori.y*0.1);
         float ang = atan2(det,dot_prod);
@@ -444,7 +446,7 @@ class Detector
         std_msgs::Bool tmp;
         tmp.data = true;
         pub_ready.publish(tmp);
-        //pub_outcome.publish(res);
+        pub_outcome.publish(res);
     }
 
     geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, geometry_msgs::PoseStamped second_pose, float tx, float ty)
