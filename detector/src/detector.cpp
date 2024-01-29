@@ -448,7 +448,7 @@ class Detector
         {
             diff = diff - 185.0;
         }
-        geometry_msgs::Point vec_ref_object = findVectorTransform(first, second, t_x,t_y);
+        geometry_msgs::Point vec_ref_object = findVectorTransform(first, t_x,t_y);
         res.x = vec_ref_object.x;
         res.y = vec_ref_object.y;
         std::cout<<"first angle : "<<first_ang<<"\n";
@@ -464,7 +464,7 @@ class Detector
         pub_outcome.publish(res);
     }
 
-    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, geometry_msgs::PoseStamped second_pose, float tx, float ty)
+    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty)
     {
         geometry_msgs::Point p;
         geometry_msgs::Point p_robot;

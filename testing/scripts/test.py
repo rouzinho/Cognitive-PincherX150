@@ -36,6 +36,8 @@ class Testing(object):
       tmp.v_pitch = data[2]
       tmp.roll = data[3]
       tmp.grasp = data[4]
+      tmp.fpos_x = data[5]
+      tmp.fpos_y = data[6]
       self.pub_dmp.publish(tmp)
 
    def publish_action(self,data):
@@ -85,15 +87,23 @@ if __name__ == "__main__":
    actions = []
    states = []
    outcome1 = [0.1,0.1,40.0,0.0]
-   dmp1 = [0.1,0.1,1.0,0.5,0.0]
-   action1 = [0.18,0.1,1.0]
-   state1 = [0.2,0.0,20.0]
-   outcome2 = [-0.1,-0.1,10.0,0.0]
-   dmp2 = [-0.1,-0.1,0.2,0.1,0.0]
+   dmp1 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
+   action1 = [0.2,0.2,1.0]
+   state1 = [0.2,0.2,20.0]
+   outcome2 = [0.1,0.0,10.0,0.0]
+   dmp2 = [0.141,0.0,0.2,0.1,0.0,0.15,0.0]
    action2 = [0.2,0.2,1.2]
    state2 = [0.3,0.1,60.0]
-   outcome3 = [0.1,0.0,100.0,0.0]
-   dmp3 = [0.1,0.0,0.3,-0.5,0.0]
+   #outcome2 = [-0.1,-0.1,10.0,0.0]
+   #dmp2 = [-0.1,-0.1,0.2,0.1,0.0]
+   #action2 = [0.2,0.2,1.2]
+   #state2 = [0.3,0.1,60.0]
+   #outcome3 = [0.1,0.0,100.0,0.0]
+   #dmp3 = [0.1,0.0,0.3,-0.5,0.0]
+   #action3 = [0.19,0.1,0.5]
+   #state3 = [0.3,-0.1,100.0]
+   outcome3 = [-0.1,0.0,100.0,0.0]
+   dmp3 = [0.1,-0.1,0.3,-0.5,0.0,0.1,-0.1]
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
    outcome4 = [0.0,0.0,0.0,1.0]
@@ -104,6 +114,7 @@ if __name__ == "__main__":
    dmp5 = [-0.1,0.1,-0.2,0.0,0.0]
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
+   
    sim1_out = [0.1,0.1,30.0,0.0]
    sim1_dmp = [0.1,0.11,1.0,0.6,0.0]
    sim2_out = [0.4,0.4,0.1,0.0]
@@ -117,8 +128,9 @@ if __name__ == "__main__":
    data.append([outcome1,dmp1])
    data.append([outcome2,dmp2])
    #data.append([sim1_out,sim1_dmp])
-   data.append([outcome4,dmp4])
    data.append([outcome3,dmp3])
+   data.append([outcome4,dmp4])
+   
    data.append([outcome5,dmp5])
    #data.append([sim1_out,sim1_dmp])
    #data.append([sim2_out,sim2_dmp])
@@ -142,7 +154,7 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if explore:
          test.pub_exploration()
-         if(test.get_ready() and i < 5):
+         if(test.get_ready() and i < 3):
             #if i == 1:
             #   test.send_id(1)
             #   rospy.sleep(0.5)
