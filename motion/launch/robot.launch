@@ -1,4 +1,5 @@
 <launch>
+    <param name="dmp_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/dmp/" />
     <node name="dmp" pkg="dmp" type="dmp_server" respawn="false" output="screen"/> 
     <include file="$(find proprioception_pincher)/launch/robot_proprioception.launch" /> 
     <node name="motion" pkg="motion" type="motion_px.py" output="screen"/>

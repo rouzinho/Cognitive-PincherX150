@@ -62,6 +62,7 @@ add_message_files(
   DmpAction.msg
   DmpLatent.msg
   DmpOutcome.msg
+  TwoPoses.msg
 )
 
 ## Generate services in the 'srv' folder

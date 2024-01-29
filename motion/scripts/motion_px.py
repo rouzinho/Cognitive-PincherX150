@@ -30,6 +30,7 @@ from std_msgs.msg import Time
 from std_msgs.msg import Header
 from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
+from std_msgs.msg import Int16
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 from som.msg import PoseRPY
@@ -46,6 +47,7 @@ from os import path
 from interbotix_xs_modules.arm import InterbotixManipulatorXS
 import interbotix_common_modules.angle_manipulation as ang
 from pathlib import Path
+from tf.transformations import *
 
 #Set a DMP as active for planning
 def makeSetActiveRequest(dmp_list):
@@ -100,22 +102,24 @@ class Motion(object):
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
-    self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp_action", DmpAction, queue_size=1, latch=True)
-    rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
+    self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
+    #rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
     rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
-    rospy.Subscriber('/depth_perception/sample_success', Bool, self.callback_succes)
+    #rospy.Subscriber('/depth_perception/sample_success', Bool, self.callback_succes)
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/depth_perception/ready', Bool, self.callback_ready_depth)
     rospy.Subscriber('/outcome_detector/ready', Bool, self.callback_ready_outcome)
     rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready_robot)
-
+    rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+    self.dmp_folder = rospy.get_param("dmp_folder")
+    self.current_folder = ""
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
@@ -133,7 +137,7 @@ class Motion(object):
     self.activate_dmp = False
     self.name_state = ""
     self.path = []
-    self.name_ee = "/home/altair/interbotix_ws/src/motion/dmp/js.bag"
+    self.name_ee = self.dmp_folder + "js.bag"
     self.record = False
     self.dims = 5
     self.dt = 1.0
@@ -146,7 +150,7 @@ class Motion(object):
     self.explore = True
     self.exploit = False
     self.dmp_exploit = Dmp()
-    self.dmp_explore = DmpAction()
+    self.dmp_explore = Dmp()
     self.dmp_name = ""
     self.dmp_found = False
     self.goal_dmp = False
@@ -180,11 +184,6 @@ class Motion(object):
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
-      self.dmp_explore.v_x = self.last_pose.x - self.first_pose.x
-      self.dmp_explore.v_y = self.last_pose.y - self.first_pose.y
-      self.dmp_explore.v_pitch = self.last_pose.pitch - self.first_pose.pitch
-      self.dmp_explore.lpos_x = self.last_pose.x
-      self.dmp_explore.lpos_y = self.last_pose.y
       self.bool_last_p = True
       self.got_action = True
       self.pub_display_lpose.publish(msg)
@@ -250,7 +249,6 @@ class Motion(object):
       if self.recording_dmp and self.explore:
         self.make_dmp()
         self.delete_js_bag()
-        self.pub_dmp_action.publish(self.dmp_explore)
         self.recording_dmp = False
 
   def callback_success(self, msg):
@@ -293,6 +291,14 @@ class Motion(object):
 
   def callback_ready_robot(self,msg):
     self.ready = msg.data
+
+  def callback_id(self,msg):
+    path = os.path.join(self.folder_nnga, str(msg.data))
+    access = 0o755
+    if not os.path.isdir(path):
+      os.makedirs(path,access)
+    self.current_folder = self.dmp_folder + str(msg.data) + "/"
+
 
   def send_signal_action(self):
     if self.ready:
@@ -418,13 +424,12 @@ class Motion(object):
 
   #naming the DMP
   def name_dmp(self):
-    name = "/home/altair/interbotix_ws/src/motion/dmp/"
     nx = "x"+str(round(self.dmp_explore.v_x,2))
     ny = "y"+str(round(self.dmp_explore.v_y,2))
     np = "p"+str(round(self.dmp_explore.v_pitch,1))
     nr = "r"+str(round(self.dmp_explore.roll,1))
     gr = "g"+str(round(self.dmp_explore.grasp,0))
-    name = name + nx + ny + np + nr + gr + "end.bag"
+    name = self.current_folder + nx + ny + np + nr + gr + "end.bag"
 
     return name
     
@@ -433,7 +438,7 @@ class Motion(object):
     name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
     found = False
     right_file = ""
-    for file in os.listdir(name_dir):
+    for file in os.listdir(self.current_folder):
         p_x = file.find('x')
         p_y = file.find('y')
         p_g = file.find('g')
@@ -549,12 +554,19 @@ class Motion(object):
       print("EXECUTING ACTION")
       r = random.choice(self.possible_roll)
       g = random.choice(self.possible_grasp)
+      self.dmp_explore.v_x = self.last_pose.x - self.first_pose.x
+      self.dmp_explore.v_y = self.last_pose.y - self.first_pose.y
+      self.dmp_explore.v_pitch = self.last_pose.pitch - self.first_pose.pitch
       self.dmp_explore.roll = r
       self.dmp_explore.grasp = g
+      self.dmp_explore.fpos_x = self.first_pose.x
+      self.dmp_explore.fpos_y = self.first_pose.y
+      self.pub_dmp_action.publish(self.dmp_explore)
       #print("roll ",r)
       #print("grasp ",g)
       self.bot.gripper.set_pressure(0.4)
       #rospy.sleep(3.0)
+      
       self.init_position()     
       if g > 0.5:
         self.bot.gripper.open()
@@ -709,11 +721,12 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    if motion_pincher.get_explore():
-      motion_pincher.execute_action(True)
-      motion_pincher.send_signal_action()
-    if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()
+    pass
+    #if motion_pincher.get_explore():
+    #  motion_pincher.execute_action(True)
+    #  motion_pincher.send_signal_action()
+    #if motion_pincher.get_exploit():
+    #  motion_pincher.execute_dmp()
   """if first:
     motion_pincher.test_interface()  
     first = False"""
