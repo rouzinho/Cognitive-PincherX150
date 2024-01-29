@@ -12,12 +12,16 @@ find_package(catkin REQUIRED COMPONENTS
   rosbag
   roscpp
   std_msgs
+  sensor_msgs
+  tf2
+  tf2_ros
+  tf2_sensor_msgs
 )
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
-
+find_package(Eigen3 REQUIRED) 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
 ## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
@@ -110,7 +114,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES cluster_message
-CATKIN_DEPENDS message_runtime rosbag roscpp std_msgs
+CATKIN_DEPENDS message_runtime rosbag roscpp std_msgs sensor_msgs
 #  DEPENDS system_lib
 )
 
@@ -122,6 +126,7 @@ CATKIN_DEPENDS message_runtime rosbag roscpp std_msgs
 ## Your package locations should be listed before other locations
 include_directories(
 # include
+  ${EIGEN3_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
 )
 

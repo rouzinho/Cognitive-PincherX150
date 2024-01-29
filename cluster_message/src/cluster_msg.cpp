@@ -17,7 +17,11 @@
 #include "detector/Outcome.h"
 #include "detector/State.h"
 #include "motion/Action.h"
-
+#include <geometry_msgs/Point.h>
+#include "motion/TwoPoses.h"
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <tf2_eigen/tf2_eigen.h>
 
 class ClusterMessage
 {
@@ -70,8 +74,28 @@ class ClusterMessage
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
    {
-      dmp.v_x = msg->v_x;
-      dmp.v_y = msg->v_y;
+      tf2::Quaternion q_orig(0,0,0,1);
+      tf2::Quaternion q_rot;
+      tf2::Quaternion q_vector;
+      geometry_msgs::Point new_vec;
+      geometry_msgs::Point vec_ori;
+      geometry_msgs::Point res;
+      geometry_msgs::PoseStamped first_pose;
+      first_pose.pose.position.x = msg->fpos_x;
+      first_pose.pose.position.y = msg->fpos_y;
+      vec_ori.x = msg->fpos_x;
+      vec_ori.y = msg->fpos_y;
+      vec_ori.x = msg->fpos_x + vec_ori.x;
+      vec_ori.y = msg->fpos_y + vec_ori.y;
+      float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
+      float det = (vec_ori.x*0) + (vec_ori.y*0.1);
+      float ang = atan2(det,dot_prod);
+      q_rot.setRPY(0,0,ang);
+      q_vector = q_rot*q_orig;
+      q_vector.normalize();
+      res = findVectorTransform(first_pose,msg->v_x,msg->v_y,q_vector);
+      dmp.v_x = res.x;
+      dmp.v_y = res.y;
       dmp.v_pitch = msg->v_pitch;
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;  
@@ -177,6 +201,21 @@ class ClusterMessage
          ready_h = false;
          ready_nn = false;
       }
+   }
+
+   geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)
+   {
+      geometry_msgs::Point p;
+      geometry_msgs::Point p_robot;
+      tf2::Vector3 vec(tx,ty,0);
+      tf2::Vector3 v_new = tf2::quatRotate(q_vector.inverse(),vec);
+      p_robot.x = first_pose.pose.position.x + v_new.getX();
+      p_robot.y = first_pose.pose.position.y + v_new.getY();
+      p_robot.z = 0;
+      p.x = p_robot.x - first_pose.pose.position.x;
+      p.y = p_robot.y - first_pose.pose.position.y;
+
+      return p;
    }
 };
     
