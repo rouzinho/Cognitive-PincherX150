@@ -103,6 +103,7 @@ class Motion(object):
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
+    self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
     #rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -299,6 +300,10 @@ class Motion(object):
       os.makedirs(path,access)
     self.current_folder = self.dmp_folder + str(msg.data) + "/"
 
+  def send_state(self,val):
+    tmp = Bool()
+    tmp.data = val
+    self.pub_trigger_state.publish(tmp)
 
   def send_signal_action(self):
     if self.ready:
@@ -551,6 +556,7 @@ class Motion(object):
   #execute the action
   def execute_action(self,record_dmp):
     if self.bool_init_p and self.bool_last_p:
+      self.send_state(True)
       print("EXECUTING ACTION")
       r = random.choice(self.possible_roll)
       g = random.choice(self.possible_grasp)
