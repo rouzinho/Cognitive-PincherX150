@@ -32,6 +32,7 @@
 #include <cmath>
 #include <std_msgs/Bool.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Int16.h>
 #include <std_msgs/Float32.h>
 #include "detector/Outcome.h"
 #include "detector/State.h"
@@ -64,6 +65,7 @@ class Detector
         ros::Publisher pub_ready;
         ros::Publisher pub_ready_robot;
         ros::Publisher pub_state_object;
+        ros::Publisher pub_id_object;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_trigger_state;
         ros::Subscriber sub_object;
@@ -111,6 +113,8 @@ class Detector
         bool success_sample;
         tf2::Quaternion q_vector;
         detector::State state_object;
+        int id_object;
+        int prev_id_object;
 
     public:
 
@@ -134,6 +138,7 @@ class Detector
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
         pub_state_object = nh_.advertise<detector::State>("/outcome_detector/state",1);
+        pub_id_object = nh_.advertise<std_msgs::Int16>("/cog_learning/id_object",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -142,6 +147,8 @@ class Detector
         pose_object.pose.orientation.z = 0.0;
         pose_object.pose.orientation.w = 1.0;
         cloud_origin.Clear();
+        id_object = -1;
+        prev_id_object = -2;
         count = 0;
         first = true;
         second = false;
@@ -358,6 +365,7 @@ class Detector
         depth_interface::InterfacePOI pts;
         if(ids.size() == 1)
         {
+            id_object = ids[0];
             for(int i = 0; i < ids.size();  i++)
             {
                 if(corners[ids[i]].size() == 4)
@@ -376,6 +384,13 @@ class Detector
         }
         //cv::imshow("out", cv_ptr->image);
         //cv::waitKey(1);
+        if(id_object != prev_id_object)
+        {
+            std_msgs::Int16 tmp;
+            tmp.data = id_object;
+            pub_id_object.publish(tmp);
+            prev_id_object = id_object;
+        }
     }
 
     void robotActionCallback(const std_msgs::StringConstPtr& msg)
