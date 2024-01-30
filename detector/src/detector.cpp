@@ -459,9 +459,18 @@ class Detector
         first_ang = first_ang + 180.0;
         sec_ang = sec_ang + 180.0;
         diff = sec_ang - first_ang;
-        if(diff > 185.0)
+        if(std::abs(diff) > 260)
         {
-            diff = diff - 185.0;
+            if(first_ang > sec_ang)
+            {
+                float tmp = 360 - first_ang;
+                diff = tmp + sec_ang;
+            }
+            else
+            {
+                float tmp = 360 - sec_ang;
+                diff = - (tmp + first_ang);
+            }
         }
         geometry_msgs::Point vec_ref_object = findVectorTransform(first, t_x,t_y);
         res.x = vec_ref_object.x;

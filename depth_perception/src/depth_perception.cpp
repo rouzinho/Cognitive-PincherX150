@@ -645,8 +645,8 @@ class DepthImage
         count++;
       
       }
-      cv::imshow(OPENCV_WINDOW,cv_image);
-      cv::waitKey(1);
+      //cv::imshow(OPENCV_WINDOW,cv_image);
+      //cv::waitKey(1);
     }
 
     cv::Mat filterDepthSample(cv::Mat img_depth, cv::Mat img_color)
