@@ -63,7 +63,6 @@ class Detector
         ros::Publisher pub_outcome;
         ros::Publisher pub_aruco;
         ros::Publisher pub_ready;
-        ros::Publisher pub_ready_robot;
         ros::Publisher pub_state_object;
         ros::Publisher pub_id_object;
         ros::Subscriber sub_activate;
@@ -72,8 +71,7 @@ class Detector
         ros::Subscriber sub_touch;
         ros::Subscriber sub_angle;
         ros::Subscriber sub_first_time;
-        ros::Subscriber sub_robot_action;
-        ros::Subscriber sub_sample_success;
+        ros::Subscriber sub_grasping;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -109,7 +107,6 @@ class Detector
         float second_angle;
         float object_state_angle;
         bool first_time;
-        std::string robot_action;
         bool success_sample;
         tf2::Quaternion q_vector;
         detector::State state_object;
@@ -122,21 +119,19 @@ class Detector
     tfListener(tfBuffer),
     it_(nh_)
     {
-        sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
+        //sub_ori = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &Detector::callbackPointCloud, this);
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_trigger_state = nh_.subscribe("/outcome_detector/trigger_state", 1, &Detector::activateTrigger,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
         sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
-        sub_robot_action = nh_.subscribe("/motion_pincher/robot_action", 1, &Detector::robotActionCallback,this);
-        sub_sample_success = nh_.subscribe("/depth_perception/sample_success", 1, &Detector::sampleSuccessCallback,this);
+        sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
         pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
-        pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
         pub_state_object = nh_.advertise<detector::State>("/outcome_detector/state",1);
         pub_id_object = nh_.advertise<std_msgs::Int16>("/cog_learning/id_object",1);
         pose_object.pose.position.x = 0.0;
@@ -163,8 +158,6 @@ class Detector
         first_angle = 0.0;
         second_angle = 0.0;
         first_time = true;
-        robot_action = "";
-        success_sample = false;
         cv::namedWindow(OPENCV_WINDOW,cv::WINDOW_NORMAL);
     }
 
@@ -283,7 +276,6 @@ class Detector
             first_time = false;
             std_msgs::Bool tmp;
             tmp.data = true;
-            //pub_ready.publish(msg);
             //std::cout<<"sending activation\n";
             pub_ready.publish(tmp);
         }
@@ -319,25 +311,14 @@ class Detector
         {
             tf2::doTransform(tmp,pose_object,transformStamped);
         }
-        //fill state
-        //state_object.state_x = pose_object.pose.position.x;
-        //state_object.state_y = pose_object.pose.position.y;
-        //state_object.state_angle = object_state_angle;
-        //pub_state_object.publish(state_object);
-
+        else
+        {
+            listenTransform();
+        }
         tf2::Quaternion q_orig(0,0,0,1);
         tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
         geometry_msgs::Point vec_ori;
-        //geometry_msgs::Point vec_orth;
-        //geometry_msgs::PoseStamped p;
-
-        /*p.header = msg->header;
-        p.header.frame_id = "px150/base_link";
-        p.pose.position.x = pose_object.pose.position.x;
-        p.pose.position.y = pose_object.pose.position.y;
-        p.pose.position.z = pose_object.pose.position.z;*/
-        
         vec_ori.x = pose_object.pose.position.x;
         vec_ori.y = pose_object.pose.position.y;
         vec_ori.x = pose_object.pose.position.x + vec_ori.x;
@@ -384,23 +365,19 @@ class Detector
         }
         //cv::imshow("out", cv_ptr->image);
         //cv::waitKey(1);
-        if(id_object != prev_id_object)
-        {
-            std_msgs::Int16 tmp;
-            tmp.data = id_object;
-            pub_id_object.publish(tmp);
-            prev_id_object = id_object;
-        }
+        std_msgs::Int16 tmp;
+        tmp.data = id_object;
+        pub_id_object.publish(tmp);
     }
 
-    void robotActionCallback(const std_msgs::StringConstPtr& msg)
+    void GraspingCallback(const std_msgs::BoolConstPtr& msg)
     {
-        robot_action = msg->data;
-    }
-
-    void sampleSuccessCallback(const std_msgs::BoolConstPtr& msg)
-    {
-        success_sample = msg->data;
+        detector::Outcome tmp;
+        tmp.x = 0;
+        tmp.y = 0;
+        tmp.angle = 0;
+        tmp.touch = 1.0;
+        pub_outcome.publish(tmp);
     }
 
     void listenTransform()
@@ -481,11 +458,10 @@ class Detector
         //std::cout<<"vec x : "<<res.x<<"\n";
         //std::cout<<"vec y : "<<res.y<<"\n";
         res.angle = diff;
-        writeDataset(first_ang,res);
         std_msgs::Bool tmp;
         tmp.data = true;
-        pub_ready.publish(tmp);
         pub_outcome.publish(res);
+        pub_ready.publish(tmp);
     }
 
     geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty)
@@ -599,14 +575,6 @@ class Detector
         //print4x4Matrix(icp_coarse.transformation_);
         //cout<<"icp fine \n";
         return rot;
-    }
-
-    void writeDataset(float object_state, detector::Outcome sample)
-    {
-      std::ofstream ofile;
-      ofile.open("/home/altair/interbotix_ws/src/detector/dataset/samples.txt", std::ios::app);
-      ofile << object_state << " " << robot_action << " " << sample.x <<" "<<sample.y<<" "<<sample.angle<<" "<<sample.touch<< " " <<success_sample<<std::endl;
-      ofile.close();
     }
 
     void print4x4Matrix (const Eigen::Matrix4d_u & matrix)
