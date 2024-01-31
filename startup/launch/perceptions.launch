@@ -1,5 +1,6 @@
 <launch>
-   <node name="depth_detector" pkg="depth_perception" type="depth_perception_node" output="screen"/>
+   <include file="$(find cluster_message)/launch/cluster.launch" />
+   <include file="$(find depth_perception)/launch/depth_state.launch" />
    <node name="icp_detector" pkg="detector" type="detector_node" output="screen"/>
    <node name="depth_interface" pkg="depth_interface" type="depth_interface_node" output="screen"/>
 </launch>
