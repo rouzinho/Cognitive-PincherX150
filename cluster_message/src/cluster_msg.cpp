@@ -35,8 +35,11 @@ class ClusterMessage
    ros::Subscriber sub_sample;
    ros::Subscriber sub_ready_habituation;
    ros::Subscriber sub_ready_nnga;
+   ros::Subscriber sub_ready_depth;
+   ros::Subscriber sub_ready_outcome;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
+   ros::Publisher pub_ready_sensor;
    ros::Publisher pub_ready;
    detector::Outcome outcome;
    detector::State state;
@@ -50,6 +53,8 @@ class ClusterMessage
    bool sample_b;
    bool ready_h;
    bool ready_nn;
+   bool ready_depth;
+   bool ready_outcome;
 
   public:
    ClusterMessage()
@@ -62,9 +67,13 @@ class ClusterMessage
       sub_sample = nh_.subscribe("/motion_pincher/action_sample", 10, &ClusterMessage::CallbackSample,this);
       sub_ready_habituation = nh_.subscribe("/habituation/ready", 10, &ClusterMessage::CallbackReadyHabit,this);
       sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 10, &ClusterMessage::CallbackReadyNN,this);
+      sub_ready_depth = nh_.subscribe("/depth_perception/ready", 10, &ClusterMessage::CallbackReadyDepth,this);
+      sub_ready_outcome = nh_.subscribe("/outcome_detector/ready", 10, &ClusterMessage::CallbackReadyOutcome,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
+      pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
+      pub_ready_sensor = nh_.advertise<std_msgs::Bool>("/cluster_msg/sensor_ready",1);
       explore = false;
       exploit = false;
    }
@@ -100,6 +109,7 @@ class ClusterMessage
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;  
       dmp_b = true;
+      std::cout<<"cluster : got DMP\n";
    }
 
    void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
@@ -130,6 +140,7 @@ class ClusterMessage
          dmp_b = false;
          state_b = false;
          sample_b = false;
+         std::cout<<"cluster : got sample explore\n";
       }
       if(exploit == true && state_b == true && sample_b == true)
       {
@@ -157,6 +168,7 @@ class ClusterMessage
       state.state_x = msg->state_x;
       state.state_y = msg->state_y;
       state_b = true;
+      std::cout<<"cluster : got state\n";
    }
 
    void CallbackSample(const motion::Action::ConstPtr& msg)
@@ -165,11 +177,13 @@ class ClusterMessage
       sample.lpos_y = msg->lpos_y;
       sample.lpos_pitch = msg->lpos_pitch;
       sample_b = true;
+      std::cout<<"cluster : got sample\n";
    }
 
    void CallbackExplore(const std_msgs::Bool::ConstPtr& msg)
    {
       explore = msg->data;
+      std::cout<<"cluster : got explore\n";
    }
 
    void CallbackExploit(const std_msgs::Bool::ConstPtr& msg)
@@ -200,6 +214,34 @@ class ClusterMessage
          pub_ready.publish(tmp);
          ready_h = false;
          ready_nn = false;
+      }
+   }
+
+   void CallbackReadyDepth(const std_msgs::Bool::ConstPtr& msg)
+   {
+      ready_depth = msg->data;
+      if(ready_depth && ready_outcome)
+      {
+         std_msgs::Bool tmp;
+         tmp.data = true;
+         pub_ready_sensor.publish(tmp);
+         ready_depth = false;
+         ready_outcome = false;
+         std::cout<<"Cluster msg READY by depth\n";
+      }
+   }
+
+   void CallbackReadyOutcome(const std_msgs::Bool::ConstPtr& msg)
+   {
+      ready_outcome = msg->data;
+      if(ready_depth && ready_outcome)
+      {
+         std_msgs::Bool tmp;
+         tmp.data = true;
+         pub_ready_sensor.publish(tmp);
+         ready_depth = false;
+         ready_outcome = false;
+         std::cout<<"Cluster msg READY by outcome\n";
       }
    }
 
