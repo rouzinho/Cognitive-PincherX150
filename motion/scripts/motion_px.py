@@ -97,7 +97,6 @@ class Motion(object):
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
     self.pub_activate_perception = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
     #self.pub_outcome = rospy.Publisher("/outcome_detector/activate", Bool, queue_size=1, latch=True)
-    self.pub_robot_action = rospy.Publisher("/motion_pincher/robot_action", String, queue_size=1, latch=True)
     self.pub_signal_action = rospy.Publisher("/motion_pincher/signal_action", Bool, queue_size=1, latch=True)
     self.pub_display_fpose = rospy.Publisher("/display/first_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
@@ -111,13 +110,10 @@ class Motion(object):
     rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
-    #rospy.Subscriber('/depth_perception/sample_success', Bool, self.callback_succes)
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
-    rospy.Subscriber('/depth_perception/ready', Bool, self.callback_ready_depth)
-    rospy.Subscriber('/outcome_detector/ready', Bool, self.callback_ready_outcome)
-    rospy.Subscriber('/motion_pincher/ready', Bool, self.callback_ready_robot)
+    rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
     rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
     self.dmp_folder = rospy.get_param("dmp_folder")
     self.current_folder = ""
@@ -165,6 +161,8 @@ class Motion(object):
     self.got_action = False
     self.recording_dmp = False
     self.last_time = 0
+    self.prev_id_object = -1
+    self.id_object = 0
 
   def callback_pose(self,msg):
     self.init_position()
@@ -252,15 +250,6 @@ class Motion(object):
         self.delete_js_bag()
         self.recording_dmp = False
 
-  def callback_success(self, msg):
-    if msg.data == True:
-      sample = Action()
-      sample.lpos_x = self.last_pose.x
-      sample.lpos_y = self.last_pose.y
-      sample.lpos_pitch = self.last_pose.pitch
-      self.pub_action_sample.publish(sample)
-
-
   def callback_retry(self,msg):
     if msg.data == True:
       self.bool_last_p = False
@@ -278,27 +267,18 @@ class Motion(object):
     self.bool_init_p = False
     self.bool_last_p = False
 
-  def callback_ready_depth(self,msg):
+  def callback_ready(self,msg):
     self.ready_depth = msg.data
-    if self.ready_depth and self.ready_outcome:
-      self.ready = True
-      print("READY Depth last")
-
-  def callback_ready_outcome(self,msg):
-    self.ready_outcome = msg.data
-    if self.ready_outcome and self.ready_depth:
-      self.ready = True
-      print("READY outcome last")
-
-  def callback_ready_robot(self,msg):
-    self.ready = msg.data
 
   def callback_id(self,msg):
-    path = os.path.join(self.folder_nnga, str(msg.data))
-    access = 0o755
-    if not os.path.isdir(path):
-      os.makedirs(path,access)
-    self.current_folder = self.dmp_folder + str(msg.data) + "/"
+    self.id_object = msg.data
+    if self.prev_id_object != self.id_object:
+      path = os.path.join(self.dmp_folder, str(self.id_object))
+      access = 0o755
+      if not os.path.isdir(path):
+        os.makedirs(path,access)
+      self.current_folder = self.dmp_folder + str(self.id_object) + "/"
+      self.prev_id_object = self.id_object
 
   def send_state(self,val):
     tmp = Bool()
@@ -440,7 +420,6 @@ class Motion(object):
     
   #find the dmp file
   def find_dmp(self,dmp):
-    name_dir = "/home/altair/interbotix_ws/src/motion/dmp/"
     found = False
     right_file = ""
     for file in os.listdir(self.current_folder):
@@ -460,7 +439,7 @@ class Motion(object):
         if dmp.v_x - x < 0.05 and dmp.v_y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05:
             found = True
             right_file = file
-    right_file = name_dir + right_file
+    right_file = self.current_folder + right_file
     return found, right_file
 
   def make_dmp(self):
@@ -499,6 +478,11 @@ class Motion(object):
       self.bot.arm.set_joint_positions(i,moving_time=0.4,accel_time=0.1)
       print(j)
       j+=1
+    sample = Action()
+    sample.lpos_x = self.last_pose.x
+    sample.lpos_y = self.last_pose.y
+    sample.lpos_pitch = self.last_pose.pitch
+    self.pub_action_sample.publish(sample)
 
   #shrink the dmp so the JS positions that are too close are skipped
   def shrink_dmp(self,data,desired):
@@ -593,10 +577,11 @@ class Motion(object):
       self.pub_touch.publish(t)
       print("ACTION DONE")
       self.last_time = rospy.get_time()
-      #data = str(self.first_pose.x) + " " + str(self.first_pose.y) + " " + str(self.first_pose.pitch) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " "
-      data = str(self.first_pose.x + self.last_pose.x) + " " + str(self.first_pose.y + self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(r) + " " + str(g) + " " + str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " "
-      data_msg = String(data)
-      self.pub_robot_action.publish(data_msg) 
+      sample = Action()
+      sample.lpos_x = self.last_pose.x
+      sample.lpos_y = self.last_pose.y
+      sample.lpos_pitch = self.last_pose.pitch
+      self.pub_action_sample.publish(sample)
       self.bool_last_p = False
       self.ready_depth = False
       self.ready_outcome = False
@@ -727,12 +712,11 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    pass
-    #if motion_pincher.get_explore():
-    #  motion_pincher.execute_action(True)
-    #  motion_pincher.send_signal_action()
-    #if motion_pincher.get_exploit():
-    #  motion_pincher.execute_dmp()
+    if motion_pincher.get_explore():
+      motion_pincher.execute_action(True)
+      motion_pincher.send_signal_action()
+    if motion_pincher.get_exploit():
+      motion_pincher.execute_dmp()
   """if first:
     motion_pincher.test_interface()  
     first = False"""
