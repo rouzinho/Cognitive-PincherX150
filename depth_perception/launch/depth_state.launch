@@ -1,3 +1,16 @@
 <launch>
+    <param name="init_params" type="bool" value="false" />
+    <rosparam param="crop_min_x">-600.919</rosparam>
+    <rosparam param="crop_max_x">-154.089</rosparam>
+    <rosparam param="crop_min_y">-342.415</rosparam>
+    <rosparam param="crop_max_y">402.577</rosparam>
+    <rosparam param="crop_min_z">-600.919</rosparam>
+    <rosparam param="crop_max_z">3.2039</rosparam>
+    <rosparam param="ax">1.38755</rosparam>
+    <rosparam param="bx">833.807</rosparam>
+    <rosparam param="ay">1.12753</rosparam>
+    <rosparam param="by">386.083</rosparam>
+    <rosparam param="az">1.65529</rosparam>
+    <rosparam param="bz">994.697</rosparam>
     <node name="depth_detector" pkg="depth_perception" type="depth_perception_node" output="screen"/>
 </launch>

@@ -69,7 +69,7 @@ class DepthImage
     ros::Publisher pub_name_state;
     ros::Publisher pub_success;
     ros::Publisher pub_ready;
-    ros::Publisher pub_ready_robot;
+    ros::Publisher pub_grasping;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -81,6 +81,12 @@ class DepthImage
     float crop_max_y;
     float crop_max_z;
     float crop_min_z;
+    double ax;
+    double bx;
+    double ay;
+    double by;
+    double az;
+    double bz;
     float threshold_depth;
     bool first;
     cv::Mat cv_image;
@@ -104,6 +110,10 @@ class DepthImage
     int s_reduce_h;
     bool first_gen;
     int count_init;
+    bool lock_callback;
+    int count_lock;
+    bool begin_count;
+    bool init_params;
 
   public:
     DepthImage():
@@ -122,7 +132,7 @@ class DepthImage
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
-      pub_ready_robot = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
+      pub_grasping = nh_.advertise<std_msgs::Bool>("/outcome_detector/grasping",1);
       tf_in = false;
       size_neural_field = 100;
       threshold_depth = 0.05;
@@ -131,12 +141,19 @@ class DepthImage
       s_y = 840;
       s_reduce_w = 214; //there's a crop in s_x
       s_reduce_h = 120;
-      crop_min_x = 0;
-      crop_min_y = 0;
-      crop_max_x = 0;
-      crop_max_y = 0;
-      crop_min_z = 0;
-      crop_max_z = 0;
+      ros::param::get("init_params", init_params);
+      ros::param::get("crop_min_x", crop_min_x);
+      ros::param::get("crop_max_x", crop_max_x);
+      ros::param::get("crop_min_y", crop_min_y);
+      ros::param::get("crop_max_y", crop_max_y);
+      ros::param::get("crop_min_z", crop_min_z);
+      ros::param::get("crop_max_z", crop_max_z);
+      ros::param::get("ax", ax);
+      ros::param::get("bx", bx);
+      ros::param::get("ay", ay);
+      ros::param::get("by", by);
+      ros::param::get("az", az);
+      ros::param::get("bz", bz);
       cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       fil = cv::Mat(s_x, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       final_image = cv::Mat(s_reduce_h, s_reduce_w, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
@@ -153,6 +170,8 @@ class DepthImage
       init_values = false;
       first_gen = true;
       count_init = 0;
+      lock_callback = false;
+      count_lock = 0;
     }
     ~DepthImage()
     {
@@ -160,25 +179,23 @@ class DepthImage
 
     void pointCloudCb(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     {
-      //if(!init_values)
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
+      if(!tf_in)
       {
-
+        listenTransform();
+      }
+      //std::cout<<cloud_msg->header.frame_id<<"/n";
       
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
-        if(!tf_in)
-        {
-          listenTransform();
-        }
-        //std::cout<<cloud_msg->header.frame_id<<"/n";
-        
-        pcl::PCLPointCloud2 pcl_pc2;
-        pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
-        pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
-        pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
+      pcl::PCLPointCloud2 pcl_pc2;
+      pcl_conversions::toPCL(*cloud_msg, pcl_pc2);
+      pcl::fromPCLPointCloud2(pcl_pc2,*temp_cloud);
+      pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
 
-        //print4x4Matrix(robot_frame);
+      //print4x4Matrix(robot_frame);
+      if(!init_params)
+      {
         if(count_init < 30)
         {
           getExtremeValues(cloud_transformed);
@@ -190,11 +207,24 @@ class DepthImage
           //genDepthFromPcl(cloud_transformed);
         }
       }
+      
+      if(begin_count)
+      {
+        count_lock++;
+      }
+      if(count_lock > 30 && !lock_callback)
+      {
+        resetDepth();
+        lock_callback = true;
+        count_lock = 0; 
+      }
 
     }
 
     void pointCloudObjectCb(const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     {
+      lock_callback = true;
+      count_lock = 0;
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_transformed(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZ>);
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cropped(new pcl::PointCloud<pcl::PointXYZ>);
@@ -212,7 +242,7 @@ class DepthImage
 
       //print4x4Matrix(robot_frame);
       //getExtremeValues(cloud_transformed);
-      if(init_values)
+      //if(init_params)
       {
         genDepthFromPcl(cloud_transformed);
       }
@@ -220,10 +250,13 @@ class DepthImage
       //std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
       //cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
       //stateChanged(img1,48);
+      lock_callback = false;
+      begin_count = false;
     }
 
     void activateCb(const std_msgs::BoolConstPtr& msg)
     {
+      begin_count = true;
       if(msg->data == true)
       {
         start = true;
@@ -237,6 +270,19 @@ class DepthImage
       {
         start = false;
       }
+    }
+
+    void resetDepth()
+    {
+      std::cout<<"Grasping detected, waiting for object to be back\n";
+      start = false;
+      ros::Duration(6.5).sleep();
+      rmStates();
+      first = true;
+      std_msgs::Bool msg;
+      msg.data = true;
+      pub_reset_detector.publish(msg);
+      pub_reset.publish(msg);
     }
 
     void listenTransform()
@@ -276,7 +322,7 @@ class DepthImage
         {
             px = cloud->points[i].x * 1000.0*-1;// *1000.0;
             py = cloud->points[i].y * 1000.0*-1;// *1000.0*-1; //revert image because it's upside down for display
-            pz = cloud->points[i].z *1000.0;
+            pz = cloud->points[i].z * 1000.0;
             //std::cout<<px<<"\n";
             if(px < min_x)
             {
@@ -342,128 +388,18 @@ class DepthImage
       
       //s_y = static_cast<int>(720 * gain);
       //cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      // std::cout<<"max x : "<<max_x<<"\n";
-      // std::cout<<"min x : "<<min_x<<"\n";
-      // std::cout<<"max y : "<<max_y<<"\n";
-      // std::cout<<"min y : "<<min_y<<"\n";
-      // std::cout<<"max z : "<<max_z<<"\n";
-      // std::cout<<"min z : "<<min_z<<"\n";
-      //std::cout<<"gain : "<<gain<<"\n";
-    }
-
-    cv::Mat fillDepthMapBlanks(cv::Mat img)
-    {
-      int k;
-      int l;
-      bool found = false;
-      bool black = false;
-      bool again = true;
-      float angle = 0;
-      bool rot = true;
-      while(again == true)
-      {
-        for(int i = 0; i < img.rows;i++)
-        {
-          for(int j = 0; j < img.cols;j++)
-          {
-            if(i > 10 && i < s_y && j > 10 && j < s_y)
-            {
-              if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2)
-              {
-                if(img.at<float>(i,j+1) > 0)
-                {
-                  if(img.at<float>(i,j+2) > 0 && img.at<float>(i,j+2) < 2)
-                  {
-                    k = i;
-                    l = j+1;
-                    black = true;
-                    
-                  }
-                }
-
-              }
-              if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
-              {
-                if(img.at<float>(i+1,j) > 0)
-                {
-                  if(img.at<float>(i+2,j) > 0 && img.at<float>(i+2,j) < 2)
-                  {
-                    k = i+1;
-                    l = j;
-                    black = true;
-                    
-                  }
-                }
-              }
-              if(img.at<float>(i,j) > 0 && img.at<float>(i,j) < 2 && black == false)
-              {
-                if(img.at<float>(i+1,j+1) > 0)
-                {
-                  if(img.at<float>(i+2,j+2) > 0 && img.at<float>(i+2,j+2) < 2)
-                  {
-                    k = i+1;
-                    l = j+1;
-                    black = true;
-                    
-                  }
-                }
-              }
-              
-              
-              if(black == true)
-              {
-                //std::cout<<" k : "<<i<<" l : "<<j<<"\n";
-                if(img.at<float>(k,l-1) > 0 && img.at<float>(k,l+1) > 0)
-                {
-                  float av = (img.at<float>(k,l-1) + img.at<float>(k,l+1)) / 2;
-                  img.at<float>(k,l) = av;
-                  found = true;
-                }
-                if(img.at<float>(k-1,l) > 0 && img.at<float>(k+1,l) > 0 && found == false)
-                {
-                  float av = (img.at<float>(k-1,l) + img.at<float>(k+1,l)) / 2;
-                  img.at<float>(k,l) = av;
-                  found = true;
-                }
-                if(img.at<float>(k-1,l-1) > 0 && img.at<float>(k+1,l+1) > 0 && found == false)
-                {
-                  float av = (img.at<float>(k-1,l-1) + img.at<float>(k+1,l+1)) / 2;
-                  img.at<float>(k,l) = av;
-                  found = true;
-                }
-                if(img.at<float>(k-1,l+1) > 0 && img.at<float>(k+1,l-1) > 0 && found == false)
-                {
-                  float av = (img.at<float>(k-1,l+1) + img.at<float>(k+1,l-1)) / 2;
-                  img.at<float>(k,l) = av;
-                  found = true;
-                }
-                found = false;
-                black = false;
-              }
-            }
-          }
-        }
-        if(angle <= 350)
-        {
-          angle = angle + 90;
-          cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
-        }
-        else
-        {
-          again = false;
-          //cv::rotate(img, img, cv::ROTATE_90_COUNTERCLOCKWISE);
-        }
-      }
-      //std::cout<<img.size()<<"  "<<img.rows<<"\n";
-      //cv::resize(img, resiz, cv::Size(720, 720), cv::INTER_LANCZOS4);
-      cv::Mat cropped_image; //= img(cv::Range(760,1480), cv::Range(0,1480));
-      cv::Mat ROI(img, cv::Rect(0,0,s_y,s_x));
-      //ROI.copyTo(cropped_image);
-      return ROI;
+      /*std::cout<<"crop min x : "<<crop_min_x<<"\n";
+      std::cout<<"crop max x : "<<crop_max_x<<"\n";
+      std::cout<<"crop min y : "<<crop_min_y<<"\n";
+      std::cout<<"crop max y : "<<crop_max_y<<"\n";
+      std::cout<<"crop min z : "<<crop_min_x<<"\n";
+      std::cout<<"crop max z : "<<crop_max_z<<"\n";
+      std::cout<<"gain : "<<gain<<"\n";*/
     }
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
+      cv::Mat display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));;
       if(first_gen)
       {
         cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
@@ -481,12 +417,15 @@ class DepthImage
         float py;
         float pz;
         float test;
-        double ax = (static_cast<double>(s_x))/(std::abs(crop_min_x)-std::abs(crop_max_x)); //1024 image width
-        double bx = 0 - (ax*crop_min_x);
-        double ay = (static_cast<double>(s_y))/(crop_max_y-crop_min_y); //1024 image height
-        double by = 0 - (ay*crop_min_y);
-        double az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
-        double bz = 0 - (az*crop_min_z);
+        if(!init_params)
+        {
+          ax = (static_cast<double>(s_x))/(std::abs(crop_min_x)-std::abs(crop_max_x)); //1024 image width
+          bx = 0 - (ax*crop_min_x);
+          ay = (static_cast<double>(s_y))/(crop_max_y-crop_min_y); //1024 image height
+          by = 0 - (ay*crop_min_y);
+          az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
+          bz = 0 - (az*crop_min_z);
+        }
         if(start == true)
         {
           if(count < threshold)
@@ -513,11 +452,10 @@ class DepthImage
                   //std::cout<<"x : "<<pixel_pos_x<<" Y : "<<pixel_pos_y<<"\n";
                   cv_image.at<float>(pixel_pos_x,pixel_pos_y) = pixel_pos_z;
                 }
-                    
               }
-              
             }
-            cv_image = cv_image(cv::Range(0,s_x-150), cv::Range(0,s_y));
+            display = cv_image.clone();
+            //cv_image = cv_image(cv::Range(0,s_x-150), cv::Range(0,s_y));
           }
           else
           {
@@ -545,7 +483,7 @@ class DepthImage
             cv::resize(filtered, final_image, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
             pub_state.publish(dobject_nf);
-            ros::Duration(5.5).sleep();
+            //ros::Duration(5.5).sleep();
             int c = getFilesCount();
             if(first == false)
             {
@@ -566,9 +504,9 @@ class DepthImage
                   std::cout<<"RESET DNF\n";
                   std_msgs::Bool msg;
                   msg.data = true;
-                  pub_success.publish(msg);
                   pub_new_state.publish(msg);
                   ros::Duration(4.5).sleep();
+                  pub_activate_detector.publish(msg);
                   msg.data = false;
                   pub_new_state.publish(msg);
                   msg.data = true;
@@ -582,22 +520,19 @@ class DepthImage
                   cv::imwrite(name_state, final_image);
                   std_msgs::Bool msg_f;
                   msg_f.data = false;
-                  pub_success.publish(msg_f);
+                  //pub_success.publish(msg_f);
                   std_msgs::Bool msg;
                   msg.data = true;
                   pub_retry.publish(msg);
-                  //ros::Duration(0.5).sleep();
-                  //msg.data = false;
-                  //pub_retry.publish(msg);
-                  msg.data = true;
+                  ros::Duration(0.5).sleep();
+                  pub_reset_detector.publish(msg);
+                  pub_activate_detector.publish(msg);
                   pub_ready.publish(msg);
                 }
-                std_msgs::Bool msg;
-                msg.data = true;
-                pub_activate_detector.publish(msg);
               }
               else
               {
+                std::cout<<"out of border\n";
                 first = true;
                 out_boundary = true;
                 std_msgs::Bool msg;
@@ -645,8 +580,8 @@ class DepthImage
         count++;
       
       }
-      //cv::imshow(OPENCV_WINDOW,cv_image);
-      //cv::waitKey(1);
+      cv::imshow(OPENCV_WINDOW,cv_image);
+      cv::waitKey(1);
     }
 
     cv::Mat filterDepthSample(cv::Mat img_depth, cv::Mat img_color)
@@ -658,6 +593,19 @@ class DepthImage
       img_color.copyTo(filtered_img,mask_filter);
 
       return filtered_img;
+    }
+
+    void rmStates()
+    {
+      int c = getFilesCount();
+      c++;
+      std::string n = "/home/altair/interbotix_ws/src/depth_perception/states/";
+      for(int i = 0; i< c;i++)
+      {
+        std::string s = n + "state_" + to_string(i) + ".jpg";
+        const char * f = s.c_str();
+        std::remove(f);
+      }
     }
 
     bool detectBoundaries(cv::Mat img)
@@ -676,7 +624,7 @@ class DepthImage
         //send outcome before reset
         std_msgs::Bool msg;
         msg.data = true;
-        pub_success.publish(msg);
+        //pub_success.publish(msg);
         pub_activate_detector.publish(msg);
         bool answer = false;
         std::chrono::seconds duration(3);
