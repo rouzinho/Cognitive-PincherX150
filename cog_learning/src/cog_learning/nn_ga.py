@@ -23,7 +23,6 @@ class NNGoalAction(object):
         self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
-        self.pub_ready = rospy.Publisher('/cog_learning/ready', Bool, queue_size=10)
         self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
