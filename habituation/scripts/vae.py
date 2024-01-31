@@ -541,6 +541,7 @@ class Habituation(object):
       self.load = rospy.get_param("load")
       self.index_vae = -1
       self.id_object = 0
+      self.prev_id_object = -1
       self.count_color = 0
       self.incoming_dmp = False
       self.incoming_outcome = False
@@ -686,17 +687,19 @@ class Habituation(object):
 
    def callback_id(self, msg):
       self.id_object = msg.data
-      found = False
-      for i in range(0,len(self.habit)):
-         tmp = self.habit[i].get_id()
-         if tmp == self.id_object:
-               self.index_vae = i
-               found = True
-      if not found:
-         tmp_habbit = VariationalAE(self.id_object)
-         self.habit.append(tmp_habbit)
-         self.index_vae = len(self.habit) - 1
-         print("Creation new VAE : ",self.id_object)
+      if self.prev_id_object != self.id_object:
+         found = False
+         for i in range(0,len(self.habit)):
+            tmp = self.habit[i].get_id()
+            if tmp == self.id_object:
+                  self.index_vae = i
+                  found = True
+         if not found:
+            tmp_habbit = VariationalAE(self.id_object)
+            self.habit.append(tmp_habbit)
+            self.index_vae = len(self.habit) - 1
+            print("Creation new VAE : ",self.id_object)
+         self.prev_id_object = self.id_object
 
 
    def learn_new_latent(self, sample):
