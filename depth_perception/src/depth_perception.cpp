@@ -455,7 +455,7 @@ class DepthImage
               }
             }
             display = cv_image.clone();
-            //cv_image = cv_image(cv::Range(0,s_x-150), cv::Range(0,s_y));
+            cv_image = cv_image(cv::Range(0,s_x-150), cv::Range(0,s_y));
           }
           else
           {

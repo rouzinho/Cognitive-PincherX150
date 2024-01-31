@@ -1,5 +1,5 @@
 <launch>
-    <param name="init_params" type="bool" value="false" />
+    <param name="init_params" type="bool" value="true" />
     <rosparam param="crop_min_x">-600.919</rosparam>
     <rosparam param="crop_max_x">-154.089</rosparam>
     <rosparam param="crop_min_y">-342.415</rosparam>
