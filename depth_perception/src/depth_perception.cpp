@@ -484,17 +484,16 @@ class DepthImage
             fil_b = enhanceDepth(fil_b,0.01);
 
             //get filtered image
-            filtered = filterDepthSample(resized,fil);
-            filtered_b = filterDepthSample(resized_b,fil_b);
             //for dnf
-            cv::cvtColor(res,r_nf,cv::COLOR_RGB2GRAY);
+            cv::cvtColor(fil,r_nf,cv::COLOR_RGB2GRAY);
             r_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
             pub_state.publish(dobject_nf);
-            std::cout<<"rows : "<<filtered_b.rows<<"\n";
-            std::cout<<"cols : "<<filtered_b.cols<<"\n";
+            //std::cout<<"rows : "<<filtered_b.rows<<"\n";
+            //std::cout<<"cols : "<<filtered_b.cols<<"\n";
+            final_image = fil_b.clone();
             //for bigger image
-            cv::resize(filtered_b, final_image, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
+            //cv::resize(filtered_b, final_image, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
             
             //ros::Duration(5.5).sleep();
             int c = getFilesCount();
@@ -817,13 +816,14 @@ class DepthImage
         for(int j = 0; j < tmp.cols; j++)
         {
           int pix = static_cast<int>(tmp.at<uchar>(i,j));
+          std::cout<<"pix value : "<<pix<<"\n";
           if(pix > 12)
           {
             tot = tot + 1;
           }
         }
       }
-      //std::cout<<"total change : "<<tot<<"\n";
+      std::cout<<"total change : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
