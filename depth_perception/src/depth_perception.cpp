@@ -91,7 +91,9 @@ class DepthImage
     bool first;
     cv::Mat cv_image;
     cv::Mat res;
+    cv::Mat res_b;
     cv::Mat fil;
+    cv::Mat fil_b;
     cv::Mat cv_nf;
     int count;
     int threshold;
@@ -114,6 +116,7 @@ class DepthImage
     int count_lock;
     bool begin_count;
     bool init_params;
+    cv::Mat display;
 
   public:
     DepthImage():
@@ -123,7 +126,7 @@ class DepthImage
       sub_point_cloud = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &DepthImage::pointCloudCb,this);
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
-      pub_state = it_.advertise("/depth_perception/state", 1);
+      pub_state = it_.advertise("/depth_perception/dnf_state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
@@ -137,10 +140,11 @@ class DepthImage
       size_neural_field = 100;
       threshold_depth = 0.05;
       first = true;
-      s_x = 620;
-      s_y = 840;
+      s_x = 620;  //620
+      s_y = 840;  //840
       s_reduce_w = 214; //there's a crop in s_x
-      s_reduce_h = 120;
+      s_reduce_h = 110;
+      display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       ros::param::get("init_params", init_params);
       ros::param::get("crop_min_x", crop_min_x);
       ros::param::get("crop_max_x", crop_max_x);
@@ -156,6 +160,7 @@ class DepthImage
       ros::param::get("bz", bz);
       cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       fil = cv::Mat(s_x, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+      fil_b = cv::Mat(s_x, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       final_image = cv::Mat(s_reduce_h, s_reduce_w, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_nf = cv::Mat(50, 50, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       //cv_image = cv::Mat(1024, 1024, CV_32FC1,cv::Scalar(0));
@@ -163,7 +168,7 @@ class DepthImage
       cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
       cv::resize(tmp_mask, mask, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
       count = 0;
-      threshold = 40;
+      threshold = 2;
       start = true;
       threshold_change = 10;
       out_boundary = false;
@@ -264,6 +269,7 @@ class DepthImage
         //s_y = static_cast<int>(720 * gain);
         cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
         fil = cv::Mat(s_x, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
+        fil_b = cv::Mat(s_x, s_y, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
         final_image = cv::Mat(s_reduce_h, s_reduce_w, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
       }
       else
@@ -388,18 +394,17 @@ class DepthImage
       
       //s_y = static_cast<int>(720 * gain);
       //cv_image = cv::Mat(720, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      /*std::cout<<"crop min x : "<<crop_min_x<<"\n";
+      std::cout<<"crop min x : "<<crop_min_x<<"\n";
       std::cout<<"crop max x : "<<crop_max_x<<"\n";
       std::cout<<"crop min y : "<<crop_min_y<<"\n";
       std::cout<<"crop max y : "<<crop_max_y<<"\n";
       std::cout<<"crop min z : "<<crop_min_x<<"\n";
       std::cout<<"crop max z : "<<crop_max_z<<"\n";
-      std::cout<<"gain : "<<gain<<"\n";*/
+      std::cout<<"gain : "<<gain<<"\n";
     }
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      cv::Mat display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));;
       if(first_gen)
       {
         cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
@@ -408,6 +413,8 @@ class DepthImage
       cv::Mat cv_nf = cv::Mat(s_reduce_h, s_reduce_w, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
       if(!first_gen)
       {
+        //crop image to fit robot space to DNF
+        cv::Rect crop_img(0,170,s_y-35,s_x-180);
         cv::Mat rot;
         const float bad_point = std::numeric_limits<float>::quiet_NaN();
         int pixel_pos_x;
@@ -416,7 +423,6 @@ class DepthImage
         float px;
         float py;
         float pz;
-        float test;
         if(!init_params)
         {
           ax = (static_cast<double>(s_x))/(std::abs(crop_min_x)-std::abs(crop_max_x)); //1024 image width
@@ -441,48 +447,55 @@ class DepthImage
               pixel_pos_z = pixel_pos_z/1000.0;
               if(px > crop_max_x || px < crop_min_x || py > crop_max_y || py < crop_min_y)
               {
-                //std::cout<<"bad point\n";
                 cloud->points[i].z = bad_point;
-                //cv_image.at<float>(pixel_pos_x,pixel_pos_y) = 0.0;
               }
               if (cloud->points[i].z == cloud->points[i].z)
               {
                 if((pixel_pos_x > 0 && pixel_pos_x < s_x) && (pixel_pos_y > 0 && pixel_pos_y < s_y))
                 {
-                  //std::cout<<"x : "<<pixel_pos_x<<" Y : "<<pixel_pos_y<<"\n";
                   cv_image.at<float>(pixel_pos_x,pixel_pos_y) = pixel_pos_z;
                 }
               }
             }
-            display = cv_image.clone();
-            cv_image = cv_image(cv::Range(0,s_x-150), cv::Range(0,s_y));
+            display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+            display = cv_image(crop_img);
           }
           else
           {
+            //ros::Duration(10.5).sleep();
             cv::Mat fil_nf;// = cv::Mat(1024, 1024, CV_8U,cv::Scalar(std::numeric_limits<float>::min()));
             cv::Mat r_nf;
             cv::Mat padded;
             cv::Mat resized;
             cv::Mat filtered;
+            cv::Mat filtered_b;
+            cv::Mat resized_b;
             bool change;
-            //Padding for easier blank filling
-            //cv::copyMakeBorder(cv_image,padded,760,0,0,0,cv::BORDER_CONSTANT,cv::Scalar(std::numeric_limits<float>::min()));
-            //cv_image = fillDepthMapBlanks(padded);
-            //convert to RGB
-            cv::resize(cv_image, resized, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
+            //one for dnf, one bigger for changes detection
+            cv::resize(display, resized, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
+            cv::resize(cv_image, resized_b, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
             cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
+            cv::cvtColor(resized_b,res_b,cv::COLOR_GRAY2RGB);
             res.convertTo(res, CV_8U, 255.0);
+            res_b.convertTo(res_b, CV_8U, 255.0);
             cv::medianBlur(res,fil,(3,3)); //9 9
+            cv::medianBlur(res_b,fil_b,(3,3)); //9 9
+            fil = enhanceDepth(fil,0.01);
+            fil_b = enhanceDepth(fil_b,0.01);
+
             //get filtered image
             filtered = filterDepthSample(resized,fil);
+            filtered_b = filterDepthSample(resized_b,fil_b);
             //for dnf
-            //test
-            //cv::cvtColor(filtered,r_nf,cv::COLOR_RGB2GRAY);
             cv::cvtColor(res,r_nf,cv::COLOR_RGB2GRAY);
             r_nf.convertTo(cv_nf, CV_32FC1, 1/255.0);
-            cv::resize(filtered, final_image, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
             sensor_msgs::ImagePtr dobject_nf = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, cv_nf).toImageMsg();
             pub_state.publish(dobject_nf);
+            std::cout<<"rows : "<<filtered_b.rows<<"\n";
+            std::cout<<"cols : "<<filtered_b.cols<<"\n";
+            //for bigger image
+            cv::resize(filtered_b, final_image, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
+            
             //ros::Duration(5.5).sleep();
             int c = getFilesCount();
             if(first == false)
@@ -547,6 +560,7 @@ class DepthImage
             else
             {
               std::cout<<"first time\n";
+              rmStates();
               int c = getFilesCount();
               std::string name_state;
               if(c > 0)
@@ -580,8 +594,36 @@ class DepthImage
         count++;
       
       }
-      cv::imshow(OPENCV_WINDOW,cv_image);
+      cv::imshow(OPENCV_WINDOW,fil_b);
       cv::waitKey(1);
+    }
+
+    cv::Mat enhanceDepth(cv::Mat img, float thr)
+    {
+      cv::Mat tmp;
+      cv::Mat d;
+      cv::Mat color_img;
+      cv::cvtColor(img,tmp,cv::COLOR_RGB2GRAY);
+      tmp.convertTo(d, CV_32FC1, 1/255.0);
+      for(int i = 0; i < d.rows; i++)
+      {
+          for(int j = 0; j < d.cols; j++)
+          {
+            float pix = d.at<float>(i,j);
+            if(pix > thr)
+            {
+                d.at<float>(i,j) = pix * 100;
+            }
+            else
+            {
+                d.at<float>(i,j) = 0.0;
+            }
+          }
+      }
+      cv::cvtColor(d,color_img,cv::COLOR_GRAY2RGB);
+      color_img.convertTo(color_img, CV_8U, 255.0);
+      
+      return color_img;
     }
 
     cv::Mat filterDepthSample(cv::Mat img_depth, cv::Mat img_color)
