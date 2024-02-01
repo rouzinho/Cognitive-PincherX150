@@ -595,15 +595,15 @@ class Motion(object):
       #self.bool_act = False
 
   def run_possibilities(self):
-    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/data_short.txt"
+    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/possible_positions.txt"
     exist = path.exists(name_dataset)
     self.init_position()
     x = 0
     y = 0
     p = 0
     r = 0
-    for i in range(5,40):
-      for j in range(-40,40):
+    for i in range(18,47):
+      for j in range(-35,33):
         for k in range(0,18,2):
           if i == 0:
             x = 0
@@ -711,14 +711,15 @@ if __name__ == '__main__':
   #motion_planning.close_gripper()
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
-  while not rospy.is_shutdown():
-    if motion_pincher.get_explore():
-      motion_pincher.execute_action(True)
-      motion_pincher.send_signal_action()
-    if motion_pincher.get_exploit():
-      motion_pincher.execute_dmp()
-  """if first:
-    motion_pincher.test_interface()  
-    first = False"""
+  #while not rospy.is_shutdown():
+    #if motion_pincher.get_explore():
+    #  motion_pincher.execute_action(True)
+    #  motion_pincher.send_signal_action()
+    #if motion_pincher.get_exploit():
+    #  motion_pincher.execute_dmp()
+  if first:
+    motion_pincher.run_possibilities()
+    print("DONE !")  
+    first = False
 
   rospy.spin()
