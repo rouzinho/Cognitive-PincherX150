@@ -315,10 +315,10 @@ class Detector
         {
             listenTransform();
         }
-        //state_object.state_x = pose_object.pose.position.x;
-        //state_object.state_y = pose_object.pose.position.y;
+        state_object.state_x = pose_object.pose.position.x;
+        state_object.state_y = pose_object.pose.position.y;
         //state_object.state_angle = object_state_angle;
-        //pub_state_object.publish(state_object);
+        pub_state_object.publish(state_object);
         tf2::Quaternion q_orig(0,0,0,1);
         tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
@@ -456,11 +456,11 @@ class Detector
         geometry_msgs::Point vec_ref_object = findVectorTransform(first, t_x,t_y);
         res.x = vec_ref_object.x;
         res.y = vec_ref_object.y;
-        std::cout<<"first angle : "<<first_ang<<"\n";
-        std::cout<<"second angle : "<<sec_ang<<"\n";
+        //std::cout<<"first angle : "<<first_ang<<"\n";
+        //std::cout<<"second angle : "<<sec_ang<<"\n";
         std::cout<<"Angle difference : "<<diff<<"\n";
-        //std::cout<<"vec x : "<<res.x<<"\n";
-        //std::cout<<"vec y : "<<res.y<<"\n";
+        std::cout<<"vector x : "<<res.x<<"\n";
+        std::cout<<"vector y : "<<res.y<<"\n";
         res.angle = diff;
         std_msgs::Bool tmp;
         tmp.data = true;
