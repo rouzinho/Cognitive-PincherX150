@@ -339,8 +339,8 @@ class Som(object):
         scaler_x = MinMaxScaler()
         scaler_y = MinMaxScaler()
         scaler_p = MinMaxScaler()
-        x_minmax = np.array([0.05, 0.4])
-        y_minmax = np.array([-0.4, 0.4])
+        x_minmax = np.array([0.18, 0.45])
+        y_minmax = np.array([-0.35, 0.32])
         p_minmax = np.array([0, 1.6])
         scaler_x.fit(x_minmax[:, np.newaxis])
         scaler_y.fit(y_minmax[:, np.newaxis])
@@ -365,8 +365,8 @@ class Som(object):
         n_y = n_y.reshape(-1,1)
         n_p = np.array(c[2])
         n_p = n_p.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(0.05, 0.4))
-        scaler_y = MinMaxScaler(feature_range=(-0.4, 0.4))
+        scaler_x = MinMaxScaler(feature_range=(0.18, 0.45))
+        scaler_y = MinMaxScaler(feature_range=(-0.35, 0.32))
         scaler_p = MinMaxScaler(feature_range=(0, 1.6))
         x_minmax = np.array([0, 1])
         y_minmax = np.array([0, 1])
@@ -612,7 +612,7 @@ class Som(object):
     def load_som(self,name,mode):
         if os.path.exists(name):
             dat = np.load(name)
-            if mode == "pose":
+            if mode == "position":
                 self.set_pose_numpy_som(dat)
                 t = self.get_pose_numpy_som()
                 self.im.set_array(t)
@@ -708,8 +708,8 @@ if __name__ == "__main__":
     num_feat = rospy.get_param(name_init+"num_feat")
     if data_set == "motion":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_motion.txt"  
-    if data_set == "pose":
-        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_pose.txt"
+    if data_set == "position":
+        name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_positions.txt"
     if data_set == "outcome":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_outcome.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
@@ -721,11 +721,11 @@ if __name__ == "__main__":
         #som.build_dataset_motion()
         som.train_som_dataset_outcome(name_dataset)
         som.save_som_outcome("/home/altair/interbotix_ws/src/som/models/model_actions.npy")
-    if training == True and data_set == "pose":
+    if training == True and data_set == "position":
         som.init_network_som_pose()
         #som.build_dataset_pose()
         som.train_som_dataset_pose(name_dataset)
-        som.save_som_pose("/home/altair/interbotix_ws/src/som/models/model_pose.npy")
+        som.save_som_pose("/home/altair/interbotix_ws/src/som/models/model_pose_opt2.npy")
         #som.print_som()
     if training == True and data_set == "outcome":
         som.init_network_som_action()
@@ -740,11 +740,11 @@ if __name__ == "__main__":
     if training == False and data_set == "outcome":
         som.init_network_som_action()
         som.load_som(model_name,data_set)
-    if training == False and data_set == "pose":
+    if training == False and data_set == "position":
         som.init_network_som_pose()
         som.load_som(model_name,data_set)
     print("READY")
-    #plt.show()
+    plt.show()
     #while not rospy.is_shutdown():
     #    pass
     rospy.spin()
