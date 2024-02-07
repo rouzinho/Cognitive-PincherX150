@@ -103,11 +103,11 @@ class Motion(object):
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
-    #rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
+    rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
-    rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
+    #rospy.Subscriber('/touch/pressure', UInt16, self.callback_pressure)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
@@ -144,8 +144,8 @@ class Motion(object):
     self.single_msg = True
     self.threshold_touch_min = 0.02
     self.threshold_touch_max = 0.03
-    self.explore = True
-    self.exploit = False
+    self.explore = False
+    self.exploit = True
     self.dmp_exploit = Dmp()
     self.dmp_explore = Dmp()
     self.dmp_name = ""
@@ -191,6 +191,7 @@ class Motion(object):
       self.ready_depth = False
       self.ready_outcome = False
     if self.exploit:
+      print("got DMP pose")
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
@@ -247,7 +248,7 @@ class Motion(object):
       print("PLAN NEW ACTION")
       if self.recording_dmp and self.explore:
         self.make_dmp()
-        self.delete_js_bag()
+        #self.delete_js_bag()
         self.recording_dmp = False
 
   def callback_retry(self,msg):
@@ -425,11 +426,13 @@ class Motion(object):
     for file in os.listdir(self.current_folder):
         p_x = file.find('x')
         p_y = file.find('y')
+        p_p = file.find('p')
         p_g = file.find('g')
         p_r = file.find('r')
         p_end = file.find('end')
         x = file[p_x+1:p_y]
-        y = file[p_y+1:p_r]
+        y = file[p_y+1:p_p]
+        p = file[p_p+1:p_r]
         r = file[p_r+1:p_g]
         g = file[p_g+1:p_end]
         x = float(x)
@@ -457,25 +460,26 @@ class Motion(object):
     #print("Get DMP :")
     #print(resp)
     makeSetActiveRequest(resp.dmp_list)
-    goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.03,self.dmp_exploit.roll,self.dmp_exploit.pitch) 
+    goal, found = self.pose_to_joints(self.last_pose.x,self.last_pose.y,0.06,self.dmp_exploit.roll,self.last_pose.pitch) 
     print("goal : ",goal)
     print("cartesian goal : ",self.last_pose)
     if found:
       print("found goal to reach")
-    goal_thresh = [0.01,0.01,0.01,0.01,0.01]
+    goal_thresh = [0.1,0.1,0.1,0.1,0.1]
     x_0 = curr         #Plan starting at a different point than demo 
     x_dot_0 = [0.0,0.0,0.0,0.0,0.0]   
     t_0 = 0                
     seg_length = -1          #Plan until convergence to goal
-    tau = resp.tau /2       # /4 is good enough
+    tau = resp.tau / 2       # /4 is good enough
     dt = 1.0 
     integrate_iter = 5       #dt is rather large, so this is > 1  
     planned_dmp = makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh, seg_length, tau, dt, integrate_iter)
     j = 0
     path = self.shrink_dmp(planned_dmp.plan.points,goal)
-    print("path length", len(path))
+    print("path length ", len(planned_dmp.plan.points))
+    print("path length shrinked", len(path))
     for i in path:
-      self.bot.arm.set_joint_positions(i,moving_time=0.4,accel_time=0.1)
+      self.bot.arm.set_joint_positions(i,moving_time=0.1,accel_time=0.02) #moving time 0.4 accel 0.1
       print(j)
       j+=1
     sample = Action()
@@ -500,7 +504,7 @@ class Motion(object):
   def execute_dmp(self):
     if self.dmp_found and self.goal_dmp:
       self.init_position()     
-      if self.dmp.grasp > 0.5:
+      if self.dmp_exploit.grasp > 0.5:
         self.open_gripper()
       else:
         self.close_gripper()
@@ -706,20 +710,20 @@ if __name__ == '__main__':
   #ac.roll = 0.0
   #ac.grasp = 0.0
   #first = True
-  rospy.sleep(2.0)
+  rospy.sleep(3.0)
   #motion_planning.open_gripper()
   #motion_planning.close_gripper()
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
-  #while not rospy.is_shutdown():
-    #if motion_pincher.get_explore():
-    #  motion_pincher.execute_action(True)
-    #  motion_pincher.send_signal_action()
-    #if motion_pincher.get_exploit():
-    #  motion_pincher.execute_dmp()
-  if first:
-    motion_pincher.run_possibilities()
-    print("DONE !")  
-    first = False
+  while not rospy.is_shutdown():
+    if motion_pincher.get_explore():
+      motion_pincher.execute_action(True)
+      motion_pincher.send_signal_action()
+    if motion_pincher.get_exploit():
+      motion_pincher.execute_dmp()
+  #if first:
+  #  motion_pincher.run_possibilities()
+  #  print("DONE !")  
+  #  first = False
 
   rospy.spin()

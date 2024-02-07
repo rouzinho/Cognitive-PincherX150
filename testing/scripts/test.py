@@ -7,17 +7,20 @@ from motion.msg import Dmp
 from detector.msg import Outcome
 from detector.msg import State
 from motion.msg import Action
+from som.msg import GripperOrientation
 
 class Testing(object):
    def __init__(self):
       rospy.init_node('test_vae', anonymous=True)
       self.pub_dmp = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
+      self.pub_retrieve_dmp = rospy.Publisher("/motion_pincher/retrieve_dmp", Dmp, queue_size=1, latch=True)
       self.pub_outcome = rospy.Publisher("/outcome_detector/outcome", Outcome, queue_size=1, latch=True)
       self.pub_id = rospy.Publisher("/cog_learning/id_object", Int16, queue_size=1, latch=True)
       self.pub_action_sample = rospy.Publisher('/motion_pincher/action_sample', Action, latch=True, queue_size=1)
       self.pub_state = rospy.Publisher('/outcome_detector/state', State, latch=True, queue_size=1)
       self.pub_explore = rospy.Publisher('/cog_learning/exploration', Bool, latch=True, queue_size=1)
       self.pub_exploit = rospy.Publisher('/cog_learning/exploitation', Bool, latch=True, queue_size=1)
+      self.pub_lpos = rospy.Publisher('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, latch=True, queue_size=1)
       rospy.Subscriber("/cog_learning/ready", Bool, self.callback_ready)
       self.ready = True
 
@@ -78,12 +81,41 @@ class Testing(object):
       tmp.data = True
       self.pub_exploit.publish(tmp)
 
+   def retrieve_dmp(self):
+      tmp = Dmp()
+      tmp.v_x = 0.1
+      tmp.v_y = 0
+      tmp.v_pitch = 0
+      tmp.roll = -0.3
+      tmp.grasp = 1.0
+      tmp.fpos_x = 0
+      tmp.fpos_y = 0
+      self.pub_retrieve_dmp.publish(tmp)
 
+   def last_pos(self,data):
+      tmp = GripperOrientation()
+      tmp.x = data[0]
+      tmp.y = data[1]
+      tmp.z = data[2]
+      tmp.pitch = data[3]
+      self.pub_lpos.publish(tmp)
 
 if __name__ == "__main__":
    test = Testing()
+   rospy.sleep(0.5)
    test.send_id(0)
-   data = []
+   #test.pub_exploitation()
+   rospy.sleep(0.5)
+   test.retrieve_dmp()
+   rospy.sleep(0.5)
+   #d = [0.2,0.0,0.03,1.2]
+   #test.last_pos(d)
+   d = [0.25,-0.2,0.06,0.8]
+   rospy.sleep(0.5)
+   test.last_pos(d)
+
+
+   """data = []
    actions = []
    states = []
    outcome1 = [0.1,0.1,40.0,0.0]
@@ -176,6 +208,6 @@ if __name__ == "__main__":
             rospy.sleep(0.5)
             test.publish_outcome(data[i][0])
             test.set_ready(False)
-            i += 1
+            i += 1"""
 
    rospy.spin()
