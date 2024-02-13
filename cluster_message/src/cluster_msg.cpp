@@ -109,7 +109,7 @@ class ClusterMessage
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;  
       dmp_b = true;
-      std::cout<<"cluster : got DMP\n";
+      //std::cout<<"cluster : got DMP\n";
    }
 
    void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
@@ -140,7 +140,7 @@ class ClusterMessage
          dmp_b = false;
          state_b = false;
          sample_b = false;
-         std::cout<<"cluster : got sample explore\n";
+         //std::cout<<"cluster : got sample explore\n";
       }
       if(exploit == true && state_b == true && sample_b == true)
       {
@@ -168,7 +168,7 @@ class ClusterMessage
       state.state_x = msg->state_x;
       state.state_y = msg->state_y;
       state_b = true;
-      std::cout<<"cluster : got state\n";
+      //std::cout<<"cluster : got state\n";
    }
 
    void CallbackSample(const motion::Action::ConstPtr& msg)
@@ -177,13 +177,13 @@ class ClusterMessage
       sample.lpos_y = msg->lpos_y;
       sample.lpos_pitch = msg->lpos_pitch;
       sample_b = true;
-      std::cout<<"cluster : got sample\n";
+      //std::cout<<"cluster : got sample\n";
    }
 
    void CallbackExplore(const std_msgs::Bool::ConstPtr& msg)
    {
       explore = msg->data;
-      std::cout<<"cluster : got explore\n";
+      //std::cout<<"cluster : got explore\n";
    }
 
    void CallbackExploit(const std_msgs::Bool::ConstPtr& msg)

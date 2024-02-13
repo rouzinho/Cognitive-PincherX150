@@ -656,7 +656,7 @@ class Habituation(object):
          msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
          self.send_eval_latent(msg)
          self.send_latent_test(z)
-         #rospy.sleep(5.0)
+         rospy.sleep(1.0)
          l = LatentDNF()
          self.send_eval_latent(l)
       self.learn_new_latent(tensor_sample)

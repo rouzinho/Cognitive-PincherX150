@@ -105,7 +105,7 @@ if __name__ == "__main__":
    rospy.sleep(0.5)
    test.send_id(0)
    #test.pub_exploitation()
-   rospy.sleep(0.5)
+   """rospy.sleep(0.5)
    test.retrieve_dmp()
    rospy.sleep(0.5)
    #d = [0.2,0.0,0.03,1.2]
@@ -115,7 +115,8 @@ if __name__ == "__main__":
    test.last_pos(d)
 
 
-   """data = []
+   """
+   data = []
    actions = []
    states = []
    outcome1 = [0.1,0.1,40.0,0.0]
@@ -139,11 +140,11 @@ if __name__ == "__main__":
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
    outcome4 = [0.0,0.0,0.0,1.0]
-   dmp4 = [0.15,0.0,0.6,0.0,1.0]
+   dmp4 = [0.15,0.0,0.6,0.0,1.0,0.2,0.3]
    action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
    outcome5 = [-0.1,0.1,10.0,0.0]
-   dmp5 = [-0.1,0.1,-0.2,0.0,0.0]
+   dmp5 = [-0.1,0.1,-0.2,0.0,0.0,-0.2,0.3]
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    
@@ -186,7 +187,7 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if explore:
          test.pub_exploration()
-         if(test.get_ready() and i < 3):
+         if(test.get_ready() and i < 5):
             #if i == 1:
             #   test.send_id(1)
             #   rospy.sleep(0.5)
@@ -197,6 +198,7 @@ if __name__ == "__main__":
             test.publish_outcome(data[i][0])
             test.set_ready(False)
             i += 1
+            rospy.sleep(4.5)
       else:
          test.pub_exploitation()
          test.send_id(0)
@@ -208,6 +210,6 @@ if __name__ == "__main__":
             rospy.sleep(0.5)
             test.publish_outcome(data[i][0])
             test.set_ready(False)
-            i += 1"""
+            i += 1
 
    rospy.spin()

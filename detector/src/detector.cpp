@@ -367,6 +367,10 @@ class Detector
             }
             
         }
+        else
+        {
+            std::cout<<"no object\n";
+        }
         //cv::imshow("out", cv_ptr->image);
         //cv::waitKey(1);
         std_msgs::Int16 tmp;
