@@ -142,8 +142,8 @@ class DepthImage
       first = true;
       s_x = 620;  //620
       s_y = 840;  //840
-      s_reduce_w = 214; //there's a crop in s_x
-      s_reduce_h = 110;
+      s_reduce_w = 180; //there's a crop in s_x
+      s_reduce_h = 130;
       display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       ros::param::get("init_params", init_params);
       ros::param::get("crop_min_x", crop_min_x);
@@ -168,7 +168,7 @@ class DepthImage
       cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
       cv::resize(tmp_mask, mask, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
       count = 0;
-      threshold = 2;
+      threshold = 5;
       start = true;
       threshold_change = 10;
       out_boundary = false;
@@ -431,6 +431,12 @@ class DepthImage
           by = 0 - (ay*crop_min_y);
           az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
           bz = 0 - (az*crop_min_z);
+          std::cout<<"ax : "<<ax<<"\n";
+          std::cout<<"bx : "<<bx<<"\n";
+          std::cout<<"ay : "<<ay<<"\n";
+          std::cout<<"by : "<<by<<"\n";
+          std::cout<<"az : "<<az<<"\n";
+          std::cout<<"bz : "<<bz<<"\n";
         }
         if(start == true)
         {
