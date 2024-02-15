@@ -26,6 +26,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
+        self.mt_field = ""
         torch.manual_seed(24)
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
@@ -95,6 +96,12 @@ class NNGoalAction(object):
         self.skills.append(new_skill)
         ind = len(self.skills) - 1
         return ind
+    
+    def set_mt_field(self, img):
+      self.mt_field = img
+
+    def get_mt_field(self):
+      return self.mt_field
     
     def plot_latent(self):
         msg_latent = LatentPos()
