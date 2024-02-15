@@ -151,8 +151,8 @@ class VariationalAE(object):
       ext_x, ext_y = self.get_latent_extremes(l_values)
       self.list_latent_scaled = []
       if exploration == "static":
-         self.max_bound_x = 100
-         self.max_bound_y = 100
+         self.bound_x = 100
+         self.bound_y = 100
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
                #print("Latent Value : ",i)
