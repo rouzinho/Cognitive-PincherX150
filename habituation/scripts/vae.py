@@ -27,6 +27,8 @@ from cog_learning.msg import LatentDNF
 from cog_learning.msg import LatentGoalNN
 from cluster_message.msg import SampleExplore
 import copy
+from cv_bridge import CvBridge, CvBridgeError
+from sensor_msgs.msg import Image
 
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
@@ -137,6 +139,7 @@ class VariationalAE(object):
    def __init__(self,id_object):
       self.vae = VariationalAutoencoder(2)
       self.memory = []
+      self.mt_field = ""
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
@@ -292,6 +295,12 @@ class VariationalAE(object):
    
    def get_id(self):
       return self.id
+   
+   def set_mt_field(self, img):
+      self.mt_field = img
+
+   def get_mt_field(self):
+      return self.mt_field
 
    #get min max of x and y in latent space, used for scaling
    def get_latent_extremes(self, l_lat):
@@ -528,6 +537,8 @@ class VariationalAE(object):
 class Habituation(object):
    def __init__(self):
       rospy.init_node('habituation', anonymous=True)
+      self.bridge = CvBridge()
+      rospy.Subscriber("/habituation/mt", Image, self.field_callback)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
       rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
@@ -536,12 +547,14 @@ class Habituation(object):
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)
+      self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       self.load = rospy.get_param("load")
       self.index_vae = -1
       self.id_object = 0
       self.prev_id_object = -1
+      self.id_defined = False
       self.count_color = 0
       self.incoming_dmp = False
       self.incoming_outcome = False
@@ -576,6 +589,15 @@ class Habituation(object):
       self.first = True
       if(self.load):
          self.load_nn()
+
+   def field_callback(self,msg):
+      try:
+         # Convert your ROS Image message to OpenCV2
+         cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+         if self.id_defined:
+            self.habit[self.index_vae].set_mt_field(cv2_img)
+      except CvBridgeError as e:
+         print(e)
 
    #scale inputs from real values to [-1,1]
    def scale_data(self, data, min_, max_):
@@ -624,6 +646,11 @@ class Habituation(object):
 
    def send_eval_latent(self, msg):
       self.pub_eval_latent.publish(msg)
+
+   def send_mt_field(self):
+      img_field = self.habit[self.index_vae].get_mt_field()
+      img_msg = self.bridge.cv2_to_imgmsg(img_field, encoding="passthrough")
+      self.pub_field.publish(img_msg)
 
    def callback_sample_explore(self, msg):
       if self.first:
@@ -694,12 +721,14 @@ class Habituation(object):
             if tmp == self.id_object:
                   self.index_vae = i
                   found = True
+                  self.send_mt_field()
          if not found:
             tmp_habbit = VariationalAE(self.id_object)
             self.habit.append(tmp_habbit)
             self.index_vae = len(self.habit) - 1
             print("Creation new VAE : ",self.id_object)
          self.prev_id_object = self.id_object
+         self.id_defined = True
 
 
    def learn_new_latent(self, sample):
