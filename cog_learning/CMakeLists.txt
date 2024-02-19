@@ -55,6 +55,7 @@ add_message_files(
   LatentGoalDnf.msg
   LatentGoalNN.msg
   LatentDNF.msg
+  LatentNNDNF.msg
 )
 
 ## Generate services in the 'srv' folder

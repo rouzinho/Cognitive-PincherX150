@@ -23,7 +23,8 @@ from detector.msg import Outcome
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 from cog_learning.msg import LatentGoalDnf
-from cog_learning.msg import LatentDNF
+from cog_learning.msg import LatentNNDNF
+from cog_learning.msg import Goal
 from cog_learning.msg import LatentGoalNN
 from cluster_message.msg import SampleExplore
 import copy
@@ -231,8 +232,8 @@ class VariationalAE(object):
 
 
    def set_eval_to_latent_dnf(self, z, exploration):
-      new_latent = LatentDNF()
-      eval_value = LatentGoalDnf()
+      new_latent = LatentNNDNF()
+      eval_value = Goal()
       list_eval = copy.deepcopy(self.list_latent)
       list_eval.append(z)
       ext_x, ext_y = self.get_latent_extremes(list_eval)
@@ -250,8 +251,9 @@ class VariationalAE(object):
             max_y = ext_y[1]
          x = self.scale_latent_to_dnf_static(z[0],min_x,max_x)
          y = self.scale_latent_to_dnf_static(z[1],min_y,max_y)
-         eval_value.latent_x = round(x)
-         eval_value.latent_y = round(y)
+         eval_value.x = round(x)
+         eval_value.y = round(y)
+         eval_value.value = 1.0
       else:
          dist_x = abs(ext_x[0]) + abs(ext_x[1])
          dist_y = abs(ext_y[0]) + abs(ext_y[1])
@@ -264,8 +266,9 @@ class VariationalAE(object):
          max_bound_y = round(max_bound_y)
          x = self.scale_latent_to_dnf_dynamic(z[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
          y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
-         eval_value.latent_x = round(x)
-         eval_value.latent_y = round(y)
+         eval_value.x = round(x)
+         eval_value.y = round(y)
+         eval_value.value = 1.0
          new_latent.max_x = max_bound_x
          new_latent.max_y = max_bound_y
       new_latent.list_latent.append(eval_value)
@@ -544,10 +547,10 @@ class Habituation(object):
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
-      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentDNF, queue_size=1, latch=True)
+      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
-      self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentDNF, queue_size=1, latch=True)
-      self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image)
+      self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       self.load = rospy.get_param("load")
@@ -627,13 +630,14 @@ class Habituation(object):
    
    def send_latent_space(self):
       ls = self.habit[self.index_vae].get_latent_space_dnf()
-      msg_latent = LatentDNF()
+      msg_latent = LatentNNDNF()
       msg_latent.max_x = self.habit[self.index_vae].get_bound_x()
       msg_latent.max_y = self.habit[self.index_vae].get_bound_y()
       for i in ls:
-         lg = LatentGoalDnf() 
-         lg.latent_x = i[0]
-         lg.latent_y = i[1]
+         lg = Goal() 
+         lg.x = i[0]
+         lg.y = i[1]
+         lg.value = 1.0
          msg_latent.list_latent.append(lg)
       #print("Latent space DNF : ",msg_latent)
       self.pub_latent_space_dnf.publish(msg_latent)
@@ -684,7 +688,7 @@ class Habituation(object):
          self.send_eval_latent(msg)
          self.send_latent_test(z)
          rospy.sleep(1.0)
-         l = LatentDNF()
+         l = LatentNNDNF()
          self.send_eval_latent(l)
       self.learn_new_latent(tensor_sample)
       t = self.time - rospy.get_time()

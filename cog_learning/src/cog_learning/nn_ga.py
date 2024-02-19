@@ -12,6 +12,7 @@ from motion.msg import Dmp
 from motion.msg import Action
 from cog_learning.msg import Goal
 from cog_learning.msg import LatentGoalDnf
+from cog_learning.msg import LatentNNDNF
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
@@ -24,6 +25,7 @@ class NNGoalAction(object):
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
         self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
+        self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
         self.mt_field = ""
@@ -193,7 +195,7 @@ class NNGoalAction(object):
     def scale_latent_to_expend(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(-1.5,1.5))
+        scaler_x = MinMaxScaler(feature_range=(-1.2,1.2))
         x_minmax = np.array([-1, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -206,7 +208,7 @@ class NNGoalAction(object):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler(feature_range=(-1.0,1.0))
-        x_minmax = np.array([-1.7, 1.7])
+        x_minmax = np.array([-1.2, 1.2])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -395,7 +397,7 @@ class NNGoalAction(object):
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
-        inputs = [round(t0*100),round(t1*100)]
+        inputs = [round(t0*100),round(t1*100),error_fwd]
         self.skills[ind_skill].set_name(inputs)
         #print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
@@ -411,6 +413,7 @@ class NNGoalAction(object):
         self.end_action(True)
         rospy.sleep(1)
         self.end_action(False)
+        self.send_latent_space()
         print("Hebbian learning, index : ",ind_skill)
         print("Inputs Hebbian : ",inputs)
         self.hebbian.hebbianLearning(inputs,ind_skill)
@@ -480,6 +483,20 @@ class NNGoalAction(object):
         output = self.decoder(data)
 
         return output
+    
+    def send_latent_space(self):
+      ls = self.get_latent_space_dnf()
+      msg_latent = LatentNNDNF()
+      msg_latent.max_x = 100
+      msg_latent.max_y = 100
+      for i in ls:
+         lg = Goal() 
+         lg.x = i[0]
+         lg.y = i[1]
+         lg.value = i[2]
+         msg_latent.list_latent.append(lg)
+      #print("Latent space DNF : ",msg_latent)
+      self.pub_latent_space_dnf.publish(msg_latent)
 
     def add_to_memory(self, data):
         self.memory.append(data)

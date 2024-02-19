@@ -188,9 +188,11 @@ if __name__ == "__main__":
       if explore:
          test.pub_exploration()
          if(test.get_ready() and i < 5):
-            #if i == 1:
-            #   test.send_id(1)
-            #   rospy.sleep(0.5)
+            if i == 2:
+               print("change object")
+               rospy.sleep(1.5)
+               test.send_id(1)
+               rospy.sleep(5.5)
             test.publish_state(states[i])
             test.publish_dmp(data[i][1])
             test.publish_action(actions[i])
