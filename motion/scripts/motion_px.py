@@ -73,17 +73,6 @@ def makePlanRequest(x_0, x_dot_0, t_0, goal, goal_thresh,
             
     return resp;
 
-def return_bmu(sample):
-  #rospy.wait_for_service('get_bmu')
-  bm = rospy.ServiceProxy('som_pose/get_bmu', GetBMU)
-  try:
-      req = GetBMURequest()
-      req.sample = sample
-      resp = bm(req)
-      return resp
-  except rospy.ServiceException as e:
-      print("Service call failed: %s"%e)
-
 
 class Motion(object):
   def __init__(self):
