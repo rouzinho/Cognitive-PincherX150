@@ -28,7 +28,9 @@ class NNGoalAction(object):
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
-        self.mt_field = ""
+        self.mt_field = np.zeros((100,100,1), np.float32)
+        self.mt_error = np.zeros((100,100,1), np.float32)
+        self.mt_lp = np.zeros((100,100,1), np.float32)
         torch.manual_seed(24)
         self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
         self.encoder.to(device)
@@ -63,7 +65,6 @@ class NNGoalAction(object):
         self.min_angle = -180
         self.max_angle = 180
         
-
     def update_learning_progress(self, data, error):
         update_lp = Goal()
         update_lp.x = data[0]
@@ -71,11 +72,11 @@ class NNGoalAction(object):
         update_lp.value = error
         self.pub_update_lp.publish(update_lp)
         
-    def send_new_goal(self, data):
+    def send_new_goal(self, data, val):
         new_goal = Goal()
         new_goal.x = data[0]
         new_goal.y = data[1]
-        new_goal.value = 1.0
+        new_goal.value = val
         self.pub_new_goal.publish(new_goal)
 
     def pub_timing(self, value):
@@ -105,6 +106,18 @@ class NNGoalAction(object):
     def get_mt_field(self):
       return self.mt_field
     
+    def set_mt_error(self, img):
+      self.mt_error = img
+
+    def get_mt_error(self):
+      return self.mt_error
+    
+    def set_mt_lp(self, img):
+      self.mt_lp = img
+
+    def get_mt_lp(self):
+      return self.mt_lp
+    
     def plot_latent(self):
         msg_latent = LatentPos()
         for i in self.latent_space:
@@ -119,6 +132,9 @@ class NNGoalAction(object):
         n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
         n_skills = self.folder_nnga + str(self.id_nnga) + "/list_skills.pkl"
         n_hebb = self.folder_nnga + str(self.id_nnga) + "/hebbian_weights.npy"
+        n_mtlatent = self.folder_nnga + str(self.id_nnga) + "/latent_space.npy"
+        n_mterror = self.folder_nnga + str(self.id_nnga) + "/mt_error.npy"
+        n_mtlp = self.folder_nnga + str(self.id_nnga) + "/mt_lp.npy"
         exist = path.exists(n_mem)
         if exist:
             os.remove(n_mem)
@@ -126,6 +142,9 @@ class NNGoalAction(object):
             os.remove(n_latent_scaled)
             os.remove(n_skills)
             os.remove(n_hebb)
+            os.remove(n_mtlatent)
+            os.remove(n_mterror)
+            os.remove(n_mtlp)
         filehandler = open(n_mem, 'wb')
         pickle.dump(self.memory, filehandler)
         filehandler_l = open(n_latent, 'wb')
@@ -135,6 +154,9 @@ class NNGoalAction(object):
         filehandler_s = open(n_skills, 'wb')
         pickle.dump(self.skills, filehandler_s)
         self.hebbian.saveWeights(n_hebb)
+        np.save(n_mtlatent,self.mt_field)
+        np.save(n_mterror,self.mt_error)
+        np.save(n_mtlp,self.mt_lp)
 
     def save_nn(self):
         name_dir = self.folder_nnga + str(self.id_nnga) 
@@ -160,6 +182,9 @@ class NNGoalAction(object):
         n_latent_scaled = self.folder_nnga + str(n) + "/latent_space_scaled.pkl"
         n_skills = self.folder_nnga + str(n) + "/list_skills.pkl"
         n_hebb = self.folder_nnga + str(n) + "/hebbian_weights.npy"
+        n_mtlatent = self.folder_nnga + str(self.id_nnga) + "/latent_space.npy"
+        n_mterror = self.folder_nnga + str(self.id_nnga) + "/mt_error.npy"
+        n_mtlp = self.folder_nnga + str(self.id_nnga) + "/mt_lp.npy"
         filehandler = open(n_mem, 'rb') 
         mem = pickle.load(filehandler)
         self.memory = mem
@@ -173,6 +198,9 @@ class NNGoalAction(object):
         s = pickle.load(filehandler_s)
         self.skills = s
         self.hebbian.loadWeights(n_hebb)
+        self.mt_field = np.load(n_mtlatent)
+        self.mt_error = np.load(n_mterror)
+        self.mt_lp = np.load(n_mtlp)
 
     def load_nn(self, n):
         nn = self.folder_nnga + str(n) + "/nn_ga.pt"
@@ -405,10 +433,11 @@ class NNGoalAction(object):
         self.plot_latent()
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
-        self.send_new_goal(inputs)
+        self.send_new_goal(inputs,1.0)
         self.pub_timing(1.0)
         #rospy.sleep(10)
         self.update_learning_progress(inputs,0)
+        self.send_new_goal(inputs,0.0)
         self.pub_timing(0.0)
         self.end_action(True)
         rospy.sleep(1)
