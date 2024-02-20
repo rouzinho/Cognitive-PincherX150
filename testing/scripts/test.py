@@ -148,6 +148,11 @@ if __name__ == "__main__":
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    
+   outcome6 = [-0.1,-0.1,140.0,0.0]
+   dmp6 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
+   action6 = [0.2,0.2,1.0]
+   state6 = [0.2,0.2,20.0]
+
    sim1_out = [0.1,0.1,30.0,0.0]
    sim1_dmp = [0.1,0.11,1.0,0.6,0.0]
    sim2_out = [0.4,0.4,0.1,0.0]
@@ -165,6 +170,7 @@ if __name__ == "__main__":
    data.append([outcome4,dmp4])
    
    data.append([outcome5,dmp5])
+   data.append([outcome6,dmp6])
    #data.append([sim1_out,sim1_dmp])
    #data.append([sim2_out,sim2_dmp])
    #data.append([sim3_out,sim3_dmp])
@@ -175,11 +181,13 @@ if __name__ == "__main__":
    actions.append(action3)
    actions.append(action4)
    actions.append(action5)
+   actions.append(action6)
    states.append(state1)
    states.append(state2)
    states.append(state3)
    states.append(state4)
    states.append(state5)
+   states.append(state6)
 
    i = 0
    seconds = 0
@@ -187,12 +195,12 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if explore:
          test.pub_exploration()
-         if(test.get_ready() and i < 5):
-            if i == 2:
-               print("change object")
-               rospy.sleep(1.5)
-               test.send_id(1)
-               rospy.sleep(5.5)
+         if(test.get_ready() and i < 6):
+            #if i == 2:
+            #   print("change object")
+            #   rospy.sleep(1.5)
+            #   test.send_id(1)
+            #   rospy.sleep(5.5)
             test.publish_state(states[i])
             test.publish_dmp(data[i][1])
             test.publish_action(actions[i])
