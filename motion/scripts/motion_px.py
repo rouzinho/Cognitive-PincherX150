@@ -113,6 +113,7 @@ class Motion(object):
     rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
     rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
+    rospy.Subscriber('/motion_pincher/validate_dmp', Dmp, self.callback_validate_dmp)
     rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
     rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
     self.dmp_folder = rospy.get_param("dmp_folder")
@@ -225,16 +226,20 @@ class Motion(object):
       self.write_joints_bag(self.name_ee,self.prop)
 
   def callback_dmp(self,msg):
-    self.dmp_exploit.v_x = msg.v_x
-    self.dmp_exploit.v_y = msg.v_y
-    self.dmp_exploit.v_pitch = msg.v_pitch
-    self.dmp_exploit.roll = msg.roll
-    self.dmp_exploit.grasp = msg.grasp
     self.dmp_found, self.dmp_name = self.find_dmp(msg)
     if self.dmp_found:
       print("found DMP : ",self.dmp_name)
     else:
       print("DMP not found")
+
+  def validate_dmp(self,msg):
+    self.dmp_explore.v_x = msg.v_x
+    self.dmp_explore.v_y = msg.v_y
+    self.dmp_explore.v_pitch = msg.v_pitch
+    self.dmp_explore.roll = msg.roll
+    self.dmp_explore.grasp = msg.grasp
+    self.dmp_explore.fpos_x = msg.fpos_x
+    self.dmp_explore.fpos_y = msg.fpos_y
 
   def callback_new_state(self,msg):
     if msg.data == True:
@@ -440,6 +445,11 @@ class Motion(object):
         r = float(r)
         g = float(g)
         if dmp.v_x - x < 0.05 and dmp.v_y - y < 0.05 and dmp.roll - r < 0.05 and dmp.grasp - g < 0.05:
+            self.dmp_exploit.v_x = x
+            self.dmp_exploit.v_y = y
+            self.dmp_exploit.v_pitch = p
+            self.dmp_exploit.roll = r
+            self.dmp_exploit.grasp = g
             found = True
             right_file = file
     right_file = self.current_folder + right_file

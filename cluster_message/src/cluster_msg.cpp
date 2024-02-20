@@ -41,10 +41,13 @@ class ClusterMessage
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_ready_sensor;
    ros::Publisher pub_ready;
+   ros::Publisher pub_validate_dmp;
+   ros::Publisher pub_dmp_outcome;
    detector::Outcome outcome;
    detector::State state;
    motion::Action sample;
    motion::Dmp dmp;
+   motion::Dmp dmp_eval;
    bool dmp_b;
    bool out;
    bool explore;
@@ -69,11 +72,14 @@ class ClusterMessage
       sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 10, &ClusterMessage::CallbackReadyNN,this);
       sub_ready_depth = nh_.subscribe("/depth_perception/ready", 10, &ClusterMessage::CallbackReadyDepth,this);
       sub_ready_outcome = nh_.subscribe("/outcome_detector/ready", 10, &ClusterMessage::CallbackReadyOutcome,this);
+      sub_dmp_eval = nh_.subscribe("/cluster_msg/dmp", 10, &ClusterMessage::CallbackDMPEval,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       //pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/motion_pincher/ready",1);
       pub_ready_sensor = nh_.advertise<std_msgs::Bool>("/cluster_msg/sensor_ready",1);
+      pub_validate_dmp = nh_.advertise<motion::Dmp>("/motion_pincher/validate_dmp",1);
+      pub_dmp_outcome = nh_.advertise<motion::DmpOutcome>("/habituation/eval_dmp_outcome",1);
       explore = false;
       exploit = false;
    }
@@ -108,6 +114,7 @@ class ClusterMessage
       dmp.v_pitch = msg->v_pitch;
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;  
+      pub_validate_dmp.publish(dmp);
       dmp_b = true;
       //std::cout<<"cluster : got DMP\n";
    }
@@ -156,6 +163,17 @@ class ClusterMessage
          s.outcome_angle = outcome.angle;
          s.outcome_touch = outcome.touch;
          pub_datas_exploit.publish(s);
+         motion::DmpOutcome tmp;
+         tmp.v_x = dmp_eval.v_x;
+         tmp.v_y = dmp_eval.v_y;
+         tmp.v_pitch = dmp_eval.v_pitch;
+         tmp.grasp = dmp_eval.grasp;
+         tmp.roll = dmp_eval.roll;
+         tmp.x = outcome.x;
+         tmp.y = outcome.y;
+         tmp.angle = outcome.angle;
+         tmp.touch = outcome.touch;
+         pub_dmp_outcome.publish(tmp);
          state_b = false;
          sample_b = false;
       }
@@ -243,6 +261,15 @@ class ClusterMessage
          ready_outcome = false;
          std::cout<<"Cluster msg READY by outcome\n";
       }
+   }
+
+   void CallbackDMPEval(const motion::Dmp::ConstPtr& msg)
+   {
+      dmp_eval.v_x = msg->v_x;
+      dmp_eval.v_y = msg->v_y;
+      dmp_eval.v_pitch = msg->v_pitch;
+      dmp_eval.roll = msg->roll;
+      dmp_eval.grasp = msg->grasp;
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)
