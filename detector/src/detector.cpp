@@ -72,6 +72,7 @@ class Detector
         ros::Subscriber sub_angle;
         ros::Subscriber sub_first_time;
         ros::Subscriber sub_grasping;
+        ros::Subscriber sub_monitored;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -103,6 +104,7 @@ class Detector
         bool activate_angle;
         bool touch;
         bool mode;
+        int monitored_object;
         float first_angle;
         float second_angle;
         float object_state_angle;
@@ -127,6 +129,7 @@ class Detector
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
         sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
+        sub_monitored = nh_.subscribe("/outcome_detector/monitored_object", 1, &Detector::intCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
@@ -264,6 +267,11 @@ class Detector
         touch = msg->data;
     }
 
+    void intCallback(const std_msgs::Int16ConstPtr& msg)
+    {
+        monitored_object = msg->data;
+    }
+
     void AngleCallback(const std_msgs::Float32ConstPtr& msg)
     {
         object_state_angle = msg->data;
@@ -367,9 +375,30 @@ class Detector
             }
             
         }
-        else
+        if(ids.size() > 1)
         {
-            std::cout<<"no object\n";
+            id_object = monitored_object;
+            for(int i = 0; i < ids.size(); i++)
+            {
+                if(ids[0] == monitored_object)
+                {
+                    if(corners[ids[i]].size() == 4)
+                    {
+                        for(int j = 0; j < corners[ids[i]].size(); j++)
+                        {
+                            depth_interface::ElementUI pt;
+                            pt.elem.x = corners[ids[i]][j].x;
+                            pt.elem.y = corners[ids[i]][j].y;
+                            pts.poi.push_back(pt);
+                        }
+                        pub_aruco.publish(pts);
+                    }
+                }
+            }
+        }
+        if(ids.size() == 0)
+        {
+            id_object = -1;
         }
         //cv::imshow("out", cv_ptr->image);
         //cv::waitKey(1);
