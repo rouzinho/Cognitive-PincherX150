@@ -65,6 +65,8 @@ class NNGoalAction(object):
         self.max_grasp = 1
         self.min_angle = -180
         self.max_angle = 180
+        self.min_scale = -1.2
+        self.max_scale = 1.2
         
     def update_learning_progress(self, data, error):
         update_lp = Goal()
@@ -224,7 +226,7 @@ class NNGoalAction(object):
     def scale_latent_to_expend(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(-1.2,1.2))
+        scaler_x = MinMaxScaler(feature_range=(self.min_scale,self.max_scale))
         x_minmax = np.array([-1, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -237,7 +239,7 @@ class NNGoalAction(object):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler(feature_range=(-1.0,1.0))
-        x_minmax = np.array([-1.2, 1.2])
+        x_minmax = np.array([self.min_scale, self.max_scale])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -263,7 +265,7 @@ class NNGoalAction(object):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler()
-        x_minmax = np.array([-1, 1])
+        x_minmax = np.array([self.min_scale, self.max_scale])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -274,7 +276,7 @@ class NNGoalAction(object):
     def scale_dnf_to_latent(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(-1,1))
+        scaler_x = MinMaxScaler(feature_range=(self.min_scale,self.max_scale))
         x_minmax = np.array([0, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -419,13 +421,24 @@ class NNGoalAction(object):
         error_inv = err_inv.item()
         #print("ERROR INVERSE : ",error_inv)
         #print("ERROR FORWARD : ",error_fwd)
-        t_inputs = self.encoder(tensor_sample_go)
+        t_inputs = self.forward_encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
-        #print("latent space : ",output_l)
+        print("latent space original : ",output_l)
         e0 = self.scale_latent_to_expend(output_l[0])
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
+        print("latent DNF : ",[t0,t1])
+        x = t0 / 100
+        y = t1 / 100
+        x_ = self.scale_dnf_to_latent(x)
+        y_ = self.scale_dnf_to_latent(y)
+        x_1 = self.scale_latent_to_reduce(x_)
+        y_1 = self.scale_latent_to_reduce(y_)
+        print("latent space rescaled : ",[x_1,y_1])
+        
+
+
         inputs = [round(t0*100),round(t1*100),error_fwd]
         self.skills[ind_skill].set_name(inputs)
         #print("dnf input : ",inputs)
@@ -444,8 +457,8 @@ class NNGoalAction(object):
         rospy.sleep(1)
         self.end_action(False)
         self.send_latent_space()
-        print("Hebbian learning, index : ",ind_skill)
-        print("Inputs Hebbian : ",inputs)
+        #print("Hebbian learning, index : ",ind_skill)
+        #print("Inputs Hebbian : ",inputs)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
