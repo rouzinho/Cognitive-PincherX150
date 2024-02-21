@@ -195,7 +195,7 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       if explore:
          test.pub_exploration()
-         if(test.get_ready() and i < 6):
+         if(test.get_ready() and i < 4):
             #if i == 2:
             #   print("change object")
             #   rospy.sleep(1.5)
