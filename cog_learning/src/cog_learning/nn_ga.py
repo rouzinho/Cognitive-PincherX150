@@ -7,7 +7,7 @@ from cog_learning.hebb_server import *
 from cog_learning.skill import *
 from detector.msg import Outcome
 from detector.msg import State
-from motion.msg import DmpAction
+from motion.msg import DmpOutcome
 from motion.msg import Dmp
 from motion.msg import Action
 from cog_learning.msg import Goal
@@ -27,6 +27,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
+        self.pub_habituation = rospy.Publisher("/habituation/eval_perception", DmpOutcome, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
         self.mt_field = np.zeros((100,100,1), np.float32)
         self.mt_error = np.zeros((100,100,1), np.float32)
@@ -435,7 +436,7 @@ class NNGoalAction(object):
         self.update_learning_progress(inputs,error_fwd)
         self.send_new_goal(inputs,1.0)
         self.pub_timing(1.0)
-        #rospy.sleep(10)
+        rospy.sleep(1.0)
         self.update_learning_progress(inputs,0)
         self.send_new_goal(inputs,0.0)
         self.pub_timing(0.0)
@@ -449,6 +450,7 @@ class NNGoalAction(object):
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         self.trainDecoder()
+        self.test_training()
         self.save_nn()
         self.save_memory()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
@@ -469,6 +471,7 @@ class NNGoalAction(object):
         current_cost = 0
         for i in range(0,1):
             self.decoder.train()
+            self.encoder.eval()
             optimizer.zero_grad()
             sample = self.memory[-1]
             sample = sample.to(device)
@@ -483,6 +486,7 @@ class NNGoalAction(object):
             #current_cost = current_cost + cost.item()
         while last_cost > 0.0001:
             for j in range(0,len(self.memory)):
+                self.encoder.eval()
                 self.decoder.train()
                 optimizer.zero_grad()
                 sample = self.memory[j]
@@ -501,13 +505,33 @@ class NNGoalAction(object):
             current_cost = 0
         print("finish training NNGA")
 
+    def test_training(self):
+        print("EVALUATION")
+        for i in range(0,len(self.memory)):
+            self.encoder.eval()
+            self.decoder.eval()
+            sample = self.memory[i]
+            print("input sample ",sample)
+            sample = sample.to(device)
+            inputs = self.encoder(sample)
+            inp = inputs.detach().numpy()
+            print("Latent values : ",inp)
+            inputs = inputs.to(device)
+            outputs = self.decoder(inputs)
+            out  = outputs.detach().numpy()
+            print("reconstruction : ",out)
+        print("latent space : ",self.latent_space)
+        print("latent space scaled : ",self.latent_space_scaled)
+
     def forward_encoder(self, data):
+        self.encoder.eval()
         data = data.to(device)
         output = self.encoder(data)
 
         return output
     
     def forward_decoder(self, data):
+        self.decoder.eval()
         data = data.to(device)
         output = self.decoder(data)
 
@@ -530,6 +554,9 @@ class NNGoalAction(object):
     def add_to_memory(self, data):
         self.memory.append(data)
 
+    def get_memory(self):
+        return self.memory
+
     def get_id(self):
         return self.id_nnga
     
@@ -539,10 +566,29 @@ class NNGoalAction(object):
     def get_latent_space_dnf(self):
         return self.latent_space_scaled
     
+    def send_habituation(self, goal):
+        tmp = [goal.latent_x,goal.latent_y]
+        tensor_latent = torch.tensor(tmp,dtype=torch.float)
+        output = self.forward_decoder(tensor_latent)
+        out = output.detach().numpy()
+        print("output sample : ",out)
+        print("memory : ",self.memory)
+        dmp_out = DmpOutcome()
+        dmp_out.x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
+        dmp_out.y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
+        dmp_out.angle = self.reconstruct_latent(out[2],self.min_angle,self.max_angle)
+        dmp_out.touch = self.reconstruct_latent(out[3],self.min_grasp,self.max_grasp)
+        dmp_out.v_x = self.reconstruct_latent(out[4],self.min_vx,self.max_vx)
+        dmp_out.v_y = self.reconstruct_latent(out[5],self.min_vy,self.max_vy)
+        dmp_out.v_pitch = self.reconstruct_latent(out[6],self.min_vpitch,self.max_vpitch)
+        dmp_out.roll = self.reconstruct_latent(out[7],self.min_roll,self.max_roll)
+        dmp_out.grasp = self.reconstruct_latent(out[8],self.min_grasp,self.max_vx)
+        self.pub_habituation.publish(dmp_out)
+    
     def activate_dmp(self, goal):
         tmp = [goal.latent_x,goal.latent_y]
         tensor_latent = torch.tensor(tmp,dtype=torch.float)
-        output = self.decoder(tensor_latent)
+        output = self.forward_decoder(tensor_latent)
         out = output.detach().numpy()
         dmp = Dmp()
         dmp.v_x = self.reconstruct_latent(out[4],self.min_vx,self.max_vx)

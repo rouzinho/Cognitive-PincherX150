@@ -17,7 +17,7 @@ from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
 from torch.autograd import Variable
-from motion.msg import DmpAction
+from motion.msg import DmpOutcome
 from motion.msg import Dmp
 from detector.msg import Outcome
 from habituation.msg import LatentPos
@@ -150,6 +150,10 @@ class VariationalAE(object):
       self.bound_y = 0
       self.max_bound_x = 0
       self.max_bound_y = 0
+      self.min_latent_x = -1
+      self.max_latent_x = 1
+      self.min_latent_y = -1
+      self.max_latent_y = 1
 
    def set_latent_dnf(self, l_values, exploration):
       ext_x, ext_y = self.get_latent_extremes(l_values)
@@ -162,17 +166,17 @@ class VariationalAE(object):
                #print("Latent Value : ",i)
                #print("extreme values X : ",ext_x)
                #print("extreme values Y : ",ext_y)
-               min_x = -1
-               max_x = 1
-               min_y = -1
-               max_y = 1
+               self.min_latent_x = -1
+               self.max_latent_x = 1
+               self.min_latent_y = -1
+               self.max_latent_y = 1
                if (ext_x[0] < -1 or ext_x[1] > 1) or (ext_y[0] < -1 or ext_y[1] > 1):
-                  min_x = ext_x[0]
-                  max_x = ext_x[1]
-                  min_y = ext_y[0]
-                  max_y = ext_y[1]
-               x = self.scale_latent_to_dnf_static(i[0],min_x,max_x)
-               y = self.scale_latent_to_dnf_static(i[1],min_y,max_y)
+                  self.min_latent_x = ext_x[0]
+                  self.max_latent_x = ext_x[1]
+                  self.min_latent_y = ext_y[0]
+                  self.max_latent_y = ext_y[1]
+               x = self.scale_latent_to_dnf_static(i[0],self.min_latent_x,self.max_latent_x)
+               y = self.scale_latent_to_dnf_static(i[1],self.min_latent_y,self.max_latent_y)
                self.list_latent_scaled.append([round(x),round(y)])
          else:
             self.list_latent_scaled.append([50,50])
@@ -202,6 +206,10 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
+         print("bound x : ", self.bound_x)
+         print("bound y : ", self.bound_y)
+         print("max bound x : ", self.max_bound_x)
+         print("max bound y : ", self.max_bound_y)
       #print("Latent DNF : ",self.list_latent_scaled)
       #print(" LATENT FORMED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
             
@@ -230,7 +238,7 @@ class VariationalAE(object):
       #print("LATENT TESTED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
       return latent_value
 
-
+   #create eval latent value by including it in the latent space so it can expand this one
    def set_eval_to_latent_dnf(self, z, exploration):
       new_latent = LatentNNDNF()
       eval_value = Goal()
@@ -278,6 +286,50 @@ class VariationalAE(object):
          new_latent.max_y = max_bound_y
       new_latent.list_latent.append(eval_value)
       #print("Eval DNF : ",new_latent)
+
+      return new_latent
+   
+   #get the DNF value of eval value without integrating it in the latent space size
+   def get_eval_latent_to_dnf(self, z, exploration):
+      new_latent = LatentNNDNF()
+      eval_value = Goal()
+      list_eval = copy.deepcopy(self.list_latent)
+      #list_eval.append(z)
+      ext_x, ext_y = self.get_latent_extremes(list_eval)
+      print("extremes x : ",ext_x)
+      print("extremes y : ",ext_y)
+      print("z : ",z)
+      if exploration == "static":
+         new_latent.max_x = 100
+         new_latent.max_y = 100
+         x = self.scale_latent_to_dnf_static(z[0],self.min_latent_x,self.max_latent_x)
+         y = self.scale_latent_to_dnf_static(z[1],self.min_latent_y,self.max_latent_y)
+         eval_value.x = round(x)
+         eval_value.y = round(y)
+         eval_value.value = 1.0
+      else:
+         padding_x = round(self.max_bound_x * 0.1)
+         padding_y = round(self.max_bound_y * 0.1)
+         max_bound_x = round(self.max_bound_x)
+         max_bound_y = round(self.max_bound_y)
+         x = self.scale_latent_to_dnf_dynamic(z[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
+         y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
+         #print("data",z[1])
+         print(" x : ",x)
+         print(" y : ",y)
+         print("padding min ",padding_y)
+         print("padding max ",self.max_bound_y-padding_y)
+         #y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,self.max_bound_y-padding_y)
+         eval_value.x = round(x)
+         eval_value.y = round(y)
+         eval_value.value = 1.0
+         print("bound x : ", self.bound_x)
+         print("bound y : ", self.bound_y)
+         print("max bound x : ", self.max_bound_x)
+         print("max bound y : ", self.max_bound_y)
+         new_latent.max_x = self.bound_x
+         new_latent.max_y = self.bound_y
+      new_latent.list_latent.append(eval_value)
 
       return new_latent
 
@@ -474,6 +526,9 @@ class VariationalAE(object):
    def get_memory_size(self):
       return len(self.memory)
    
+   def get_memory(self):
+      return self.memory
+   
    def saveNN(self, name_folder, id_obj):
       name_dir = name_folder + str(id_obj) 
       n = name_dir + "/habituation.pt"
@@ -554,19 +609,6 @@ class Habituation(object):
       rospy.init_node('habituation', anonymous=True)
       self.bridge = CvBridge()
       self.id_defined = False
-      rospy.Subscriber("/habituation/mt", Image, self.field_callback)
-      rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
-      rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
-      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
-      self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
-      self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
-      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
-      self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
-      self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
-      self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
-      self.exploration_mode = rospy.get_param("exploration")
-      self.folder_habituation = rospy.get_param("habituation_folder")
-      self.load = rospy.get_param("load")
       self.index_vae = -1
       self.id_object = 0
       self.prev_id_object = -1
@@ -575,6 +617,8 @@ class Habituation(object):
       self.incoming_outcome = False
       self.dmp = Dmp()
       self.outcome = Outcome()
+      self.dmp_exploit = Dmp()
+      self.outcome_exploit = Outcome()
       self.habit = []
       self.max_pitch = 1.5
       self.min_vx = -0.2
@@ -602,6 +646,21 @@ class Habituation(object):
       self.colors.append("gray")
       self.time = 0
       self.first = True
+      rospy.Subscriber("/habituation/mt", Image, self.field_callback)
+      rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+      rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
+      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
+      rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
+      self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
+      self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
+      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
+      self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_eval_perception = rospy.Publisher("/habituation/perception", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
+      self.exploration_mode = rospy.get_param("exploration")
+      self.folder_habituation = rospy.get_param("habituation_folder")
+      self.load = rospy.get_param("load")
       if(self.load):
          self.load_nn()
 
@@ -662,6 +721,9 @@ class Habituation(object):
 
    def send_eval_latent(self, msg):
       self.pub_eval_latent.publish(msg)
+
+   def send_eval_perception(self, msg):
+      self.pub_eval_perception.publish(msg)
 
    def send_mt_field(self):
       img_field = self.habit[self.index_vae].get_mt_field()
@@ -725,9 +787,34 @@ class Habituation(object):
       outcome.y = self.scale_data_to_real(output[1], self.min_vy, self.max_vy)
       outcome.angle = self.scale_data_to_real(output[2], self.min_angle, self.max_angle)
       outcome.touch = self.scale_data_to_real(output[3], self.min_grasp, self.max_grasp)
-      print("DMP : ",dmp)
-      print("Outcome : ",outcome)
-      
+      #print("DMP : ",dmp)
+      #print("Outcome : ",outcome)
+
+   def callback_eval(self,msg):
+      dmp_out = DmpOutcome()
+      dmp_out.v_x = self.scale_data(msg.v_x,self.min_vx,self.max_vx)
+      dmp_out.v_y = self.scale_data(msg.v_y,self.min_vy,self.max_vy)
+      dmp_out.v_pitch = self.scale_data(msg.v_pitch,self.min_vpitch,self.max_vpitch)
+      dmp_out.roll = self.scale_data(msg.roll,self.min_roll,self.max_roll)
+      dmp_out.grasp = self.scale_data(msg.grasp,self.min_grasp,self.max_grasp)
+      dmp_out.x = self.scale_data(msg.x, self.min_vx, self.max_vx)
+      dmp_out.y = self.scale_data(msg.y, self.min_vy, self.max_vy)
+      dmp_out.angle = self.scale_data(msg.angle, self.min_angle, self.max_angle)
+      dmp_out.touch = self.scale_data(msg.touch, self.min_grasp, self.max_grasp)
+      sample = [dmp_out.x,dmp_out.y,dmp_out.angle,dmp_out.touch,dmp_out.v_x,dmp_out.v_y,dmp_out.v_pitch,dmp_out.roll,dmp_out.grasp]
+      tensor_sample = torch.tensor(sample,dtype=torch.float)
+      t = self.habit[self.index_vae].get_memory()
+      print("memory : ",t)
+      print("tensor sample : ",tensor_sample)
+      z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
+      print("TESTING new sample...")
+      msg = self.habit[self.index_vae].get_eval_latent_to_dnf(z,self.exploration_mode)
+      print(msg)
+      self.send_eval_perception(msg)
+      #self.send_latent_test(z)
+      #rospy.sleep(1.0)
+      #l = LatentNNDNF()
+      #self.send_eval_perception(l)
 
    def callback_id(self, msg):
       self.id_object = msg.data
