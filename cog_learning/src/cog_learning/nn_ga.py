@@ -428,20 +428,9 @@ class NNGoalAction(object):
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
-        print("latent DNF : ",[t0,t1])
-        x = t0 / 100
-        y = t1 / 100
-        x_ = self.scale_dnf_to_latent(x)
-        y_ = self.scale_dnf_to_latent(y)
-        x_1 = self.scale_latent_to_reduce(x_)
-        y_1 = self.scale_latent_to_reduce(y_)
-        print("latent space rescaled : ",[x_1,y_1])
-        
-
-
         inputs = [round(t0*100),round(t1*100),error_fwd]
         self.skills[ind_skill].set_name(inputs)
-        #print("dnf input : ",inputs)
+        print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
         self.latent_space_scaled.append(inputs)
         self.plot_latent()
@@ -463,7 +452,7 @@ class NNGoalAction(object):
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
         self.trainDecoder()
-        self.test_training()
+        #self.test_training()
         self.save_nn()
         self.save_memory()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"

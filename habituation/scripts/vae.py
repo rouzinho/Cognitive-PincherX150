@@ -296,9 +296,9 @@ class VariationalAE(object):
       list_eval = copy.deepcopy(self.list_latent)
       #list_eval.append(z)
       ext_x, ext_y = self.get_latent_extremes(list_eval)
-      print("extremes x : ",ext_x)
-      print("extremes y : ",ext_y)
-      print("z : ",z)
+      #print("extremes x : ",ext_x)
+      #print("extremes y : ",ext_y)
+      #print("z : ",z)
       if exploration == "static":
          new_latent.max_x = 100
          new_latent.max_y = 100
@@ -315,18 +315,18 @@ class VariationalAE(object):
          x = self.scale_latent_to_dnf_dynamic(z[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
          y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
          #print("data",z[1])
-         print(" x : ",x)
-         print(" y : ",y)
-         print("padding min ",padding_y)
-         print("padding max ",self.max_bound_y-padding_y)
+         #print(" x : ",x)
+         #print(" y : ",y)
+         #print("padding min ",padding_y)
+         #print("padding max ",self.max_bound_y-padding_y)
          #y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,self.max_bound_y-padding_y)
          eval_value.x = round(x)
          eval_value.y = round(y)
          eval_value.value = 1.0
-         print("bound x : ", self.bound_x)
-         print("bound y : ", self.bound_y)
-         print("max bound x : ", self.max_bound_x)
-         print("max bound y : ", self.max_bound_y)
+         #print("bound x : ", self.bound_x)
+         #print("bound y : ", self.bound_y)
+         #print("max bound x : ", self.max_bound_x)
+         #print("max bound y : ", self.max_bound_y)
          new_latent.max_x = self.bound_x
          new_latent.max_y = self.bound_y
       new_latent.list_latent.append(eval_value)
