@@ -144,7 +144,7 @@ class VariationalAE(object):
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.scale_factor = 50
+      self.scale_factor = 30
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
@@ -658,6 +658,7 @@ class Habituation(object):
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
       self.pub_eval_perception = rospy.Publisher("/habituation/perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
+      self.pub_direct = rospy.Publisher("/motion_pincher/direct_exploration",Dmp, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       self.load = rospy.get_param("load")
@@ -787,6 +788,7 @@ class Habituation(object):
       outcome.y = self.scale_data_to_real(output[1], self.min_vy, self.max_vy)
       outcome.angle = self.scale_data_to_real(output[2], self.min_angle, self.max_angle)
       outcome.touch = self.scale_data_to_real(output[3], self.min_grasp, self.max_grasp)
+      self.pub_direct.publish(dmp)
       #print("DMP : ",dmp)
       #print("Outcome : ",outcome)
 
