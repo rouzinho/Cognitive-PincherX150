@@ -744,7 +744,7 @@ if __name__ == "__main__":
         som.init_network_som_pose()
         som.load_som(model_name,data_set)
     print("READY")
-    plt.show()
+    #plt.show()
     #while not rospy.is_shutdown():
     #    pass
     rospy.spin()
