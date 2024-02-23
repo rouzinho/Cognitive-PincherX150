@@ -143,7 +143,7 @@ class DepthImage
       s_x = 620;  //620
       s_y = 840;  //840
       s_reduce_w = 180; //there's a crop in s_x
-      s_reduce_h = 130;
+      s_reduce_h = 100;
       display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       ros::param::get("init_params", init_params);
       ros::param::get("crop_min_x", crop_min_x);
@@ -414,7 +414,9 @@ class DepthImage
       if(!first_gen)
       {
         //crop image to fit robot space to DNF
-        cv::Rect crop_img(0,170,s_y-35,s_x-180);
+        //IMPORTANT for calibration
+        //dim cv_image
+        cv::Rect crop_img(0,160,s_y-40,s_x-200);
         cv::Mat rot;
         const float bad_point = std::numeric_limits<float>::quiet_NaN();
         int pixel_pos_x;
@@ -599,7 +601,7 @@ class DepthImage
         count++;
       
       }
-      cv::imshow(OPENCV_WINDOW,fil_b);
+      cv::imshow(OPENCV_WINDOW,fil);
       cv::waitKey(1);
     }
 
