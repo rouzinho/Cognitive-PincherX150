@@ -1,0 +1,4 @@
+<launch>
+   <param name="data_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/" />
+   <node name="viz" pkg="vizualisation" type="data_viz.py" output="screen"/> 
+</launch>

@@ -7,13 +7,13 @@ import rospy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64
 from std_msgs.msg import Bool
+from std_msgs.msg import Int16
 import geometry_msgs.msg
 # ROS Image message -> OpenCV2 image converter
 from cv_bridge import CvBridge, CvBridgeError
 # OpenCV2 for saving an image
 #from hebbian_dmp.msg import ObjectGoal
 from geometry_msgs.msg import Pose
-from perception.msg import ObjectGoal
 #from perception.msg import ListGoals
 import cv2
 from csv import writer
@@ -32,19 +32,19 @@ import shutil
 import http.client, urllib
 from playsound import playsound
 
-_DEFAULT_BACKGROUND_ACTIVE = (49/255, 53/255, 82/255, 0.0)
-_DEFAULT_BACKGROUND_NONACTIVE = (49/255, 53/255, 82/255, 1.0)
-_DEFAULT_WIDGET_ACTIVE = (1, 1, 1, 0.8)
+_DEFAULT_BACKGROUND_ACTIVE = (255/255, 245/255, 231/255, 0.0)
+_DEFAULT_BACKGROUND_NONACTIVE = (255/255, 245/255, 231/255, 1.0)
+_DEFAULT_WIDGET_ACTIVE = (1, 1, 1, 0.2)
 _DEFAULT_WIDGET_NONACTIVE = (1, 1, 1, 0)
 _OBJECT_BLUE = (0.110, 0.427, 0.815, 0.1)
 _GREEN_LIGHT = (0.180, 0.690, 0.525, 0.9)
 _RED_LIGHT = (0.721, 0.250, 0.368, 1)
-_GRAY_LIGHT = (0.26,0.26,0.26,0.8)
+_GRAY_LIGHT = (0.26,0.26,0.26,0.3)
 _ACTIVE_LIGHT = (48/255,84/255,150/255,1)
 _YELLOW_LIGHT = (255/255,185/255,97/255,0.8)
 
 
-Window.clearcolor = (49/255, 53/255, 82/255, 0)
+Window.clearcolor = (255/255, 245/255, 231/255, 0)
 Window.size = (1400, 800)
 
 class DataRecorder(object):
@@ -52,9 +52,7 @@ class DataRecorder(object):
         super(DataRecorder, self).__init__()
         #rospy.init_node('DataRecorder')   
         self.bridge = CvBridge()
-        self.sub = rospy.Subscriber(name_topic, Image, self.field_callback)
-        self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Pose, self.callbackOG)
-        self.cv2_img = ""
+        self.cv2_img = None
         self.current_field = np.zeros((100,100))
         self.dim_field = [0,0]
         self.init_size = True
@@ -62,6 +60,14 @@ class DataRecorder(object):
         self.list_peaks = []
         self.list_tmp_peaks = []
         self.list_lp = []
+        self.prev_id = -1 
+        self.id = -1
+        self.objects = []
+        self.id_defined = False
+        self.data_folder = rospy.get_param("data_folder")
+        self.sub = rospy.Subscriber(name_topic, Image, self.field_callback)
+        self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Pose, self.callbackOG)
+        self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
 
     def field_callback(self,msg):
         try:
@@ -75,6 +81,14 @@ class DataRecorder(object):
         p = [int(msg.position.x),int(msg.position.y),0.0]
         self.list_peaks.append(p)
 
+    def callback_object(self,msg):
+        self.id = msg.data
+        if self.id not in self.objects:
+            path = os.path.join(self.data_folder, str(self.id)) 
+            os.mkdir(path)
+            self.objects.append(self.id)
+            self.id_defined = True
+        
     def getPeak(self):
         max_peak = 0
         minX = 100
@@ -191,24 +205,26 @@ class DataRecorder(object):
         self.current_field = np.zeros((100,100))
 
     def writeDatasError(self,time):
-        name = ""
-        for i in range(0,len(self.list_peaks)):
-            name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/object-goal_"+str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_ERROR.csv"
-            with open(name, 'a', newline='') as f_object:
-                writer_object = writer(f_object)
-                row = [time,self.list_peaks[i][2]]
-                writer_object.writerow(row)
-                f_object.close()
+        name = self.data_folder + str(self.id) + "/"
+        if self.id_defined:
+            for i in range(0,len(self.list_peaks)):
+                name = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_ERROR.csv"
+                with open(name, 'a', newline='') as f_object:
+                    writer_object = writer(f_object)
+                    row = [time,self.list_peaks[i][2]]
+                    writer_object.writerow(row)
+                    f_object.close()
 
     def writeDatasLP(self,time):
-        name = ""
-        for i in range(0,len(self.list_peaks)):
-            name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/object-goal_"+str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_LP.csv"
-            with open(name, 'a', newline='') as f_object:
-                writer_object = writer(f_object)
-                row = [time,self.list_peaks[i][2]]
-                writer_object.writerow(row)
-                f_object.close()
+        name = self.data_folder + str(self.id) + "/"
+        if self.id_defined:
+            for i in range(0,len(self.list_peaks)):
+                name = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_LP.csv"
+                with open(name, 'a', newline='') as f_object:
+                    writer_object = writer(f_object)
+                    row = [time,self.list_peaks[i][2]]
+                    writer_object.writerow(row)
+                    f_object.close()
 
     def savePeaks(self,name_peaks):
         p = exists(name_peaks)
@@ -234,34 +250,6 @@ class DmpListener(object):
 
     def getDmp(self):
         return self.goal
-
-class GoalRecorder(object):
-    def __init__(self,name_topic):
-        super(GoalRecorder, self).__init__()
-        self.sub_goal = rospy.Subscriber(name_topic, ObjectGoal, self.callback_goal)
-        self.current_goal = ObjectGoal()
-
-    def callback_goal(self,msg):
-        self.current_goal.object = msg.object
-        self.current_goal.goal = msg.goal
-
-    def rectify_object(self):
-        if self.current_goal.object < 30 and self.current_goal.object > 15:
-            self.current_goal.object = 24
-        if self.current_goal.object < 60 and self.current_goal.object > 50:
-            self.current_goal.object = 55
-        if self.current_goal.object < 85 and self.current_goal.object > 75:
-            self.current_goal.object = 80
-
-    def writeCurrentGoal(self,time):
-        self.rectify_object()
-        name = ""
-        name = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/current_goal.csv"
-        with open(name, 'a', newline='') as f_object:
-            writer_object = writer(f_object)
-            row = [time,int(self.current_goal.goal)]
-            writer_object.writerow(row)
-            f_object.close()
 
 class ControlArch(object):
     def __init__(self):
@@ -303,33 +291,48 @@ class ControlArch(object):
 class DataNodeRecorder(object):
     def __init__(self, name_topic, name_mode):
         super(DataNodeRecorder, self).__init__()
-        self.sub = rospy.Subscriber(name_topic, Float64, self.node_callback)
         self.node = 0.0
         self.name_mode = name_mode 
+        self.prev_id = -1 
+        self.id = -1
+        self.objects = []
+        self.id_defined = False
+        self.data_folder = rospy.get_param("data_folder")
+        self.sub = rospy.Subscriber(name_topic, Float64, self.node_callback)
+        self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
 
     def node_callback(self, dat):
         self.node = dat.data
+
+    def callback_object(self,msg):
+        self.id = msg.data
+        if self.id not in self.objects:
+            path = os.path.join(self.data_folder, str(self.id)) 
+            os.mkdir(path)
+            self.objects.append(self.id)
+            self.id_defined = True
 
     def getNode(self):
         return self.node
 
     def writeValue(self,time):
-        n = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/"+self.name_mode+".csv"
-        with open(n, 'a', newline='') as f_object:
-            writer_object = writer(f_object)
-            row = [time,self.node]
-            writer_object.writerow(row)
-            f_object.close()
+        if self.id_defined:
+            n = self.data_folder + str(self.id) + "/" + self.name_mode+".csv"
+            with open(n, 'a', newline='') as f_object:
+                writer_object = writer(f_object)
+                row = [time,self.node]
+                writer_object.writerow(row)
+                f_object.close()
 
 
 class VisualDatas(App):
 
-    explore = ListProperty([0.26, 0.26, 0.26, 0.8])
-    exploit = ListProperty([0.26, 0.26, 0.26, 0.8])
-    learning_dmp = ListProperty([0.26, 0.26, 0.26, 0.8])
-    retrieve_dmp = ListProperty([0.26, 0.26, 0.26, 0.8])
+    explore = ListProperty([0.26, 0.26, 0.26, 0.3])
+    exploit = ListProperty([0.26, 0.26, 0.26, 0.3])
+    learning_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
+    retrieve_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
     start_record = ListProperty([48/255,84/255,150/255,1])
-    stop_record = ListProperty([0.26, 0.26, 0.26, 0.8])
+    stop_record = ListProperty([0.26, 0.26, 0.26, 0.3])
     name_record = StringProperty('Start')
     arrow = StringProperty('/home/altair/PhD/Codes/catkin_noetic/src/vizualisation/images/blank.png')
 
@@ -342,19 +345,18 @@ class VisualDatas(App):
         rate = rospy.Rate(50)
         self.dr_error_fwd = DataRecorder("/data_recorder/data_errors")
         self.dr_lp = DataRecorder("/data_recorder/data_lp")
-        self.goal_r = GoalRecorder("/data_controller/goal_to_exploit")
         self.node_explore = DataNodeRecorder("/data_recorder/node_explore","explore")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
         self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
-        self.dmp = DmpListener()
-        self.control_arch = ControlArch()
+        #self.dmp = DmpListener()
+        #self.control_arch = ControlArch()
         self.current_dmp = 0
         self.first = True
         self.n_exploit = True
         self.launch = True
-        self.name_time = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/time.pkl"
-        self.name_peaks = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/peaks.pkl"
-        self.working_dir = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/complete/"
+        self.name_time = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/time.pkl"
+        self.name_peaks = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/peaks.pkl"
+        self.working_dir = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/"
         self.dmp_dir = "/home/altair/PhD/Codes/catkin_noetic/rosbags/experiment/dmp/"
         self.mode_record = "Start"
         self.index = 1
@@ -556,6 +558,7 @@ class VisualDatas(App):
                 self.copy_datas_explore(self.name_object,self.experiment,self.index)
                 self.n_exploit = False"""
         else:
+            self.explore = _GRAY_LIGHT
             self.exploit = _GRAY_LIGHT
         if self.node_learning_dmp.getNode() > 0.5 and self.node_learning_dmp.getNode() < 1.5:
             self.learning_dmp = _YELLOW_LIGHT
@@ -568,10 +571,10 @@ class VisualDatas(App):
         #self.checkNumberSkills()
         #self.checkSimulation()
         #self.checkStuck()
-        tmp_dmp =  self.dmp.getDmp()
-        if tmp_dmp > 0 and tmp_dmp != self.current_dmp:
-            self.update_image(int(tmp_dmp))
-            self.current_dmp = tmp_dmp
+        #tmp_dmp =  self.dmp.getDmp()
+        #if tmp_dmp > 0 and tmp_dmp != self.current_dmp:
+            #self.update_image(int(tmp_dmp))
+            #self.current_dmp = tmp_dmp
         list_error_fwd = self.dr_error_fwd.getValuePeaks()
         list_lp = self.dr_lp.getValuePeaks()
         size_l = len(list_error_fwd)
@@ -582,7 +585,7 @@ class VisualDatas(App):
             if self.steps == 10:
                 self.dr_error_fwd.writeDatasError(int(self.time))
                 self.dr_lp.writeDatasLP(int(self.time))
-                self.goal_r.writeCurrentGoal(int(self.time))
+                #self.goal_r.writeCurrentGoal(int(self.time))
                 #self.node_explore.writeValue(int(self.time))
                 #self.node_exploit.writeValue(int(self.time))
                 self.steps = 0
@@ -618,7 +621,7 @@ class VisualDatas(App):
                     self.root.children[0].children[i].background_non_active = _DEFAULT_BACKGROUND_NONACTIVE
                     self.root.children[0].children[i].background_active = _DEFAULT_BACKGROUND_NONACTIVE
                     #self.root.children[0].children[i].background_colour = _DEFAULT_BACKGROUND_NONACTIVE
-            self.startExploration()
+            #self.startExploration()
             self.rst = False
         if self.record == True:
             self.time += 0.1
@@ -673,28 +676,42 @@ BoxLayout:
         size_hint: (None,None)
         BoxLayout:
             orientation: 'horizontal'
-            size: 400, 100
+            size: 400, 55
             size_hint: (None,None)
             Label:
                 text_size: self.size
                 size: self.texture_size
                 halign: 'center'
                 valign: 'middle'
-                font_size: 32
-                text: "explore"
+                font_size: 18
+                text: "random"
                 canvas.before:
                     Color:
-                        rgb: app.explore
+                        rgba: app.explore
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [55]
+                        radius: [35]
             Label:
                 text_size: self.size
                 size: self.texture_size
                 halign: 'center'
                 valign: 'middle'
-                font_size: 32
+                font_size: 18
+                text: "direct"
+                canvas.before:
+                    Color:
+                        rgba: app.exploit
+                    RoundedRectangle:
+                        size: self.size
+                        pos: self.pos
+                        radius: [35]
+            Label:
+                text_size: self.size
+                size: self.texture_size
+                halign: 'center'
+                valign: 'middle'
+                font_size: 18
                 text: "exploit"
                 canvas.before:
                     Color:
@@ -702,7 +719,7 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [55]
+                        radius: [35]
         Label:
             text_size: self.size
             size: self.texture_size
@@ -712,7 +729,7 @@ BoxLayout:
             text: "Learning DMP"
             canvas.before:
                 Color:
-                    rgb: app.learning_dmp
+                    rgba: app.learning_dmp
                 RoundedRectangle:
                     size: 400,150
                     pos: 0, 515
@@ -727,7 +744,7 @@ BoxLayout:
             text: "Retrieve DMP"
             canvas.before:
                 Color:
-                    rgb: app.retrieve_dmp
+                    rgba: app.retrieve_dmp
                 RoundedRectangle:
                     size: 400,150
                     pos: 0, 300
