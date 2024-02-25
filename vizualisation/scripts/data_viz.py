@@ -15,6 +15,7 @@ from cv_bridge import CvBridge, CvBridgeError
 #from hebbian_dmp.msg import ObjectGoal
 from geometry_msgs.msg import Pose
 #from perception.msg import ListGoals
+from cog_learning.msg import Goal
 import cv2
 from csv import writer
 import numpy as np
@@ -24,6 +25,7 @@ from vizualisation.circular_progress_bar import *
 from kivy.core.window import Window
 from kivy.uix.button import Button
 from kivy.properties import ListProperty, StringProperty
+from kivy.uix import image
 import pickle
 from os.path import exists
 import os
@@ -31,6 +33,7 @@ from os import listdir
 import shutil
 import http.client, urllib
 from playsound import playsound
+from kivy.uix.widget import Widget
 
 _DEFAULT_BACKGROUND_ACTIVE = (255/255, 245/255, 231/255, 0.0)
 _DEFAULT_BACKGROUND_NONACTIVE = (255/255, 245/255, 231/255, 1.0)
@@ -66,82 +69,40 @@ class DataRecorder(object):
         self.id_defined = False
         self.data_folder = rospy.get_param("data_folder")
         self.sub = rospy.Subscriber(name_topic, Image, self.field_callback)
-        self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Pose, self.callbackOG)
+        self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Goal, self.callbackOG)
         self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
+        self.sub_time = rospy.Subscriber("/data_recorder/time", Float64, self.callback_time)
+
 
     def field_callback(self,msg):
         try:
             # Convert your ROS Image message to OpenCV2
+            #print("got field")
             self.cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
             self.current_field = np.asarray(self.cv2_img)
         except CvBridgeError as e:
             print(e)
 
     def callbackOG(self,msg):
-        p = [int(msg.position.x),int(msg.position.y),0.0]
-        self.list_peaks.append(p)
+        p = [int(msg.x),int(msg.y),0.0]
+        if not self.isInlist(p):
+            self.list_peaks.append(p)
+        #print(self.list_peaks)
 
     def callback_object(self,msg):
         self.id = msg.data
-        if self.id not in self.objects:
-            path = os.path.join(self.data_folder, str(self.id)) 
+        path = os.path.join(self.data_folder, str(self.id))
+        found = os.path.isdir(path)
+        if not found:
             os.mkdir(path)
-            self.objects.append(self.id)
-            self.id_defined = True
-        
-    def getPeak(self):
-        max_peak = 0
-        minX = 100
-        minY = 100
-        maxX = 0
-        maxY = 0
-        X = 0
-        Y = 0
-        for i in range(0,self.current_field.shape[0]):
-            for j in range(0,self.current_field.shape[1]):
-                if self.current_field[i,j] > max_peak:
-                    X = j
-                    Y = i
-                    max_peak = self.current_field[i,j]
-        
-        return X,Y,max_peak
+        self.id_defined = True
 
-    def getPeaks(self):
-        max_peak = 0
-        peak = []
-        tmp_peak = []
-        got_peak = False
-        minX = 100
-        minY = 100
-        maxX = 0
-        maxY = 0
-        X = 0
-        Y = 0
-        for i in range(0,self.current_field.shape[0]):
-            for j in range(0,self.current_field.shape[1]):
-                tmp = [j,i]
-                if self.isInlist(tmp) == False:
-                    if self.current_field[i,j] > 0.01:
-                        if minX == 100:
-                            minX = j
-                        if minY == 100:
-                            minY = i
-                        got_peak = True
-                    else:
-                        if got_peak == True:
-                            maxX = j
-                            maxY = i
-                            px = (int)((minX + maxX)/2)
-                            py = (int)((minY + maxY)/2)
-                            peak = [px,py,0]
-                            tmp_peak = [px,py]
-                            #print("peak   ",peak)
-                            #self.list_peaks.append(peak)
-                            got_peak = False
-        if peak and self.isInlist(peak) == False:
-            self.list_peaks.append(peak)
-        if tmp_peak and self.isInTMPlist(tmp_peak) == False:
-            self.list_tmp_peaks.append(peak)
+    def callback_time(self,msg):
+        self.getValuePeaks()
+        self.getValueLPPeaks()
+        self.writeDatasError(msg.data)
+        self.writeDatasLP(msg.data)
+
 
     def getValuePeaks(self):
         for i in range(0,len(self.list_peaks)):
@@ -159,22 +120,6 @@ class DataRecorder(object):
             self.list_lp.append(t)
 
         return self.list_lp
-
-    #remove peaks induced from noise
-    def removeResidualPeaks(self):
-        rm = True
-        i = 0
-        while rm:
-            i_max = len(self.list_peaks)
-            if self.list_peaks[i][2] < 0.009:
-                self.list_peaks.pop(i)
-                i = 0
-                i_max = len(self.list_peaks)
-            else:
-                if i+1 < i_max:
-                    i += 1
-                else:
-                    rm = False
 
     def isInlist(self,peak):
         inList = False
@@ -207,9 +152,10 @@ class DataRecorder(object):
     def writeDatasError(self,time):
         name = self.data_folder + str(self.id) + "/"
         if self.id_defined:
+            #print("writing datas...")
             for i in range(0,len(self.list_peaks)):
-                name = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_ERROR.csv"
-                with open(name, 'a', newline='') as f_object:
+                n = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_ERROR.csv"
+                with open(n, 'a', newline='') as f_object:
                     writer_object = writer(f_object)
                     row = [time,self.list_peaks[i][2]]
                     writer_object.writerow(row)
@@ -219,8 +165,8 @@ class DataRecorder(object):
         name = self.data_folder + str(self.id) + "/"
         if self.id_defined:
             for i in range(0,len(self.list_peaks)):
-                name = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_LP.csv"
-                with open(name, 'a', newline='') as f_object:
+                n = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_LP.csv"
+                with open(n, 'a', newline='') as f_object:
                     writer_object = writer(f_object)
                     row = [time,self.list_peaks[i][2]]
                     writer_object.writerow(row)
@@ -306,11 +252,11 @@ class DataNodeRecorder(object):
 
     def callback_object(self,msg):
         self.id = msg.data
-        if self.id not in self.objects:
-            path = os.path.join(self.data_folder, str(self.id)) 
+        path = os.path.join(self.data_folder, str(self.id))
+        found = os.path.isdir(path)
+        if not found:
             os.mkdir(path)
-            self.objects.append(self.id)
-            self.id_defined = True
+        self.id_defined = True
 
     def getNode(self):
         return self.node
@@ -325,6 +271,16 @@ class DataNodeRecorder(object):
                 f_object.close()
 
 
+class MyImage(Widget):
+    def __init__(self,**kwargs):
+        super(MyImage,self).__init__(**kwargs)
+        self.image = Image(source='/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg')
+        self.add_widget(self.image)
+        Clock.schedule_interval(self.update_pic,1)
+
+    def update_pic(self,dt):
+        self.image.reload()
+
 class VisualDatas(App):
 
     explore = ListProperty([0.26, 0.26, 0.26, 0.3])
@@ -334,7 +290,8 @@ class VisualDatas(App):
     start_record = ListProperty([48/255,84/255,150/255,1])
     stop_record = ListProperty([0.26, 0.26, 0.26, 0.3])
     name_record = StringProperty('Start')
-    arrow = StringProperty('/home/altair/PhD/Codes/catkin_noetic/src/vizualisation/images/blank.png')
+    mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg')
+    mt_vae = StringProperty('/home/altair/PhD/Codes/catkin_noetic/src/vizualisation/images/blank.png')
 
     def __init__(self, **kwargs):
         super(VisualDatas, self).__init__(**kwargs)
@@ -348,6 +305,8 @@ class VisualDatas(App):
         self.node_explore = DataNodeRecorder("/data_recorder/node_explore","explore")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
         self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
+        self.pub_time = rospy.Publisher("/data_recorder/time",Float64,queue_size=1)
+        self.pub_signal = rospy.Publisher("/data_recorder/signal",Bool,queue_size=1)
         #self.dmp = DmpListener()
         #self.control_arch = ControlArch()
         self.current_dmp = 0
@@ -368,6 +327,24 @@ class VisualDatas(App):
         self.keep_exploring = False
         self.keep_exploit = False
         self.too_many = False
+        self.cv2_img = None
+        self.bridge = CvBridge()
+        self.sub = rospy.Subscriber("/data_recorder/error", Image, self.field_callback)
+        self.count_img = 0
+
+    def field_callback(self,msg):
+        upscale = (200, 200)
+        if self.count_img > 10:
+            try:
+                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg"
+                self.cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+                resized_up = cv2.resize(self.cv2_img, upscale, interpolation= cv2.INTER_LINEAR)
+                img = resized_up.astype("float32")*255
+                cv2.imwrite(name, img)
+            except CvBridgeError as e:
+                print(e)
+            self.count_img = 0
+        self.count_img += 1
 
     def saveTime(self):
         p = exists(self.name_time)
@@ -513,18 +490,23 @@ class VisualDatas(App):
             dest_dmp = "/home/altair/PhD/Codes/ExperimentIM-LCNE/datas/" + name_object + "/" + type_exp + "/" + str(index) + "/dmp/"
             newPath = shutil.copy(src_dmp, dest_dmp)
 
-
     def set_record(self):
         if self.mode_record == "Start":
             self.name_record = "Stop"
             self.mode_record = "Stop"
             self.start_record = _RED_LIGHT
             self.record = True
+            r = Bool()
+            r.data = True
+            self.pub_signal.publish(r)
             self.first = False
         else:
             self.name_record = "Start"
             self.mode_record = "Start"
             self.start_record = _GREEN_LIGHT
+            r = Bool()
+            r.data = False
+            self.pub_signal.publish(r)
             self.saveTime()
             self.dr_error_fwd.savePeaks(self.name_peaks)
             self.record = False
@@ -534,9 +516,11 @@ class VisualDatas(App):
         self.dr_error_fwd.loadPeaks(self.name_peaks)
         self.dr_lp.loadPeaks(self.name_peaks)
 
-    def update_image(self,inp):
-        name = "/home/altair/PhD/Codes/catkin_noetic/src/vizualisation/images/"+str(inp)+".png"
-        self.arrow = name
+    def update_image(self,dt):
+        name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg"
+        #self.mt_error = name
+        self.root.children[1].children[2].children[0].reload()
+        #print(self.root.children[1].children[2].children[0].source)
 
     def update_events(self, dt):
         if self.node_explore.getNode() > 0.8:
@@ -576,6 +560,7 @@ class VisualDatas(App):
             #self.update_image(int(tmp_dmp))
             #self.current_dmp = tmp_dmp
         list_error_fwd = self.dr_error_fwd.getValuePeaks()
+        #print(list_error_fwd)
         list_lp = self.dr_lp.getValuePeaks()
         size_l = len(list_error_fwd)
         if self.record == True:
@@ -583,8 +568,11 @@ class VisualDatas(App):
                 self.time = 0
                 self.first = False
             if self.steps == 10:
-                self.dr_error_fwd.writeDatasError(int(self.time))
-                self.dr_lp.writeDatasLP(int(self.time))
+                t = Float64()
+                t.data = self.time
+                self.pub_time.publish(t)
+                #self.dr_error_fwd.writeDatasError(int(self.time))
+                #self.dr_lp.writeDatasLP(int(self.time))
                 #self.goal_r.writeCurrentGoal(int(self.time))
                 #self.node_explore.writeValue(int(self.time))
                 #self.node_exploit.writeValue(int(self.time))
@@ -628,7 +616,7 @@ class VisualDatas(App):
 
     # Simple layout for easy example
     def build(self):
-        
+        #Clock.schedule_interval(lambda dt: img.reload(), 0.2)
         self.container = Builder.load_string('''
 #:import Label kivy.core.text.Label           
 #:set _label Label(text="ERROR {}%", font_size=16, color=(0.933,0.902,0.807,1), halign="center")
@@ -691,7 +679,7 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [35]
+                        radius: [25]
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -705,7 +693,7 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [35]
+                        radius: [25]
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -719,44 +707,55 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [35]
-        Label:
-            text_size: self.size
-            size: self.texture_size
-            halign: 'center'
-            valign: 'middle'
-            font_size: 32
-            text: "Learning DMP"
-            canvas.before:
-                Color:
-                    rgba: app.learning_dmp
-                RoundedRectangle:
-                    size: 400,150
-                    pos: 0, 515
-                    radius: [55]
-        Label:
-            text_size: self.size
-            size: self.texture_size
-            halign: 'center'
-            valign: 'middle'
-            #pos: 0, -100
-            font_size: 32
-            text: "Retrieve DMP"
-            canvas.before:
-                Color:
-                    rgba: app.retrieve_dmp
-                RoundedRectangle:
-                    size: 400,150
-                    pos: 0, 300
-                    radius: [55]
+                        radius: [25]
+        BoxLayout:
+            orientation: 'horizontal'
+            size: 400, 55
+            pos: 0, 400
+            size_hint: (None,None)
+            Label:
+                text_size: self.size
+                size: self.texture_size
+                halign: 'center'
+                valign: 'middle'
+                font_size: 18
+                text: "Learning DMP"
+                canvas.before:
+                    Color:
+                        rgba: app.learning_dmp
+                    RoundedRectangle:
+                        size: self.size
+                        pos: self.pos
+                        radius: [15]
+            Label:
+                text_size: self.size
+                size: self.texture_size
+                halign: 'center'
+                valign: 'middle'
+                #pos: 0, -100
+                font_size: 18
+                text: "Retrieve DMP"
+                canvas.before:
+                    Color:
+                        rgba: app.retrieve_dmp
+                    RoundedRectangle:
+                        size: self.size
+                        pos: self.pos
+                        radius: [15]    
         FloatLayout:
             pos: 100,100
             Image:
                 size_hint: None, None
                 size: 200, 200
-                pos: 100,100
-                source: app.arrow
-            
+                pos: 0, 100
+                source: app.mt_error           
+        FloatLayout:
+            pos: 100,100
+            Image:
+                size_hint: None, None
+                size: 200, 200
+                pos: 220, 100
+                source: app.mt_vae 
         BoxLayout:
             orientation: 'horizontal'
             size: 400, 70
@@ -869,6 +868,7 @@ BoxLayout:
         # Animate the progress bar
         Clock.schedule_interval(self.update_gauges, 0.1)
         Clock.schedule_interval(self.update_events, 0.1)
+        Clock.schedule_interval(self.update_image, 0.1)
         return self.container
 
 
