@@ -83,24 +83,17 @@ class Motion(object):
     self.threshold_touch_min = 0.02
     self.threshold_touch_max = 0.03
     self.record = False
-    self.bool_init_p = False
-    self.bool_last_p = False
     self.dmp_folder = rospy.get_param("dmp_folder")
     self.current_folder = ""
     self.gripper_state = 0.0
     self.js = JointState()
     self.js_positions = []
     self.touch_value = False
-    self.init_pose = geometry_msgs.msg.Pose()
-    self.first_pose = GripperOrientation()
     self.last_pose = GripperOrientation()
     self.poses = []
-    self.bool_act = False
     self.possible_grasp = [0.0,1.0]
     self.possible_roll = [-1.5,-1.2,-0.9,-0.6,-0.3,0,0.3,0.6,0.9,1.2,1.5]
     self.move = False
-    self.move_dmp = False
-    self.activate_dmp = False
     self.name_state = ""
     self.path = []
     self.name_ee = self.dmp_folder + "js.bag"
@@ -131,7 +124,6 @@ class Motion(object):
     self.last_time = 0
     self.prev_id_object = -1
     self.id_object = 0
-    self.direct_exploration = False
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
@@ -153,7 +145,7 @@ class Motion(object):
     rospy.Subscriber('/cog_learning/rnd_exploration', Bool, self.callback_rnd_exploration)
     rospy.Subscriber('/cog_learning/direct_exploration', Bool, self.callback_direct_exploration)
     rospy.Subscriber('/cog_learning/exploitation', Bool, self.callback_exploitation)
-    rospy.Subscriber('/motion_pincher/direct_exploitation', Dmp, self.callback_direct_exploration)
+    rospy.Subscriber('/motion_pincher/dmp_direct_exploration', Dmp, self.callback_dmp_direct_exploration)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
     rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
@@ -188,32 +180,6 @@ class Motion(object):
     tmp.y = msg.y
     tmp.pitch = msg.pitch
     self.poses.append(tmp)
-    if self.bool_init_p == False and self.explore:
-      self.first_pose.x = msg.x
-      self.first_pose.y = msg.y
-      self.first_pose.pitch = msg.pitch
-      self.bool_init_p = True
-      self.got_action = True
-      self.pub_display_fpose.publish(msg)
-      print("first pose : ",self.first_pose)
-    if self.bool_init_p == True and not self.bool_last_p and self.explore:
-      self.last_pose.x = msg.x
-      self.last_pose.y = msg.y
-      self.last_pose.pitch = msg.pitch
-      self.bool_last_p = True
-      self.got_action = True
-      self.pub_display_lpose.publish(msg)
-      print("second pose : ",self.last_pose)
-      self.ready = False
-      self.ready_depth = False
-      self.ready_outcome = False
-    if self.exploit:
-      print("got DMP pose")
-      self.last_pose.x = msg.x
-      self.last_pose.y = msg.y
-      self.last_pose.pitch = msg.pitch
-      self.goal_dmp = True
-      self.bool_last_p = True
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -243,14 +209,6 @@ class Motion(object):
   def callback_new_state(self,msg):
     if msg.data == True:
       self.poses  = []
-      #tmp = Bool()
-      #tmp.data = False
-      #sending signal down since it's up most of the time
-      #self.pub_signal_action.publish(tmp)
-      #self.bool_init_p = False
-      #self.bool_last_p = False
-      #self.bool_act = False
-      #self.direct_exploration = False
       print("PLAN NEW ACTION")
       if self.recording_dmp and (self.rnd_explore or self.direct_explore):
         self.make_dmp()
@@ -260,26 +218,15 @@ class Motion(object):
   def callback_retry(self,msg):
     if msg.data == True:
       self.poses.pop()
-      #self.bool_last_p = False
-      #print("TRY AGAIN with 2nd pose")
 
   def callback_rnd_exploration(self,msg):
     self.rnd_explore = msg.data
-    self.bool_act = False
-    self.bool_init_p = False
-    self.bool_last_p = False
 
   def callback_direct_exploration(self,msg):
     self.direct_explore = msg.data
-    self.bool_act = False
-    self.bool_init_p = False
-    self.bool_last_p = False
 
   def callback_exploitation(self,msg):
     self.exploit = msg.data
-    self.bool_act = False
-    self.bool_init_p = False
-    self.bool_last_p = False
 
   def callback_ready(self,msg):
     self.ready_depth = msg.data
@@ -294,22 +241,12 @@ class Motion(object):
       self.current_folder = self.dmp_folder + str(self.id_object) + "/"
       self.prev_id_object = self.id_object
 
-  def callback_direct_exploration(self,msg):
-    self.direct_exploration = True
+  def callback_dmp_direct_exploration(self,msg):
     self.dmp_direct_explore.v_x = msg.v_x
     self.dmp_direct_explore.v_y = msg.v_y
     self.dmp_direct_explore.v_pitch = msg.v_pitch
     self.dmp_direct_explore.roll = msg.roll
     self.dmp_direct_explore.grasp = msg.grasp
-
-  def get_bool_init(self):
-    return self.bool_init_p
-  
-  def get_bool_last(self):
-    return self.bool_last_p
-  
-  def get_direct_exploration(self):
-    return self.direct_exploration
   
   def get_number_pose(self):
     return len(self.poses)
@@ -430,20 +367,6 @@ class Motion(object):
   def get_exploit(self):
     return self.exploit
 
-  #update dataset 
-  def update_offline_dataset(self,status):
-    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/datas.txt"
-    exist = path.exists(name_dataset)
-    opening = ""
-    if(exist == False):
-      opening = "w"
-    else:
-      opening = "a"
-    data = str(self.last_pose.x) + " " + str(self.last_pose.y) + " " + str(self.last_pose.pitch) + " " + str(self.action.x) + " " + str(self.action.y) + " " + str(self.action.roll) + " " + str(self.action.grasp) + " " +self.name_state + " " + str(status) + "\n"
-    with open(name_dataset, opening) as f:
-        f.write(data)
-    f.close()
-
   #naming the DMP
   def name_dmp(self):
     nx = "x"+str(round(self.dmp_explore.v_x,2))
@@ -553,10 +476,6 @@ class Motion(object):
       self.close_gripper()
       self.sleep_pose()
       self.goal_dmp = False
-      self.bool_last_p = False
-
-  def get_move(self):
-    return self.move
 
   #convert 3D EE position to JS through IK
   def pose_to_joints(self,x,y,z,r,p):
@@ -673,8 +592,6 @@ class Motion(object):
     sample.lpos_pitch = lpos_p
     self.pub_action_sample.publish(sample)
     self.poses.pop()
-    self.bool_init_p = False
-    self.bool_last_p = False
     self.ready_depth = False
     self.ready_outcome = False
     self.ready = False
@@ -743,19 +660,7 @@ class Motion(object):
 if __name__ == '__main__':
   motion_pincher = Motion()
   first = True
-  #record = False
-  #go = GripperOrientation()
-  #ac = VectorAction()
-  #go.pitch = 0.6
-  #ac.x = -0.01
-  #ac.y = 0.09
-  #ac.roll = 0.0
-  #ac.grasp = 0.0
-  #first = True
   rospy.sleep(3.0)
-  #motion_planning.open_gripper()
-  #motion_planning.close_gripper()
-  #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
     if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2:
