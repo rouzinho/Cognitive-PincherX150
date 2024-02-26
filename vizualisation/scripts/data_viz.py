@@ -328,15 +328,17 @@ class VisualDatas(App):
         self.keep_exploit = False
         self.too_many = False
         self.cv2_img = None
+        self.cv2_mt = None
         self.bridge = CvBridge()
-        self.sub = rospy.Subscriber("/data_recorder/error", Image, self.field_callback)
+        rospy.Subscriber("/data_recorder/error", Image, self.nnga_callback)
+        rospy.Subscriber("/data_recorder/lp", Image, self.vae_callback)
         self.count_img = 0
 
-    def field_callback(self,msg):
+    def nnga_callback(self,msg):
         upscale = (200, 200)
         if self.count_img > 10:
             try:
-                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg"
+                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg"
                 self.cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_img, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
@@ -345,6 +347,18 @@ class VisualDatas(App):
                 print(e)
             self.count_img = 0
         self.count_img += 1
+
+    def vae_callback(self,msg):
+        upscale = (200, 200)
+        if self.count_img > 10:
+            try:
+                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg"
+                self.cv2_mt = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+                resized_up = cv2.resize(self.cv2_mt, upscale, interpolation= cv2.INTER_LINEAR)
+                img = resized_up.astype("float32")*255
+                cv2.imwrite(name, img)
+            except CvBridgeError as e:
+                print(e)
 
     def saveTime(self):
         p = exists(self.name_time)
@@ -520,7 +534,7 @@ class VisualDatas(App):
         name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg"
         #self.mt_error = name
         self.root.children[1].children[2].children[0].reload()
-        #print(self.root.children[1].children[2].children[0].source)
+        print(self.root.children[1].children)
 
     def update_events(self, dt):
         if self.node_explore.getNode() > 0.8:
