@@ -94,6 +94,7 @@ class Motion(object):
     self.init_pose = geometry_msgs.msg.Pose()
     self.first_pose = GripperOrientation()
     self.last_pose = GripperOrientation()
+    self.poses = []
     self.bool_act = False
     self.possible_grasp = [0.0,1.0]
     self.possible_roll = [-1.5,-1.2,-0.9,-0.6,-0.3,0,0.3,0.6,0.9,1.2,1.5]
@@ -109,7 +110,8 @@ class Motion(object):
     self.D_gain = 2.0 * np.sqrt(self.K_gain)      
     self.num_bases = 5
     self.single_msg = True
-    self.explore = True
+    self.rnd_explore = True
+    self.direct_explore = False
     self.exploit = False
     self.dmp_exploit = Dmp()
     self.dmp_explore = Dmp()
@@ -144,12 +146,13 @@ class Motion(object):
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
-    rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
+    #rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
     rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
     rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
-    rospy.Subscriber('/motion_pincher/exploration', Bool, self.callback_exploration)
-    rospy.Subscriber('/motion_pincher/exploitation', Bool, self.callback_exploitation)
+    rospy.Subscriber('/cog_learning/rnd_exploration', Bool, self.callback_rnd_exploration)
+    rospy.Subscriber('/cog_learning/direct_exploration', Bool, self.callback_direct_exploration)
+    rospy.Subscriber('/cog_learning/exploitation', Bool, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/direct_exploitation', Dmp, self.callback_direct_exploration)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
@@ -173,13 +176,18 @@ class Motion(object):
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
-  def callback_pose(self,msg):
-    self.init_position()
-    self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
-    self.init_position()
-    self.sleep_pose()
+  #def callback_pose(self,msg):
+  #  self.init_position()
+  #  self.bot.arm.set_ee_pose_components(x=msg.x, y=msg.y, z=msg.z, roll=msg.r, pitch=msg.p)
+  #  self.init_position()
+  #  self.sleep_pose()
 
   def callback_first_pose(self,msg):
+    tmp = GripperOrientation()
+    tmp.x = msg.x
+    tmp.y = msg.y
+    tmp.pitch = msg.pitch
+    self.poses.append(tmp)
     if self.bool_init_p == False and self.explore:
       self.first_pose.x = msg.x
       self.first_pose.y = msg.y
@@ -188,7 +196,7 @@ class Motion(object):
       self.got_action = True
       self.pub_display_fpose.publish(msg)
       print("first pose : ",self.first_pose)
-    elif self.bool_init_p == True and not self.bool_last_p and self.explore:
+    if self.bool_init_p == True and not self.bool_last_p and self.explore:
       self.last_pose.x = msg.x
       self.last_pose.y = msg.y
       self.last_pose.pitch = msg.pitch
@@ -234,27 +242,35 @@ class Motion(object):
 
   def callback_new_state(self,msg):
     if msg.data == True:
-      tmp = Bool()
-      tmp.data = False
+      self.poses  = []
+      #tmp = Bool()
+      #tmp.data = False
       #sending signal down since it's up most of the time
-      self.pub_signal_action.publish(tmp)
-      self.bool_init_p = False
-      self.bool_last_p = False
-      self.bool_act = False
-      self.direct_exploration = False
+      #self.pub_signal_action.publish(tmp)
+      #self.bool_init_p = False
+      #self.bool_last_p = False
+      #self.bool_act = False
+      #self.direct_exploration = False
       print("PLAN NEW ACTION")
-      if self.recording_dmp and self.explore:
+      if self.recording_dmp and (self.rnd_explore or self.direct_explore):
         self.make_dmp()
-        #self.delete_js_bag()
+        self.delete_js_bag()
         self.recording_dmp = False
 
   def callback_retry(self,msg):
     if msg.data == True:
-      self.bool_last_p = False
-      print("TRY AGAIN with 2nd pose")
+      self.poses.pop()
+      #self.bool_last_p = False
+      #print("TRY AGAIN with 2nd pose")
 
-  def callback_exploration(self,msg):
-    self.explore = msg.data
+  def callback_rnd_exploration(self,msg):
+    self.rnd_explore = msg.data
+    self.bool_act = False
+    self.bool_init_p = False
+    self.bool_last_p = False
+
+  def callback_direct_exploration(self,msg):
+    self.direct_explore = msg.data
     self.bool_act = False
     self.bool_init_p = False
     self.bool_last_p = False
@@ -294,6 +310,9 @@ class Motion(object):
   
   def get_direct_exploration(self):
     return self.direct_exploration
+  
+  def get_number_pose(self):
+    return len(self.poses)
 
   def send_state(self,val):
     tmp = Bool()
@@ -401,8 +420,11 @@ class Motion(object):
     return resp
   
   #if it's exploring
-  def get_explore(self):
-    return self.explore
+  def get_rnd_explore(self):
+    return self.rnd_explore
+  
+  def get_direct_explore(self):
+    return self.direct_explore
   
   #if it's exploiting ->learning a skill
   def get_exploit(self):
@@ -566,13 +588,13 @@ class Motion(object):
     print("RANDOM EXPLORATION")
     r = random.choice(self.possible_roll)
     g = random.choice(self.possible_grasp)
-    self.dmp_explore.v_x = self.last_pose.x - self.first_pose.x
-    self.dmp_explore.v_y = self.last_pose.y - self.first_pose.y
-    self.dmp_explore.v_pitch = self.last_pose.pitch - self.first_pose.pitch
+    self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
+    self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
+    self.dmp_explore.v_pitch = self.poses[1].pitch - self.poses[0].pitch
     self.dmp_explore.roll = r
     self.dmp_explore.grasp = g
-    self.dmp_explore.fpos_x = self.first_pose.x
-    self.dmp_explore.fpos_y = self.first_pose.y
+    self.dmp_explore.fpos_x = self.poses[0].x
+    self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(0.4)
@@ -585,8 +607,8 @@ class Motion(object):
       self.bot.gripper.close()
     self.record = record_dmp
     self.recording_dmp = record_dmp
-    self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.06, roll=r, pitch=self.first_pose.pitch)
-    self.bot.arm.set_ee_pose_components(x=self.last_pose.x, y=self.last_pose.y, z=0.06, roll=r, pitch=self.last_pose.pitch)
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=r, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=0.06, roll=r, pitch=self.poses[1].pitch)
     self.record = False
     self.bot.gripper.close()
     rospy.sleep(2.0)
@@ -599,10 +621,11 @@ class Motion(object):
     print("ACTION DONE")
     self.last_time = rospy.get_time()
     sample = Action()
-    sample.lpos_x = self.last_pose.x
-    sample.lpos_y = self.last_pose.y
-    sample.lpos_pitch = self.last_pose.pitch
+    sample.lpos_x = self.poses[1].x
+    sample.lpos_y = self.poses[1].y
+    sample.lpos_pitch = self.poses[1].pitch
     self.pub_action_sample.publish(sample)
+    self.poses.pop()
     self.bool_last_p = False
     self.ready_depth = False
     self.ready_outcome = False
@@ -615,8 +638,8 @@ class Motion(object):
   def execute_direct_exploration(self,record_dmp):
     self.send_state(True)
     print("DIRECT EXPLORATION")
-    self.dmp_direct_explore.fpos_x = self.first_pose.x
-    self.dmp_direct_explore.fpos_y = self.first_pose.y
+    self.dmp_direct_explore.fpos_x = self.poses[0].x
+    self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(0.4)
@@ -628,10 +651,10 @@ class Motion(object):
       self.bot.gripper.close()
     self.record = record_dmp
     self.recording_dmp = record_dmp
-    lpos_x = self.first_pose.x + self.dmp_direct_explore.v_x
-    lpos_y = self.first_pose.y + self.dmp_direct_explore.v_y
-    lpos_p = self.first_pose.pitch + self.dmp_direct_explore.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.first_pose.x, y=self.first_pose.y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=self.first_pose.pitch)
+    lpos_x = self.poses[0].x + self.dmp_direct_explore.v_x
+    lpos_y = self.poses[0].y + self.dmp_direct_explore.v_y
+    lpos_p = self.poses[0].pitch + self.dmp_direct_explore.v_pitch
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=self.poses[0].pitch)
     self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
@@ -649,6 +672,7 @@ class Motion(object):
     sample.lpos_y = lpos_y
     sample.lpos_pitch = lpos_p
     self.pub_action_sample.publish(sample)
+    self.poses.pop()
     self.bool_init_p = False
     self.bool_last_p = False
     self.ready_depth = False
@@ -734,13 +758,11 @@ if __name__ == '__main__':
   #motion_planning.pose_to_joints(0.3,-0.1,0.02,0.0,0.8)  
 
   while not rospy.is_shutdown():
-    if motion_pincher.get_explore():
-      if motion_pincher.get_bool_init() and motion_pincher.get_bool_last():
-        motion_pincher.execute_rnd_exploration(False)
-        motion_pincher.send_signal_action()
-      if motion_pincher.get_bool_init() and motion_pincher.get_direct_exploration():
-        motion_pincher.execute_direct_exploration(False)
-        motion_pincher.send_signal_action()
+    if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2:
+      motion_pincher.execute_rnd_exploration(False)
+    if motion_pincher.get_direct_exploration() and motion_pincher.get_number_pose() == 1:
+      motion_pincher.execute_direct_exploration(False)
+      motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
       motion_pincher.execute_dmp()
   #if first:
