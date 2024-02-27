@@ -651,12 +651,14 @@ class Habituation(object):
       rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
       rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
+      rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
-      self.pub_eval_perception = rospy.Publisher("/habituation/perception", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_eval_perception = rospy.Publisher("/habituation/goal_perception", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_perception = rospy.Publisher("/habituation/test_perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
       self.pub_direct = rospy.Publisher("/motion_pincher/direct_exploration",Dmp, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
@@ -725,6 +727,9 @@ class Habituation(object):
 
    def send_eval_perception(self, msg):
       self.pub_eval_perception.publish(msg)
+
+   def send_perception(self, msg):
+      self.pub_perception.publish(msg)
 
    def send_mt_field(self):
       img_field = self.habit[self.index_vae].get_mt_field()
@@ -840,6 +845,31 @@ class Habituation(object):
          self.prev_id_object = self.id_object
          self.id_defined = True
 
+   def callback_perception(self, msg):
+      dmp_out = DmpOutcome()
+      dmp_out.v_x = self.scale_data(msg.v_x,self.min_vx,self.max_vx)
+      dmp_out.v_y = self.scale_data(msg.v_y,self.min_vy,self.max_vy)
+      dmp_out.v_pitch = self.scale_data(msg.v_pitch,self.min_vpitch,self.max_vpitch)
+      dmp_out.roll = self.scale_data(msg.roll,self.min_roll,self.max_roll)
+      dmp_out.grasp = self.scale_data(msg.grasp,self.min_grasp,self.max_grasp)
+      dmp_out.x = self.scale_data(msg.x, self.min_vx, self.max_vx)
+      dmp_out.y = self.scale_data(msg.y, self.min_vy, self.max_vy)
+      dmp_out.angle = self.scale_data(msg.angle, self.min_angle, self.max_angle)
+      dmp_out.touch = self.scale_data(msg.touch, self.min_grasp, self.max_grasp)
+      sample = [dmp_out.x,dmp_out.y,dmp_out.angle,dmp_out.touch,dmp_out.v_x,dmp_out.v_y,dmp_out.v_pitch,dmp_out.roll,dmp_out.grasp]
+      tensor_sample = torch.tensor(sample,dtype=torch.float)
+      t = self.habit[self.index_vae].get_memory()
+      print("memory : ",t)
+      print("tensor sample : ",tensor_sample)
+      z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
+      print("TESTING new sample...")
+      msg = self.habit[self.index_vae].get_eval_latent_to_dnf(z,self.exploration_mode)
+      #print(msg)
+      self.send_perception(msg)
+      #self.send_latent_test(z)
+      #rospy.sleep(1.0)
+      #l = LatentNNDNF()
+      #self.send_eval_perception(l)
 
    def learn_new_latent(self, sample):
       print("TRAINING...")
