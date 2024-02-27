@@ -209,15 +209,18 @@ class Motion(object):
   def callback_new_state(self,msg):
     if msg.data == True:
       self.poses  = []
-      print("PLAN NEW ACTION")
+      print("ACTION successful")
       if self.recording_dmp and (self.rnd_explore or self.direct_explore):
         self.make_dmp()
         self.delete_js_bag()
         self.recording_dmp = False
 
   def callback_retry(self,msg):
+    print("Retry with another pose")
     if msg.data == True:
-      self.poses.pop()
+      if self.get_number_pose() > 0:
+        self.poses.pop()
+    print(self.get_number_pose())
 
   def callback_rnd_exploration(self,msg):
     self.rnd_explore = msg.data
@@ -665,7 +668,7 @@ if __name__ == '__main__':
   while not rospy.is_shutdown():
     if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2:
       motion_pincher.execute_rnd_exploration(False)
-    if motion_pincher.get_direct_exploration() and motion_pincher.get_number_pose() == 1:
+    if motion_pincher.get_direct_explore() and motion_pincher.get_number_pose() == 1:
       motion_pincher.execute_direct_exploration(False)
       motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
