@@ -45,14 +45,14 @@ class ClusterMessage
    ros::Subscriber sub_retry;
    ros::Subscriber sub_validate;
    ros::Subscriber sub_invalidate;
+   ros::Subscriber sub_pause;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
-   ros::Publisher pub_ready_sensor;
    ros::Publisher pub_new_state;
-   ros::Publisher pub_new_state_direct;
    ros::Publisher pub_retry;
    ros::Publisher pub_signal;
    ros::Publisher pub_dmp_outcome;
+   ros::Publisher pub_pause;
    ros::ServiceServer service;
    ros::ServiceServer service_;
    detector::Outcome outcome;
@@ -62,21 +62,22 @@ class ClusterMessage
    motion::Dmp dmp_eval;
    bool dmp_b;
    bool outcome_b;
-   bool rnd_explore;
-   bool direct_explore;
-   bool exploit;
+   double rnd_explore;
+   double direct_explore;
+   double exploit;
    bool state_b;
    bool sample_b;
    bool ready_habbit;
    bool ready_nn;
-   bool ready_depth;
    bool ready_outcome;
    bool new_state;
    bool retry;
    bool send_sample;
    bool send_perception;
-   bool valid_perception;
-   bool invalid_perception;
+   double valid_perception;
+   double invalid_perception;
+   bool init_valid;
+   bool init_invalid;
 
   public:
    ClusterMessage()
@@ -90,25 +91,23 @@ class ClusterMessage
       sub_sample = nh_.subscribe("/motion_pincher/action_sample", 10, &ClusterMessage::CallbackSample,this);
       sub_ready_habituation = nh_.subscribe("/habituation/ready", 10, &ClusterMessage::CallbackReadyHabit,this);
       sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 10, &ClusterMessage::CallbackReadyNN,this);
-      sub_ready_depth = nh_.subscribe("/depth_perception/ready", 10, &ClusterMessage::CallbackReadyDepth,this);
-      sub_ready_outcome = nh_.subscribe("/outcome_detector/ready", 10, &ClusterMessage::CallbackReadyOutcome,this);
       sub_new = nh_.subscribe("/depth_perception/new_state", 10, &ClusterMessage::CallbackNewState,this);
       sub_retry = nh_.subscribe("/depth_perception/retry", 10, &ClusterMessage::CallbackRetry,this);
       sub_validate = nh_.subscribe("/habituation/valid_perception", 10, &ClusterMessage::CallbackValidate,this);
       sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 10, &ClusterMessage::CallbackInvalidate,this);
+      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 10, &ClusterMessage::CallbackPause,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
-      pub_new_state_direct = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state_direct",1);
       pub_signal = nh_.advertise<std_msgs::Bool>("/cluster_msg/signal",1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
-      pub_ready_sensor = nh_.advertise<std_msgs::Bool>("/cluster_msg/sensor_ready",1);
+      pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_dmp_outcome = nh_.advertise<motion::DmpOutcome>("/cluster_msg/perception",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
-      rnd_explore = false;
-      direct_explore = false;
-      exploit = false;
+      rnd_explore = 0.0;
+      direct_explore = 0.0;
+      exploit = 0.0;
       send_sample = false;
       outcome_b = false;
    }
@@ -220,11 +219,14 @@ class ClusterMessage
       //std::cout<<"cluster : got sample\n";
    }
 
-   void CallbackRndExplore(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackRndExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       rnd_explore = msg->data;
-      if(rnd_explore && new_state && outcome_b && !send_sample)
+      std::cout<<rnd_explore<<"\n";
+      if(rnd_explore > 0.5 && new_state && outcome_b && !send_sample)
       {
+         std::cout<<"Cluster_msg : RANDOM exploration, sending datas to models...\n";
+         ros::Duration(30.5).sleep();
          cluster_message::SampleExplore s;
          s.state_x = state.state_x;
          s.state_y = state.state_y;
@@ -243,8 +245,12 @@ class ClusterMessage
          s.outcome_touch = outcome.touch;
          pub_datas_explore.publish(s);
          send_sample = true;
+         outcome_b = false;
+         dmp_b = false;
+         state_b = false;
+         sample_b = false;
       }
-      if(rnd_explore && new_state && ready_habbit && ready_nn)
+      if(rnd_explore > 0.5 && new_state && ready_habbit && ready_nn)
       {
          std_msgs::Bool b;
          b.data = true;
@@ -253,10 +259,6 @@ class ClusterMessage
          ready_habbit = false;
          ready_nn = false;
          send_sample = false;
-         outcome_b = false;
-         dmp_b = false;
-         state_b = false;
-         sample_b = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
@@ -264,7 +266,7 @@ class ClusterMessage
          f.data = 0.0;
          pub_signal.publish(f);
       }
-      if(rnd_explore && retry)
+      if(rnd_explore > 0.5 && retry)
       {
          std_msgs::Bool b;
          b.data = true;
@@ -276,6 +278,7 @@ class ClusterMessage
          dmp_b = false;
          state_b = false;
          sample_b = false;
+         retry = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
@@ -285,11 +288,13 @@ class ClusterMessage
       }
    }
 
-   void CallbackDirectExplore(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackDirectExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       direct_explore = msg->data;
-      if(direct_explore && new_state && outcome_b && !send_sample)
+      if(direct_explore > 0.5 && new_state && outcome_b && !send_sample)
       {
+         std::cout<<"Cluster_msg : DIRECT exploration, sending datas to models...\n";
+         ros::Duration(30.5).sleep();
          cluster_message::SampleExplore s;
          s.state_x = state.state_x;
          s.state_y = state.state_y;
@@ -308,8 +313,12 @@ class ClusterMessage
          s.outcome_touch = outcome.touch;
          pub_datas_explore.publish(s);
          send_sample = true;
+         outcome_b = false;
+         dmp_b = false;
+         state_b = false;
+         sample_b = false;
       }
-      if(direct_explore && new_state && ready_habbit && ready_nn)
+      if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn)
       {
          std_msgs::Bool b;
          b.data = true;
@@ -318,10 +327,6 @@ class ClusterMessage
          ready_habbit = false;
          ready_nn = false;
          send_sample = false;
-         outcome_b = false;
-         dmp_b = false;
-         state_b = false;
-         sample_b = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
@@ -329,7 +334,7 @@ class ClusterMessage
          f.data = 0.0;
          pub_signal.publish(f);
       }
-      if(direct_explore && retry)
+      if(direct_explore > 0.5 && retry)
       {
          new_state = false;
          ready_habbit = false;
@@ -339,6 +344,7 @@ class ClusterMessage
          dmp_b = false;
          state_b = false;
          sample_b = false;
+         retry = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
@@ -348,10 +354,10 @@ class ClusterMessage
       }
    }
 
-   void CallbackExploit(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackExploit(const std_msgs::Float64::ConstPtr& msg)
    {
       exploit = msg->data;
-      if(exploit && new_state && outcome_b && !send_perception)
+      if(exploit > 0.5 && new_state && outcome_b && !send_perception)
       {
          motion::DmpOutcome tmp;
          tmp.v_x = dmp.v_x;
@@ -367,7 +373,7 @@ class ClusterMessage
          send_perception = true;
          outcome_b = false;
       }
-      if(exploit && new_state && valid_perception && !send_sample)
+      if(exploit > 0.5 && new_state && valid_perception > 0.5 && !send_sample)
       {
          cluster_message::SampleExploit s;
          s.state_x = state.state_x;
@@ -385,23 +391,39 @@ class ClusterMessage
          sample_b = false;
          send_sample = true;
       }
-      if(exploit && new_state && valid_perception && send_sample && ready_nn)
+      if(exploit > 0.5 && new_state && valid_perception > 0.5 && ready_nn)
       {
          ready_nn = false;
          send_sample = false;
          new_state = false;
-         valid_perception = false;
+         valid_perception = 0.0;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
          ros::Duration(0.5).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
+         init_valid = false;
       }
-      if(exploit && new_state && invalid_perception)
+      if(exploit > 0.5 && new_state && invalid_perception > 0.5)
       {
          new_state = false;
-         invalid_perception = false;
+         invalid_perception = 0.0;
+         std_msgs::Float64 f;
+         f.data = 1.0;
+         pub_signal.publish(f);
+         ros::Duration(0.5).sleep();
+         f.data = 0.0;
+         pub_signal.publish(f);
+         init_invalid = false;
+      }
+      if(exploit > 0.5 && retry)
+      {
+         retry = false;
+         state_b = false;
+         sample_b = false;
+         outcome_b = false;
+         dmp_b = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
@@ -431,47 +453,37 @@ class ClusterMessage
       ready_nn = msg->data;
    }
 
-   void CallbackValidate(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackValidate(const std_msgs::Float64::ConstPtr& msg)
    {
-      if(msg->data == true)
+      if(msg->data > 0.5 && !init_valid)
       {
          valid_perception = msg->data;
+         init_invalid = true;
       }
    }
 
-   void CallbackInvalidate(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackInvalidate(const std_msgs::Float64::ConstPtr& msg)
+   {
+      if(msg->data > 0.5 && !init_invalid)
+      {
+         invalid_perception = msg->data;
+         init_invalid = true;
+      }
+   }
+
+   void CallbackPause(const std_msgs::Bool::ConstPtr& msg)
    {
       if(msg->data == true)
       {
-         invalid_perception = msg->data;
+         std_msgs::Float64 tmp;
+         tmp.data = 1.0;
+         pub_pause.publish(tmp);
       }
-   }
-
-   void CallbackReadyDepth(const std_msgs::Bool::ConstPtr& msg)
-   {
-      ready_depth = msg->data;
-      if(ready_depth && ready_outcome)
+      else
       {
-         std_msgs::Bool tmp;
-         tmp.data = true;
-         pub_ready_sensor.publish(tmp);
-         ready_depth = false;
-         ready_outcome = false;
-         std::cout<<"Cluster msg READY by depth\n";
-      }
-   }
-
-   void CallbackReadyOutcome(const std_msgs::Bool::ConstPtr& msg)
-   {
-      ready_outcome = msg->data;
-      if(ready_depth && ready_outcome)
-      {
-         std_msgs::Bool tmp;
-         tmp.data = true;
-         pub_ready_sensor.publish(tmp);
-         ready_depth = false;
-         ready_outcome = false;
-         std::cout<<"Cluster msg READY by outcome\n";
+         std_msgs::Float64 tmp;
+         tmp.data = 0.0;
+         pub_pause.publish(tmp);
       }
    }
 
