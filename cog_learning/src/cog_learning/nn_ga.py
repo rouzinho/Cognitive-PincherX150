@@ -48,9 +48,9 @@ class NNGoalAction(object):
         self.index_skill = -1
         self.skills = []
         self.min_x = 0.18
-        self.max_x = 0.67
+        self.max_x = 0.46
         self.min_y = -0.35
-        self.max_y = 0.35
+        self.max_y = 0.32
         self.min_pitch = 0
         self.max_pitch = 1.5
         self.min_vx = -0.2
@@ -423,14 +423,14 @@ class NNGoalAction(object):
         #print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.forward_encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
-        print("latent space original : ",output_l)
+        #print("latent space original : ",output_l)
         e0 = self.scale_latent_to_expend(output_l[0])
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
         inputs = [round(t0*100),round(t1*100),error_fwd]
         self.skills[ind_skill].set_name(inputs)
-        print("dnf input : ",inputs)
+        #print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
         self.latent_space_scaled.append(inputs)
         self.plot_latent()
@@ -455,6 +455,7 @@ class NNGoalAction(object):
         #self.test_training()
         self.save_nn()
         self.save_memory()
+        print("NNGA latent space DNF : ",self.latent_space_scaled)
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         self.skills[ind_skill].save_memory(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
