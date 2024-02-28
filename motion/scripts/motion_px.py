@@ -6,7 +6,6 @@ from os import name
 import sys
 import copy
 import rospy
-import geometry_msgs.msg
 import roslib;
 roslib.load_manifest('dmp')
 from dmp.srv import *
@@ -15,7 +14,6 @@ import rosbag
 import numpy as np
 from math import pi
 import math
-from std_msgs.msg import String
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Pose
 import glob
@@ -32,13 +30,11 @@ from std_msgs.msg import Duration
 from std_msgs.msg import UInt16
 from std_msgs.msg import Int16
 from std_msgs.msg import String
+from std_msgs.msg import Float64
 from sensor_msgs.msg import JointState
-from som.msg import PoseRPY
 from som.msg import GripperOrientation
-from som.msg import VectorAction
 from motion.msg import Dmp
 from motion.msg import Action
-from motion.msg import DmpAction
 from som.msg import ListPose
 from som.srv import *
 import os
@@ -140,15 +136,16 @@ class Motion(object):
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     #rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
     rospy.Subscriber('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, self.callback_first_pose)
-    rospy.Subscriber('/depth_perception/new_state', Bool, self.callback_new_state)
-    rospy.Subscriber('/depth_perception/retry', Bool, self.callback_retry)
-    rospy.Subscriber('/cog_learning/rnd_exploration', Bool, self.callback_rnd_exploration)
-    rospy.Subscriber('/cog_learning/direct_exploration', Bool, self.callback_direct_exploration)
-    rospy.Subscriber('/cog_learning/exploitation', Bool, self.callback_exploitation)
+    rospy.Subscriber('/cluster_msg/new_state', Bool, self.callback_new_state)
+    rospy.Subscriber('/cluster_msg/retry', Bool, self.callback_retry)
+    rospy.Subscriber('/cog_learning/rnd_exploration', Float64, self.callback_rnd_exploration)
+    rospy.Subscriber('/cog_learning/direct_exploration', Float64, self.callback_direct_exploration)
+    rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp_direct_exploration', Dmp, self.callback_dmp_direct_exploration)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
     rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
     rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+    rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
 
   def transform_dmp_cam_rob(self, dmp_):
     rospy.wait_for_service('transform_dmp_cam_rob')
@@ -223,13 +220,22 @@ class Motion(object):
     print(self.get_number_pose())
 
   def callback_rnd_exploration(self,msg):
-    self.rnd_explore = msg.data
+    if msg.data > 0.5:
+      self.rnd_explore = True
+    else:
+      self.rnd_explore = False
 
   def callback_direct_exploration(self,msg):
-    self.direct_explore = msg.data
+    if msg.data > 0.5:
+      self.direct_explore = True
+    else:
+      self.direct_explore = False
 
   def callback_exploitation(self,msg):
-    self.exploit = msg.data
+    if msg.data > 0.5:
+      self.exploit = True
+    else:
+      self.exploit = False
 
   def callback_ready(self,msg):
     self.ready_depth = msg.data
@@ -250,6 +256,9 @@ class Motion(object):
     self.dmp_direct_explore.v_pitch = msg.v_pitch
     self.dmp_direct_explore.roll = msg.roll
     self.dmp_direct_explore.grasp = msg.grasp
+
+  def callback_pause(self, msg):
+    self.poses = []
   
   def get_number_pose(self):
     return len(self.poses)
