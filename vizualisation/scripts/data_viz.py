@@ -246,9 +246,10 @@ class DataNodeRecorder(object):
         self.data_folder = rospy.get_param("data_folder")
         self.sub = rospy.Subscriber(name_topic, Float64, self.node_callback)
         self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
+        self.sub_time = rospy.Subscriber("/data_recorder/time", Float64, self.callback_time)
 
-    def node_callback(self, dat):
-        self.node = dat.data
+    def node_callback(self, msg):
+        self.node = msg.data
 
     def callback_object(self,msg):
         self.id = msg.data
@@ -257,6 +258,9 @@ class DataNodeRecorder(object):
         if not found:
             os.mkdir(path)
         self.id_defined = True
+
+    def callback_time(self,msg):
+        self.writeValue(msg.data)
 
     def getNode(self):
         return self.node
@@ -270,28 +274,18 @@ class DataNodeRecorder(object):
                 writer_object.writerow(row)
                 f_object.close()
 
-
-class MyImage(Widget):
-    def __init__(self,**kwargs):
-        super(MyImage,self).__init__(**kwargs)
-        self.image = Image(source='/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg')
-        self.add_widget(self.image)
-        Clock.schedule_interval(self.update_pic,1)
-
-    def update_pic(self,dt):
-        self.image.reload()
-
 class VisualDatas(App):
 
-    explore = ListProperty([0.26, 0.26, 0.26, 0.3])
+    explore_rnd = ListProperty([0.26, 0.26, 0.26, 0.3])
+    explore_direct = ListProperty([0.26, 0.26, 0.26, 0.3])
     exploit = ListProperty([0.26, 0.26, 0.26, 0.3])
     learning_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
     retrieve_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
     start_record = ListProperty([48/255,84/255,150/255,1])
     stop_record = ListProperty([0.26, 0.26, 0.26, 0.3])
     name_record = StringProperty('Start')
-    mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg')
-    mt_vae = StringProperty('/home/altair/PhD/Codes/catkin_noetic/src/vizualisation/images/blank.png')
+    mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg')
+    mt_vae = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg')
 
     def __init__(self, **kwargs):
         super(VisualDatas, self).__init__(**kwargs)
@@ -302,11 +296,12 @@ class VisualDatas(App):
         rate = rospy.Rate(50)
         self.dr_error_fwd = DataRecorder("/data_recorder/data_errors")
         self.dr_lp = DataRecorder("/data_recorder/data_lp")
-        self.node_explore = DataNodeRecorder("/data_recorder/node_explore","explore")
+        self.node_rnd_explore = DataNodeRecorder("/data_recorder/node_rnd_explore","rnd_exploration")
+        self.node_direct_explore = DataNodeRecorder("/data_recorder/node_direct_explore","direct_exploration")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
-        self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
+        #self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
         self.pub_time = rospy.Publisher("/data_recorder/time",Float64,queue_size=1)
-        self.pub_signal = rospy.Publisher("/data_recorder/signal",Bool,queue_size=1)
+        #self.pub_signal = rospy.Publisher("/data_recorder/signal",Bool,queue_size=1)
         #self.dmp = DmpListener()
         #self.control_arch = ControlArch()
         self.current_dmp = 0
@@ -372,16 +367,6 @@ class VisualDatas(App):
         self.time = pickle.load(filehandler)
         print(self.time)
 
-    def notifySmartPhone(self,msg):
-        conn = http.client.HTTPSConnection("api.pushover.net:443")
-        conn.request("POST", "/1/messages.json",
-        urllib.parse.urlencode({
-            "token": "at47evsq4s32ikq1z19c113hzqszhm",
-            "user": "u4duarerbk33yztxte93kevd5xx78j",
-            "message": msg,
-        }), { "Content-type": "application/x-www-form-urlencoded" })
-        conn.getresponse()
-
     def notify(self,notif):
         if notif == True:
             playsound('/home/altair/PhD/Codes/ExperimentIM-LCNE/happy.wav')
@@ -411,72 +396,6 @@ class VisualDatas(App):
         size_l = len(l_error)
         if self.name_object == "cylinder" and size_l > 5:
             self.too_many = True
-
-    def checkStuck(self):
-        ee = self.control_arch.getIsMoving()
-        if ee == True:
-            self.last_time = self.time
-        if self.time - self.last_time > 30:
-            self.control_arch.publishUnstuck(1.0)
-            rospy.sleep(1)
-            self.control_arch.publishUnstuck(0.0)
-            rospy.sleep(1)
-            self.last_time = self.time
-
-
-    def checkSkills(self):
-        end_sim = True
-        l_error = self.dr_error_fwd.getValuePeaks()
-        l_lp = self.dr_lp.getValuePeaks()
-        size_l = len(l_error)
-        if size_l < 1:
-            end_sim = False
-        for i in range(0,size_l):
-            err = math.ceil(l_error[i][2]*100)/100
-            lp = math.ceil(l_lp[i][2]*100)/100
-            err = err * 100
-            lp = lp * 100
-            if err >= 4 or lp >= 9:
-                end_sim = False
-        if self.time < 120:
-            end_sim = False
-
-        return end_sim
-
-    def checkSimulation(self):
-        end = self.checkSkills()
-        if end:
-            self.set_record()
-            self.control_arch.resetArchitecture(1.0)
-            rospy.sleep(1.0)
-            #self.control_arch.saveMemory(1.0)
-            #print("RESET CALLED : SAVING DFT MEMORY")
-            #rospy.sleep(1)
-            #self.control_arch.saveMemory(0.0)
-            self.saveTime()
-            print("RESET CALLED : RESET SKILLS LIST")
-            self.dr_error_fwd.resetList()
-            self.dr_lp.resetList()
-            self.rst = True
-            print("RESET CALLED : SAVING ALL DATAS")
-            self.copy_all_datas(self.name_object,self.experiment,self.index)
-            self.removeFiles()
-            print("RESET CALLED : RESET DFT ARCHITECTURE")
-            #msg = "Experiment "+ self.name_object + " " + str(self.index) + " over"
-            #self.notifySmartPhone(msg)
-            self.notify(True)
-            print("START OF NEW EXPERIMENT")
-            self.set_record()
-            self.time = 0
-            self.last_time = 0
-            self.index += 1
-            self.keep_exploit = False
-        if self.too_many or self.keep_exploring:
-            #msg = "Experiment "+ self.name_object + " " + str(self.index) + " failed"
-            self.notify(False)
-            self.too_many = False
-            self.keep_exploring = False
-            self.index = self.index - 1
 
     def startExploration(self):
         self.control_arch.publishExpl(True)
@@ -512,7 +431,7 @@ class VisualDatas(App):
             self.record = True
             r = Bool()
             r.data = True
-            self.pub_signal.publish(r)
+            #self.pub_signal.publish(r)
             self.first = False
         else:
             self.name_record = "Start"
@@ -520,7 +439,7 @@ class VisualDatas(App):
             self.start_record = _GREEN_LIGHT
             r = Bool()
             r.data = False
-            self.pub_signal.publish(r)
+            #self.pub_signal.publish(r)
             self.saveTime()
             self.dr_error_fwd.savePeaks(self.name_peaks)
             self.record = False
@@ -531,21 +450,26 @@ class VisualDatas(App):
         self.dr_lp.loadPeaks(self.name_peaks)
 
     def update_image(self,dt):
-        name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/test.jpg"
-        #self.mt_error = name
         self.root.children[1].children[2].children[0].reload()
-        print(self.root.children[1].children)
+        self.root.children[1].children[1].children[0].reload()
 
     def update_events(self, dt):
-        if self.node_explore.getNode() > 0.8:
-            self.explore = _GREEN_LIGHT
+        if self.node_rnd_explore.getNode() > 0.8:
+            self.explore_rnd = _GREEN_LIGHT
             self.retrieve_dmp = _GRAY_LIGHT
             self.n_exploit = True
-            self.update_image("blank")
             if self.keep_exploit == True:
                 self.keep_exploring = True
         else:
-            self.explore = _GRAY_LIGHT
+            self.explore_rnd = _GRAY_LIGHT
+        if self.node_direct_explore.getNode() > 0.8:
+            self.explore_direct = _GREEN_LIGHT
+            self.retrieve_dmp = _GRAY_LIGHT
+            self.n_exploit = True
+            if self.keep_exploit == True:
+                self.keep_exploring = True
+        else:
+            self.explore_direct = _GRAY_LIGHT
         if self.node_exploit.getNode() > 0.8:
             self.exploit = _GREEN_LIGHT
             self.retrieve_dmp = _YELLOW_LIGHT
@@ -556,12 +480,12 @@ class VisualDatas(App):
                 self.copy_datas_explore(self.name_object,self.experiment,self.index)
                 self.n_exploit = False"""
         else:
-            self.explore = _GRAY_LIGHT
             self.exploit = _GRAY_LIGHT
-        if self.node_learning_dmp.getNode() > 0.5 and self.node_learning_dmp.getNode() < 1.5:
-            self.learning_dmp = _YELLOW_LIGHT
-        else:
             self.learning_dmp = _GRAY_LIGHT
+        #if self.node_learning_dmp.getNode() > 0.5 and self.node_learning_dmp.getNode() < 1.5:
+        #    self.learning_dmp = _YELLOW_LIGHT
+        #else:
+        #    self.learning_dmp = _GRAY_LIGHT
 
 
     # Update the progress with datas coming from neural fields
@@ -689,7 +613,7 @@ BoxLayout:
                 text: "random"
                 canvas.before:
                     Color:
-                        rgba: app.explore
+                        rgba: app.explore_rnd
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
@@ -703,7 +627,7 @@ BoxLayout:
                 text: "direct"
                 canvas.before:
                     Color:
-                        rgba: app.exploit
+                        rgba: app.explore_direct
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
@@ -761,36 +685,74 @@ BoxLayout:
             Image:
                 size_hint: None, None
                 size: 200, 200
-                pos: 0, 100
+                pos: 0, 150
                 source: app.mt_error           
         FloatLayout:
             pos: 100,100
             Image:
                 size_hint: None, None
                 size: 200, 200
-                pos: 220, 100
+                pos: 210, 150
                 source: app.mt_vae 
         BoxLayout:
-            orientation: 'horizontal'
-            size: 400, 70
+            orientation: 'vertical'
+            size: 400, 250
             size_hint: (None,None)
-            Button:
-                #text: "Start record"
-                text: app.name_record
-                font_size: 24
-                size: 50, 50
-                pos: 10, 10
-                background_color: app.start_record
-                #background_normal: ''
-                on_press: app.set_record()
-            Button:
-                text: "Load Datas"
-                font_size: 24
-                size: 50, 50
-                pos: 10, 10
-                background_color: app.stop_record
-                #background_normal: ''
-                on_press: app.load_datas()
+            BoxLayout:
+                orientation: 'horizontal'
+                size: 400, 70
+                size_hint: (None,None)
+                Label:
+                    text_size: self.size
+                    size: 50, 50
+                    halign: 'center'
+                    valign: 'middle'
+                    pos: 0, 50
+                    font_size: 22
+                    text: "NNGA"
+                    canvas.before:
+                        Color:
+                            rgba: 48/255,84/255,150/255,0.5
+                        RoundedRectangle:
+                            size: self.size
+                            pos: self.pos
+                            radius: [35] 
+                Label:
+                    text_size: self.size
+                    size: 50, 50
+                    halign: 'center'
+                    valign: 'middle'
+                    pos: 280, 50
+                    font_size: 22
+                    text: "VAE"
+                    canvas.before:
+                        Color:
+                            rgba: 48/255,84/255,150/255,0.5
+                        RoundedRectangle:
+                            size: self.size
+                            pos: self.pos
+                            radius: [35]
+            BoxLayout:
+                orientation: 'horizontal'
+                size: 400, 70
+                size_hint: (None,None)
+                Button:
+                    #text: "Start record"
+                    text: app.name_record
+                    font_size: 24
+                    size: 50, 50
+                    pos: 10, 10
+                    background_color: app.start_record
+                    #background_normal: ''
+                    on_press: app.set_record()
+                Button:
+                    text: "Load Datas"
+                    font_size: 24
+                    size: 50, 50
+                    pos: 10, 10
+                    background_color: app.stop_record
+                    #background_normal: ''
+                    on_press: app.load_datas()
     GridLayout:
         id: gl
         cols: 4
@@ -882,7 +844,7 @@ BoxLayout:
         # Animate the progress bar
         Clock.schedule_interval(self.update_gauges, 0.1)
         Clock.schedule_interval(self.update_events, 0.1)
-        Clock.schedule_interval(self.update_image, 0.1)
+        Clock.schedule_interval(self.update_image, 2.0)
         return self.container
 
 
