@@ -33,6 +33,7 @@
 #include <ros/header.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Float64.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -59,6 +60,7 @@ class DepthImage
     ros::Subscriber sub_point_cloud;
     ros::Subscriber sub_point_cloud_object;
     ros::Subscriber sub_activate;
+    ros::Subscriber sub_pause;
     geometry_msgs::TransformStamped transformStamped;
     image_transport::Publisher pub_state;
     ros::Publisher pub_retry;
@@ -117,6 +119,7 @@ class DepthImage
     bool begin_count;
     bool init_params;
     cv::Mat display;
+    bool pause;
 
   public:
     DepthImage():
@@ -126,6 +129,7 @@ class DepthImage
       sub_point_cloud = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &DepthImage::pointCloudCb,this);
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
+      sub_pause = nh_.subscribe("/cluster_msg/pause", 1, &DepthImage::activatePause,this);
       pub_state = it_.advertise("/depth_perception/dnf_state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
@@ -275,6 +279,21 @@ class DepthImage
       else
       {
         start = false;
+      }
+    }
+
+    void activatePause(const std_msgs::Float64ConstPtr& msg)
+    {
+      if(msg->data > 0.5)
+      {
+        pause = true;
+        rmStates();
+        pub_reset_detector.publish(msg);
+      }
+      if(msg->data < 0.5 && pause)
+      {
+        pub_reset.publish(msg);
+        pause = false;
       }
     }
 
@@ -601,8 +620,8 @@ class DepthImage
         count++;
       
       }
-      cv::imshow(OPENCV_WINDOW,fil);
-      cv::waitKey(1);
+      //cv::imshow(OPENCV_WINDOW,fil);
+      //cv::waitKey(1);
     }
 
     cv::Mat enhanceDepth(cv::Mat img, float thr)
