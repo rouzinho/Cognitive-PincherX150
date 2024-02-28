@@ -859,17 +859,17 @@ class Habituation(object):
       sample = [dmp_out.x,dmp_out.y,dmp_out.angle,dmp_out.touch,dmp_out.v_x,dmp_out.v_y,dmp_out.v_pitch,dmp_out.roll,dmp_out.grasp]
       tensor_sample = torch.tensor(sample,dtype=torch.float)
       t = self.habit[self.index_vae].get_memory()
-      print("memory : ",t)
-      print("tensor sample : ",tensor_sample)
+      #print("memory : ",t)
+      #print("tensor sample : ",tensor_sample)
       z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
-      print("TESTING new sample...")
+      #print("TESTING new sample...")
       msg = self.habit[self.index_vae].get_eval_latent_to_dnf(z,self.exploration_mode)
       #print(msg)
       self.send_perception(msg)
       #self.send_latent_test(z)
-      #rospy.sleep(1.0)
-      #l = LatentNNDNF()
-      #self.send_eval_perception(l)
+      rospy.sleep(1.0)
+      l = LatentNNDNF()
+      self.send_perception(l)
 
    def learn_new_latent(self, sample):
       print("TRAINING...")
