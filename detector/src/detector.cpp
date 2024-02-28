@@ -36,6 +36,7 @@
 #include <std_msgs/Float32.h>
 #include "detector/Outcome.h"
 #include "detector/State.h"
+#include "cog_learning/ListObject.h"
 #include <opencv2/aruco.hpp>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
@@ -136,7 +137,7 @@ class Detector
         pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_state_object = nh_.advertise<detector::State>("/outcome_detector/state",1);
-        pub_id_object = nh_.advertise<std_msgs::Int16>("/cog_learning/id_object",1);
+        pub_id_object = nh_.advertise<cog_learning::ListObject>("/outcome_detector/id_object",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -356,9 +357,13 @@ class Detector
         cv::aruco::detectMarkers(cv_ptr->image, dictionary, corners, ids);
         //cv::aruco::drawDetectedMarkers(cv_ptr->image, corners, ids);
         depth_interface::InterfacePOI pts;
+        cog_learning::ListObject lo;
         if(ids.size() == 1)
         {
-            id_object = ids[0];
+            //id_object = ids[0];
+            std_msgs::Int16 tmp;
+            tmp.data = ids[0];
+            lo.list_object.push_back(ids[0]);
             for(int i = 0; i < ids.size();  i++)
             {
                 if(corners[ids[i]].size() == 4)
@@ -402,9 +407,7 @@ class Detector
         }
         //cv::imshow("out", cv_ptr->image);
         //cv::waitKey(1);
-        std_msgs::Int16 tmp;
-        tmp.data = id_object;
-        pub_id_object.publish(tmp);
+        pub_id_object.publish(lo);
     }
 
     void GraspingCallback(const std_msgs::BoolConstPtr& msg)

@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_conversions
   pcl_ros
   visualization_msgs
+  cog_learning
 )
 
 ## System dependencies are found with CMake's conventions
@@ -128,6 +129,7 @@ catkin_package(
                    visualization_msgs
                    roslib
                    open3d_conversions
+                   cog_learning
     DEPENDS Open3D
   )
 
