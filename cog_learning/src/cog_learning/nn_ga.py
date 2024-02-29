@@ -399,7 +399,7 @@ class NNGoalAction(object):
         self.skills[self.index_skill].save_memory(pwd)
         self.skills[self.index_skill].save_fwd_nn(pwd)
         self.skills[self.index_skill].save_inv_nn(pwd)
-        self.pub_ready.publish(True)
+        self.send_ready(True)
 
     #bootstrap learning when we discover first skill during exploration
     def bootstrap_learning(self, sample):
@@ -460,7 +460,7 @@ class NNGoalAction(object):
         self.skills[ind_skill].save_memory(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
         self.skills[ind_skill].save_inv_nn(pwd)
-        self.pub_ready.publish(True)
+        self.send_ready(True)
 
     def trainDecoder(self):
         current_cost = 0

@@ -1,7 +1,7 @@
 <launch> 
     <param name="load" type="bool" value="false" />
     <param name="nnga_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/nn_ga/" />
-    <include file="$(find cluster_message)/launch/cluster.launch" />
+    <!-- <include file="$(find cluster_message)/launch/cluster.launch" /> -->
     <!-- <include file="$(find display_points)/launch/display.launch" /> -->
     <node name="exploitation" pkg="cog_learning" type="exploitation.py" output="screen"/>
 </launch>

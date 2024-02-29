@@ -646,14 +646,8 @@ class Habituation(object):
       self.colors.append("gray")
       self.time = 0
       self.first = True
-      rospy.Subscriber("/habituation/mt", Image, self.field_callback)
-      rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
-      rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
-      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
-      rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
-      rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
       self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
-      self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
+      self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
       self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
       self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
@@ -663,6 +657,12 @@ class Habituation(object):
       self.pub_direct = rospy.Publisher("/motion_pincher/direct_exploration",Dmp, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
+      rospy.Subscriber("/habituation/mt", Image, self.field_callback)
+      rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+      rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
+      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
+      rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
+      rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
       self.load = rospy.get_param("load")
       if(self.load):
          self.load_nn()
@@ -824,8 +824,8 @@ class Habituation(object):
       #self.send_eval_perception(l)
 
    def callback_id(self, msg):
-      self.id_object = msg.data
-      if self.prev_id_object != self.id_object:
+      if self.prev_id_object != self.id_object and msg.data != -1:
+         self.id_object = msg.data
          found = False
          for i in range(0,len(self.habit)):
             tmp = self.habit[i].get_id()
@@ -872,7 +872,7 @@ class Habituation(object):
       self.send_perception(l)
 
    def learn_new_latent(self, sample):
-      print("TRAINING...")
+      print("TRAINING VAE...")
       torch.manual_seed(24)
       self.habit[self.index_vae].reset_model()
       self.add_to_memory(sample)
@@ -887,6 +887,7 @@ class Habituation(object):
       self.save_memory()
       self.incoming_dmp = False
       self.incoming_outcome = False
+      print("finished training VAE")
       self.pub_ready.publish(True)
       #print("Latent Space : ",self.habit[self.index_vae].get_latent_space())
       print("Latent Space DNF : ",self.habit[self.index_vae].get_latent_space_dnf())
