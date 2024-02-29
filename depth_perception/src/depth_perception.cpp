@@ -220,7 +220,7 @@ class DepthImage
         }
       }
       
-      if(begin_count)
+      if(begin_count && !lock_callback)
       {
         count_lock++;
       }
