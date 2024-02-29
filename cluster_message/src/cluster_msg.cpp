@@ -99,7 +99,7 @@ class ClusterMessage
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
-      pub_signal = nh_.advertise<std_msgs::Bool>("/cluster_msg/signal",1);
+      pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_dmp_outcome = nh_.advertise<motion::DmpOutcome>("/cluster_msg/perception",1);
@@ -110,6 +110,8 @@ class ClusterMessage
       exploit = 0.0;
       send_sample = false;
       outcome_b = false;
+      ready_habbit = false;
+      ready_nn = false;
    }
    ~ClusterMessage()
    {
@@ -189,7 +191,7 @@ class ClusterMessage
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;
       dmp_b = true;
-      //std::cout<<"cluster : got DMP\n";
+      std::cout<<"cluster : got DMP\n";
    }
 
    void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
@@ -199,6 +201,7 @@ class ClusterMessage
       outcome.angle = msg->angle;
       outcome.touch = msg->touch;
       outcome_b = true;
+      std::cout<<"cluster : got outcome\n";
    }
 
    void CallbackState(const detector::State::ConstPtr& msg)
@@ -207,7 +210,7 @@ class ClusterMessage
       state.state_x = msg->state_x;
       state.state_y = msg->state_y;
       state_b = true;
-      //std::cout<<"cluster : got state\n";
+      std::cout<<"cluster : got state\n";
    }
 
    void CallbackSample(const motion::Action::ConstPtr& msg)
@@ -216,17 +219,16 @@ class ClusterMessage
       sample.lpos_y = msg->lpos_y;
       sample.lpos_pitch = msg->lpos_pitch;
       sample_b = true;
-      //std::cout<<"cluster : got sample\n";
+      std::cout<<"cluster : got sample\n";
    }
 
    void CallbackRndExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       rnd_explore = msg->data;
-      std::cout<<rnd_explore<<"\n";
-      if(rnd_explore > 0.5 && new_state && outcome_b && !send_sample)
+      if(rnd_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
       {
          std::cout<<"Cluster_msg : RANDOM exploration, sending datas to models...\n";
-         ros::Duration(30.5).sleep();
+         //ros::Duration(4.5).sleep();
          cluster_message::SampleExplore s;
          s.state_x = state.state_x;
          s.state_y = state.state_y;
@@ -250,30 +252,31 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && new_state && ready_habbit && ready_nn)
+      if(rnd_explore > 0.5 && ready_habbit && ready_nn)
       {
+         std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
+         //ros::Duration(3.5).sleep();
          std_msgs::Bool b;
          b.data = true;
          pub_new_state.publish(b);
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         send_sample = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
       if(rnd_explore > 0.5 && retry)
       {
+         std::cout<<"Cluster_msg : RANDOM exploration Retry\n";
          std_msgs::Bool b;
          b.data = true;
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         send_sample = false;
          outcome_b = false;
          dmp_b = false;
          state_b = false;
@@ -294,7 +297,7 @@ class ClusterMessage
       if(direct_explore > 0.5 && new_state && outcome_b && !send_sample)
       {
          std::cout<<"Cluster_msg : DIRECT exploration, sending datas to models...\n";
-         ros::Duration(30.5).sleep();
+         ros::Duration(10.5).sleep();
          cluster_message::SampleExplore s;
          s.state_x = state.state_x;
          s.state_y = state.state_y;
@@ -320,6 +323,8 @@ class ClusterMessage
       }
       if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn)
       {
+         std::cout<<"Cluster_msg : DIRECT exploration DONE\n";
+         ros::Duration(10.5).sleep();
          std_msgs::Bool b;
          b.data = true;
          pub_new_state.publish(b);
