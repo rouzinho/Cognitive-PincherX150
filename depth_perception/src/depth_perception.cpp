@@ -61,6 +61,7 @@ class DepthImage
     ros::Subscriber sub_point_cloud_object;
     ros::Subscriber sub_activate;
     ros::Subscriber sub_pause;
+    ros::Subscriber sub_touch;
     geometry_msgs::TransformStamped transformStamped;
     image_transport::Publisher pub_state;
     ros::Publisher pub_retry;
@@ -120,6 +121,7 @@ class DepthImage
     bool init_params;
     cv::Mat display;
     bool pause;
+    bool touch;
 
   public:
     DepthImage():
@@ -129,6 +131,7 @@ class DepthImage
       sub_point_cloud = nh_.subscribe("/pc_filter/pointcloud/filtered", 1, &DepthImage::pointCloudCb,this);
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
+      sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &DepthImage::callbackTouch,this);
       sub_pause = nh_.subscribe("/cluster_msg/pause", 1, &DepthImage::activatePause,this);
       pub_state = it_.advertise("/depth_perception/dnf_state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
@@ -252,9 +255,9 @@ class DepthImage
       //print4x4Matrix(robot_frame);
       //getExtremeValues(cloud_transformed);
       //if(init_params)
-      {
-        genDepthFromPcl(cloud_transformed);
-      }
+      
+      genDepthFromPcl(cloud_transformed);
+      
       
       //std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
       //cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
@@ -282,16 +285,23 @@ class DepthImage
       }
     }
 
+    void callbackTouch(const std_msgs::BoolConstPtr& msg)
+    {
+      touch = msg->data;
+    }
+
     void activatePause(const std_msgs::Float64ConstPtr& msg)
     {
       if(msg->data > 0.5)
       {
+        std::cout<<"Pause called, resetting states...\n";
         pause = true;
         rmStates();
         pub_reset_detector.publish(msg);
       }
       if(msg->data < 0.5 && pause)
       {
+        std::cout<<"resuming experiment\n";
         pub_reset.publish(msg);
         pause = false;
       }
@@ -300,13 +310,15 @@ class DepthImage
     void resetDepth()
     {
       std::cout<<"Grasping detected, waiting for object to be back\n";
+      std_msgs::Bool msg;
+      msg.data = true;
+      pub_activate_detector.publish(msg);
       start = false;
       ros::Duration(6.5).sleep();
       rmStates();
       first = true;
-      std_msgs::Bool msg;
       msg.data = true;
-      pub_reset_detector.publish(msg);
+      pub_new_state.publish(msg);
       pub_reset.publish(msg);
     }
 
@@ -533,40 +545,56 @@ class DepthImage
                 change = stateChanged(final_image,c);
                 if(change)
                 {
-                  std::cout<<"changes !\n";
+                  std::cout<<"DEPTH : changes !\n";
                   std::string s = std::to_string(c);
                   std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
                   cv::imwrite(name_state, final_image);
                   std_msgs::String msg_state;
                   msg_state.data = name_state;
-                  pub_name_state.publish(msg_state);
-                  std::cout<<"RESET DNF\n";
+                  //pub_name_state.publish(msg_state);
+                  //std::cout<<"RESET DNF\n";
                   std_msgs::Bool msg;
                   msg.data = true;
                   pub_new_state.publish(msg);
-                  ros::Duration(4.5).sleep();
+                  //ros::Duration(4.5).sleep();
                   pub_activate_detector.publish(msg);
-                  msg.data = false;
-                  pub_new_state.publish(msg);
-                  msg.data = true;
-                  pub_ready.publish(msg);
                 }
                 else
                 {
-                  std::cout<<"no changes\n";
-                  std::string s = std::to_string(c);
-                  std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
-                  cv::imwrite(name_state, final_image);
-                  std_msgs::Bool msg_f;
-                  msg_f.data = false;
-                  //pub_success.publish(msg_f);
-                  std_msgs::Bool msg;
-                  msg.data = true;
-                  pub_retry.publish(msg);
-                  ros::Duration(0.5).sleep();
-                  pub_reset_detector.publish(msg);
-                  pub_activate_detector.publish(msg);
-                  pub_ready.publish(msg);
+                  if(touch)
+                  {
+                    std::cout<<"DEPTH : grasping detected. changes\n";
+                    std::string s = std::to_string(c);
+                    std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                    cv::imwrite(name_state, final_image);
+                    std_msgs::String msg_state;
+                    msg_state.data = name_state;
+                    //pub_name_state.publish(msg_state);
+                    std_msgs::Bool msg;
+                    msg.data = true;
+                    pub_new_state.publish(msg);
+                    pub_activate_detector.publish(msg);
+                    ros::Duration(10.5).sleep();
+                    pub_reset_detector.publish(msg);
+                    pub_reset.publish(msg);
+                  }
+                  else
+                  {
+                    std::cout<<"DEPTH : no changes\n";
+                    std::string s = std::to_string(c);
+                    std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_"+s+".jpg";
+                    cv::imwrite(name_state, final_image);
+                    std_msgs::Bool msg_f;
+                    msg_f.data = false;
+                    //pub_success.publish(msg_f);
+                    std_msgs::Bool msg;
+                    msg.data = true;
+                    pub_retry.publish(msg);
+                    ros::Duration(0.5).sleep();
+                    pub_reset_detector.publish(msg);
+                    pub_activate_detector.publish(msg);
+                    //pub_ready.publish(msg);
+                  }
                 }
               }
               else
@@ -601,15 +629,18 @@ class DepthImage
               cv::imwrite(name_state, final_image);
               std_msgs::Bool msg;
               msg.data = true;
-              pub_new_state.publish(msg);
-              if(out_boundary)
+              //pub_reset_detector.publish(msg);
+              //pub_activate_detector.publish(msg);
+              //pub_new_state.publish(msg);
+              /*if(out_boundary)
               {
                 pub_activate_detector.publish(msg);
                 out_boundary = false;
-              }
-              ros::Duration(1.5).sleep();
+              }*/
+
+              //ros::Duration(1.5).sleep();
               msg.data = false;
-              pub_new_state.publish(msg);
+              //pub_new_state.publish(msg);
               first = false;
               start = false;
               msg.data = true;
@@ -843,14 +874,14 @@ class DepthImage
         for(int j = 0; j < tmp.cols; j++)
         {
           int pix = static_cast<int>(tmp.at<uchar>(i,j));
-          std::cout<<"pix value : "<<pix<<"\n";
+          //std::cout<<"pix value : "<<pix<<"\n";
           if(pix > 12)
           {
             tot = tot + 1;
           }
         }
       }
-      std::cout<<"total change : "<<tot<<"\n";
+      //std::cout<<"total change : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
