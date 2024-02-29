@@ -206,7 +206,7 @@ class Som(object):
             self.pub_node.publish(go)
 
     def callback_list_peaks(self,msg):
-        print(msg)
+        #print(msg)
         l_peaks = self.list_peaks(msg)
         #print("list peaks ")
         #print(l_peaks)
@@ -743,7 +743,7 @@ if __name__ == "__main__":
     if training == False and data_set == "position":
         som.init_network_som_pose()
         som.load_som(model_name,data_set)
-    print("READY")
+    print("SOM READY")
     #plt.show()
     #while not rospy.is_shutdown():
     #    pass
