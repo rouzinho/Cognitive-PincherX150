@@ -1,5 +1,4 @@
 <launch>
-   <include file="$(find som)/launch/pose.launch" />
    <include file="$(find cluster_message)/launch/cluster.launch" />
    <include file="$(find depth_perception)/launch/depth_state.launch" />
    <node name="icp_detector" pkg="detector" type="detector_node" output="screen"/>
