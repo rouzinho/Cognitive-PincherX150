@@ -243,8 +243,8 @@ class Detector
             {
                 activate_angle = false;
                 detector::Outcome res;
-                res.x = 0.0 - first_pose.pose.position.x;
-                res.y = 0.0 - first_pose.pose.position.y;
+                res.x = 0.0 ;//- first_pose.pose.position.x;
+                res.y = 0.0 ;//- first_pose.pose.position.y;
                 res.angle = 0.0;
                 res.touch = 1.0;
                 pub_outcome.publish(res);
