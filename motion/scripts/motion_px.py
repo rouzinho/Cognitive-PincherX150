@@ -88,7 +88,7 @@ class Motion(object):
     self.last_pose = GripperOrientation()
     self.poses = []
     self.possible_grasp = [0.0,1.0]
-    self.possible_roll = [-1.5,-1.2,-0.9,-0.6,-0.3,0,0.3,0.6,0.9,1.2,1.5]
+    self.possible_roll = [-1.5,-0.7,0,0,0.7,1.5]
     self.move = False
     self.name_state = ""
     self.path = []
@@ -120,9 +120,10 @@ class Motion(object):
     self.last_time = 0
     self.prev_id_object = -1
     self.id_object = 0
+    self.count_touch = 0
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
-    self.pub_touch = rospy.Publisher("/outcome_detector/touch", Bool, queue_size=1, latch=True)
+    self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
     self.pub_bmu = rospy.Publisher("/som_pose/som/node_value/bmu", GripperOrientation, queue_size=1, latch=True)
     self.pub_path = rospy.Publisher("/som_pose/som/dmp_path", ListPose, queue_size=1, latch=True)
     self.pub_activate_perception = rospy.Publisher("/depth_perception/activate", Bool, queue_size=1, latch=True)
@@ -132,6 +133,7 @@ class Motion(object):
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
+    self.pub_inhib = rospy.Publisher("/motion_pincher/inhibition", Float64, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
     rospy.Subscriber('/proprioception/joint_states', JointState, self.callback_proprioception)
     #rospy.Subscriber('/motion_pincher/go_to_pose', PoseRPY, self.callback_pose)
@@ -143,7 +145,7 @@ class Motion(object):
     rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp_direct_exploration', Dmp, self.callback_dmp_direct_exploration)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
-    rospy.Subscriber('/cluster_msg/sensor_ready', Bool, self.callback_ready)
+    #rospy.Subscriber('/cluster_msg/signal', Bool, self.callback_ready)
     rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
     rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
 
@@ -172,23 +174,28 @@ class Motion(object):
   #  self.sleep_pose()
 
   def callback_first_pose(self,msg):
+    print("got pose : ",msg)
     tmp = GripperOrientation()
     tmp.x = msg.x
     tmp.y = msg.y
     tmp.pitch = msg.pitch
-    self.poses.append(tmp)
+    if self.rnd_explore and len(self.poses) < 2:
+      self.poses.append(tmp)
+    if self.rnd_explore and len(self.poses) == 1:
+      self.send_inhibition(1.0)
 
   def callback_joint_states(self,msg):
     self.js = msg
     self.js_positions = msg.position
     self.gripper_state = msg.position[6]
     if self.gripper_state < self.threshold_touch_max and self.gripper_state > self.threshold_touch_min:
-      self.touch_value = True
+      self.count_touch = self.count_touch +1
     else:
-      self.touch_value = False
-    t = Bool()
-    t.data = self.touch_value
-    self.pub_touch.publish(t)
+      self.count_touch = 0
+    if(self.count_touch > 300):
+      self.touch_value = True
+    #self.count_touch = 0
+    #self.pub_touch.publish(t)
     #print(self.touch_value)
 
   def callback_proprioception(self,msg):
@@ -211,13 +218,12 @@ class Motion(object):
         self.make_dmp()
         self.delete_js_bag()
         self.recording_dmp = False
+      #self.send_inhibition(True)
 
   def callback_retry(self,msg):
     print("Retry with another pose")
-    if msg.data == True:
-      if self.get_number_pose() > 0:
-        self.poses.pop()
-    print(self.get_number_pose())
+    #if msg.data == True:
+    #  self.send_inhibition(True)
 
   def callback_rnd_exploration(self,msg):
     if msg.data > 0.5:
@@ -238,7 +244,13 @@ class Motion(object):
       self.exploit = False
 
   def callback_ready(self,msg):
-    self.ready_depth = msg.data
+    self.ready = msg.data
+
+  def get_ready(self):
+    return self.ready
+  
+  def set_seady(self,val):
+    self.ready = val
 
   def callback_id(self,msg):
     self.id_object = msg.data
@@ -286,6 +298,14 @@ class Motion(object):
     if elapsed > 35:
       pass
       #print("still waiting for perception...")
+    
+  def send_inhibition(self, val):
+    inh = Float64()
+    inh.data = val
+    self.pub_inhib.publish(inh)
+    rospy.sleep(0.3)
+    inh.data = 0.0
+    self.pub_inhib.publish(inh)
 
   #remove temporary js path bag file created to generate DMP
   def delete_js_bag(self):
@@ -428,6 +448,7 @@ class Motion(object):
     self.write_dmp_bag(resp,n)
 
   def play_motion_dmp(self):
+    self.pub_dmp_action.publish(self.dmp_exploit)
     tmp = self.js_positions
     curr = []
     for i in range(0,5):
@@ -519,6 +540,8 @@ class Motion(object):
     print("RANDOM EXPLORATION")
     r = random.choice(self.possible_roll)
     g = random.choice(self.possible_grasp)
+    #r = 0
+    #g = 1
     self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
     self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
     self.dmp_explore.v_pitch = self.poses[1].pitch - self.poses[0].pitch
@@ -530,7 +553,6 @@ class Motion(object):
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(0.4)
     #rospy.sleep(3.0)
-    
     self.init_position()     
     if g > 0.5:
       self.bot.gripper.open()
@@ -561,6 +583,7 @@ class Motion(object):
     self.ready_depth = False
     self.ready_outcome = False
     self.ready = False
+    self.touch_value = False
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
@@ -607,6 +630,7 @@ class Motion(object):
     self.ready_depth = False
     self.ready_outcome = False
     self.ready = False
+    self.touch_value = False
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
@@ -672,14 +696,16 @@ class Motion(object):
 if __name__ == '__main__':
   motion_pincher = Motion()
   first = True
+  sent_inh = False
   rospy.sleep(3.0)
 
   while not rospy.is_shutdown():
     if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2:
-      motion_pincher.execute_rnd_exploration(False)
+        print("EXECUTE rnd action")
+        motion_pincher.execute_rnd_exploration(False)
     if motion_pincher.get_direct_explore() and motion_pincher.get_number_pose() == 1:
       motion_pincher.execute_direct_exploration(False)
-      motion_pincher.send_signal_action()
+      #motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
       motion_pincher.execute_dmp()
   #if first:

@@ -126,10 +126,10 @@ class Detector
         sub_activate = nh_.subscribe("/outcome_detector/activate", 1, &Detector::activateCallback,this);
         sub_trigger_state = nh_.subscribe("/outcome_detector/trigger_state", 1, &Detector::activateTrigger,this);
         sub_object = nh_.subscribe("/pc_filter/markers/objects", 1, &Detector::objectCallback,this);
-        sub_touch = nh_.subscribe("/outcome_detector/touch", 1, &Detector::touchCallback,this);
+        sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &Detector::touchCallback,this);
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
-        sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
+        //sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
         sub_monitored = nh_.subscribe("/outcome_detector/monitored_object", 1, &Detector::intCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
@@ -213,7 +213,7 @@ class Detector
 
     void activateCallback(const std_msgs::BoolConstPtr& msg)
     {
-        std::cout<<msg->data<<"\n";
+        //std::cout<<"activate detector : "<<msg->data<<"\n";
         if(mode == true)
         {
             if(msg->data == true && !touch)
@@ -248,6 +248,8 @@ class Detector
                 res.angle = 0.0;
                 res.touch = 1.0;
                 pub_outcome.publish(res);
+                touch = false;
+                first_time = true;
             }
         }
     }
@@ -303,6 +305,7 @@ class Detector
     void ResetCallback(const std_msgs::BoolConstPtr& msg)
     {
         first_time = msg->data;
+        count = 0;
     }
 
     void objectCallback(const visualization_msgs::MarkerConstPtr& msg)
@@ -324,10 +327,10 @@ class Detector
         {
             listenTransform();
         }
-        state_object.state_x = pose_object.pose.position.x;
+        /*state_object.state_x = pose_object.pose.position.x;
         state_object.state_y = pose_object.pose.position.y;
-        //state_object.state_angle = object_state_angle;
-        pub_state_object.publish(state_object);
+        state_object.state_angle = object_state_angle;
+        pub_state_object.publish(state_object);*/
         tf2::Quaternion q_orig(0,0,0,1);
         tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
@@ -361,8 +364,6 @@ class Detector
         if(ids.size() == 1)
         {
             //id_object = ids[0];
-            std_msgs::Int16 tmp;
-            tmp.data = ids[0];
             lo.list_object.push_back(ids[0]);
             for(int i = 0; i < ids.size();  i++)
             {
@@ -385,6 +386,7 @@ class Detector
             id_object = monitored_object;
             for(int i = 0; i < ids.size(); i++)
             {
+                lo.list_object.push_back(ids[i]);
                 if(ids[0] == monitored_object)
                 {
                     if(corners[ids[i]].size() == 4)
