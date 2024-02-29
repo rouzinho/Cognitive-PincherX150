@@ -284,8 +284,10 @@ class VisualDatas(App):
     start_record = ListProperty([48/255,84/255,150/255,1])
     stop_record = ListProperty([0.26, 0.26, 0.26, 0.3])
     name_record = StringProperty('Start')
-    mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg')
-    mt_vae = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg')
+    mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
+    mt_vae = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
+    mt_lp = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
+    mt_inhib = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
 
     def __init__(self, **kwargs):
         super(VisualDatas, self).__init__(**kwargs)
@@ -294,13 +296,14 @@ class VisualDatas(App):
         self.steps = 0
         rospy.init_node('DataRecorder')
         rate = rospy.Rate(50)
-        self.dr_error_fwd = DataRecorder("/data_recorder/data_errors")
-        self.dr_lp = DataRecorder("/data_recorder/data_lp")
+        self.dr_error_fwd = DataRecorder("/data_recorder/nnga")
+        self.dr_lp = DataRecorder("/data_recorder/lp")
         self.node_rnd_explore = DataNodeRecorder("/data_recorder/node_rnd_explore","rnd_exploration")
         self.node_direct_explore = DataNodeRecorder("/data_recorder/node_direct_explore","direct_exploration")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
         #self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
         self.pub_time = rospy.Publisher("/data_recorder/time",Float64,queue_size=1)
+        self.pub_pause = rospy.Publisher("/cluster_msg/pause_experiment",Bool,queue_size=1)
         #self.pub_signal = rospy.Publisher("/data_recorder/signal",Bool,queue_size=1)
         #self.dmp = DmpListener()
         #self.control_arch = ControlArch()
@@ -313,6 +316,7 @@ class VisualDatas(App):
         self.working_dir = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/"
         self.dmp_dir = "/home/altair/PhD/Codes/catkin_noetic/rosbags/experiment/dmp/"
         self.mode_record = "Start"
+        self.state_experiment = "running"
         self.index = 1
         self.name_object = "ball"
         self.experiment = "mid_lp"
@@ -324,9 +328,14 @@ class VisualDatas(App):
         self.too_many = False
         self.cv2_img = None
         self.cv2_mt = None
+        self.cv2_lp = None
+        self.cv2_inhib = None
         self.bridge = CvBridge()
-        rospy.Subscriber("/data_recorder/error", Image, self.nnga_callback)
-        rospy.Subscriber("/data_recorder/lp", Image, self.vae_callback)
+        rospy.Subscriber("/data_recorder/nnga", Image, self.nnga_callback)
+        rospy.Subscriber("/data_recorder/vae", Image, self.vae_callback)
+        rospy.Subscriber("/data_recorder/lp", Image, self.lp_callback)
+        rospy.Subscriber("/data_recorder/inhib", Image, self.inhib_callback)
+
         self.count_img = 0
 
     def nnga_callback(self,msg):
@@ -350,6 +359,30 @@ class VisualDatas(App):
                 name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg"
                 self.cv2_mt = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_mt, upscale, interpolation= cv2.INTER_LINEAR)
+                img = resized_up.astype("float32")*255
+                cv2.imwrite(name, img)
+            except CvBridgeError as e:
+                print(e)
+
+    def lp_callback(self,msg):
+        upscale = (200, 200)
+        if self.count_img > 10:
+            try:
+                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/lp.jpg"
+                self.cv2_lp = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+                resized_up = cv2.resize(self.cv2_lp, upscale, interpolation= cv2.INTER_LINEAR)
+                img = resized_up.astype("float32")*255
+                cv2.imwrite(name, img)
+            except CvBridgeError as e:
+                print(e)
+
+    def inhib_callback(self,msg):
+        upscale = (200, 200)
+        if self.count_img > 10:
+            try:
+                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/inhib.jpg"
+                self.cv2_inhib = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+                resized_up = cv2.resize(self.cv2_inhib, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
                 cv2.imwrite(name, img)
             except CvBridgeError as e:
@@ -424,24 +457,25 @@ class VisualDatas(App):
             newPath = shutil.copy(src_dmp, dest_dmp)
 
     def set_record(self):
-        if self.mode_record == "Start":
-            self.name_record = "Stop"
-            self.mode_record = "Stop"
+        if self.mode_record == "Start" or self.mode_record == "Resume":
+            self.name_record = "Pause"
+            self.mode_record = "Pause"
             self.start_record = _RED_LIGHT
             self.record = True
             r = Bool()
-            r.data = True
-            #self.pub_signal.publish(r)
+            r.data = False
+            self.pub_pause.publish(r)
             self.first = False
         else:
-            self.name_record = "Start"
-            self.mode_record = "Start"
+            self.name_record = "Resume"
+            self.mode_record = "Resume"
             self.start_record = _GREEN_LIGHT
             r = Bool()
-            r.data = False
-            #self.pub_signal.publish(r)
+            r.data = True
+            self.pub_pause.publish(r)
             self.saveTime()
             self.dr_error_fwd.savePeaks(self.name_peaks)
+            self.dr_lp.savePeaks(self.name_peaks)
             self.record = False
 
     def load_datas(self):
@@ -450,8 +484,15 @@ class VisualDatas(App):
         self.dr_lp.loadPeaks(self.name_peaks)
 
     def update_image(self,dt):
-        self.root.children[1].children[2].children[0].reload()
-        self.root.children[1].children[1].children[0].reload()
+        self.mt_error = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg"
+        self.mt_lp = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/lp.jpg"
+        self.mt_vae = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg"
+        self.mt_inhib = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/inhib.jpg"
+        self.root.children[1].children[2].children[0].reload() #nnga
+        self.root.children[1].children[1].children[0].reload() #lp
+        self.root.children[1].children[3].children[0].reload() #vae
+        self.root.children[1].children[4].children[0].reload() #inhib
+        #print(self.root.children[1].children[4].children[0].source)
 
     def update_events(self, dt):
         if self.node_rnd_explore.getNode() > 0.8:
@@ -598,12 +639,14 @@ BoxLayout:
     orientation: 'horizontal'
     BoxLayout:
         orientation: 'vertical'
-        size: 400, 800
+        size: 410, 800
         size_hint: (None,None)
         BoxLayout:
             orientation: 'horizontal'
             size: 400, 55
             size_hint: (None,None)
+            padding: 5
+            spacing: 10
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -617,7 +660,7 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [25]
+                        radius: [15]
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -631,7 +674,7 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [25]
+                        radius: [15]
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -645,12 +688,14 @@ BoxLayout:
                     RoundedRectangle:
                         size: self.size
                         pos: self.pos
-                        radius: [25]
+                        radius: [15]
         BoxLayout:
             orientation: 'horizontal'
             size: 400, 55
             pos: 0, 400
             size_hint: (None,None)
+            padding: 10
+            spacing: 15
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -685,23 +730,39 @@ BoxLayout:
             Image:
                 size_hint: None, None
                 size: 200, 200
-                pos: 0, 150
+                pos: 0, 450
+                source: app.mt_inhib
+        FloatLayout:
+            pos: 100,100
+            Image:
+                size_hint: None, None
+                size: 200, 200
+                pos: 210, 450
+                source: app.mt_vae
+        FloatLayout:
+            pos: 100,100
+            Image:
+                size_hint: None, None
+                size: 200, 200
+                pos: 0, 130
                 source: app.mt_error           
         FloatLayout:
             pos: 100,100
             Image:
                 size_hint: None, None
                 size: 200, 200
-                pos: 210, 150
-                source: app.mt_vae 
+                pos: 210, 130
+                source: app.mt_lp 
         BoxLayout:
             orientation: 'vertical'
-            size: 400, 250
+            size: 420, 250
             size_hint: (None,None)
             BoxLayout:
                 orientation: 'horizontal'
-                size: 400, 70
+                size: 420, 70
                 size_hint: (None,None)
+                padding: 10
+                spacing: 10
                 Label:
                     text_size: self.size
                     size: 50, 50
@@ -709,14 +770,8 @@ BoxLayout:
                     valign: 'middle'
                     pos: 0, 50
                     font_size: 22
-                    text: "NNGA"
-                    canvas.before:
-                        Color:
-                            rgba: 48/255,84/255,150/255,0.5
-                        RoundedRectangle:
-                            size: self.size
-                            pos: self.pos
-                            radius: [35] 
+                    text: "Errors"
+                    color: 0, 0, 0, 0.8
                 Label:
                     text_size: self.size
                     size: 50, 50
@@ -724,18 +779,14 @@ BoxLayout:
                     valign: 'middle'
                     pos: 280, 50
                     font_size: 22
-                    text: "VAE"
-                    canvas.before:
-                        Color:
-                            rgba: 48/255,84/255,150/255,0.5
-                        RoundedRectangle:
-                            size: self.size
-                            pos: self.pos
-                            radius: [35]
+                    text: "Learning Progress"
+                    color: 0, 0, 0, 0.8
             BoxLayout:
                 orientation: 'horizontal'
-                size: 400, 70
+                size: 410, 70
                 size_hint: (None,None)
+                padding: 10
+                spacing: 15
                 Button:
                     #text: "Start record"
                     text: app.name_record
@@ -844,7 +895,7 @@ BoxLayout:
         # Animate the progress bar
         Clock.schedule_interval(self.update_gauges, 0.1)
         Clock.schedule_interval(self.update_events, 0.1)
-        Clock.schedule_interval(self.update_image, 2.0)
+        Clock.schedule_interval(self.update_image, 0.5)
         return self.container
 
 
