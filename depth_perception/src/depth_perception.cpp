@@ -223,6 +223,7 @@ class DepthImage
       if(begin_count && !lock_callback)
       {
         count_lock++;
+        std::cout<<"count lock: "<<count_lock<<"\n";
       }
       if(count_lock > 30 && !lock_callback)
       {
