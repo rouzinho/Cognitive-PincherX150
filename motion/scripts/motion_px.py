@@ -186,6 +186,9 @@ class Motion(object):
       self.send_inhibition(1.0)
     if self.rnd_explore and len(self.poses) == 2:
       self.ready = True
+    if self.direct_explore and len(self.poses) == 0:
+      self.poses.append(tmp)
+      self.ready = True
     print("poses cb : ",len(self.poses))
 
   def callback_joint_states(self,msg):
@@ -561,7 +564,7 @@ class Motion(object):
     self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.7)
+    self.bot.gripper.set_pressure(0.8)
     #rospy.sleep(3.0)
     self.init_position()     
     if g > 0.5:
@@ -611,7 +614,7 @@ class Motion(object):
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.7)
+    self.bot.gripper.set_pressure(0.8)
     #rospy.sleep(3.0)
     self.init_position()     
     if self.dmp_direct_explore.grasp > 0.5:
@@ -724,7 +727,7 @@ if __name__ == '__main__':
     if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2 and motion_pincher.get_ready():
         print("EXECUTE rnd action")
         motion_pincher.execute_rnd_exploration(False)
-    if motion_pincher.get_direct_explore() and motion_pincher.get_number_pose() == 1:
+    if motion_pincher.get_direct_explore() and motion_pincher.get_number_pose() == 1 and motion_pincher.get_ready():
       motion_pincher.execute_direct_exploration(False)
       #motion_pincher.send_signal_action()
     if motion_pincher.get_exploit():
