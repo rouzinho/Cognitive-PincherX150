@@ -85,7 +85,7 @@ class ClusterMessage
       sub_dmp = nh_.subscribe("/motion_pincher/dmp", 10, &ClusterMessage::CallbackDMP,this);
       sub_outcome = nh_.subscribe("/outcome_detector/outcome", 10, &ClusterMessage::CallbackOutcome,this);
       sub_rnd_explore = nh_.subscribe("/cog_learning/rnd_exploration", 10, &ClusterMessage::CallbackRndExplore,this);
-      sub_direct_explore = nh_.subscribe("/cog_learning/direct_exploitation", 10, &ClusterMessage::CallbackDirectExplore,this);
+      sub_direct_explore = nh_.subscribe("/cog_learning/direct_exploration", 10, &ClusterMessage::CallbackDirectExplore,this);
       sub_exploit = nh_.subscribe("/cog_learning/exploitation", 10, &ClusterMessage::CallbackExploit,this);
       sub_state = nh_.subscribe("/outcome_detector/state", 10, &ClusterMessage::CallbackState,this);
       sub_sample = nh_.subscribe("/motion_pincher/action_sample", 10, &ClusterMessage::CallbackSample,this);
