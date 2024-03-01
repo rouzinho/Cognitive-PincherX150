@@ -206,10 +206,10 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
-         print("bound x : ", self.bound_x)
-         print("bound y : ", self.bound_y)
-         print("max bound x : ", self.max_bound_x)
-         print("max bound y : ", self.max_bound_y)
+         #print("bound x : ", self.bound_x)
+         #print("bound y : ", self.bound_y)
+         #print("max bound x : ", self.max_bound_x)
+         #print("max bound y : ", self.max_bound_y)
       #print("Latent DNF : ",self.list_latent_scaled)
       #print(" LATENT FORMED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
             
@@ -572,7 +572,7 @@ class VariationalAE(object):
       t = [self.bound_x,self.bound_y]
       pickle.dump(t, filehandler_b)
       filehandler_mb = open(n_latent_max_bounds, 'wb')
-      mb = [self.max_bound_x,self.max_bound_y]
+      mb = [self.max_bound_x,self.max_bound_y,self.bound_x,self.bound_y]
       pickle.dump(mb, filehandler_mb)
 
    def load_memory(self, name_folder):
@@ -602,6 +602,8 @@ class VariationalAE(object):
       tmb = mb
       self.max_bound_x = tmb[0]
       self.max_bound_y = tmb[1]
+      self.bound_x = tmb[2]
+      self.bound_y = tmb[3]
 
 
 class Habituation(object):
@@ -663,7 +665,7 @@ class Habituation(object):
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
       rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
       rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
-      self.load = rospy.get_param("load")
+      self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
 
@@ -752,10 +754,10 @@ class Habituation(object):
       sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
       tensor_sample = torch.tensor(sample,dtype=torch.float)
       if self.habit[self.index_vae].get_memory_size() > 0:
-         print("GOT SAMPLE")
+         #print("GOT SAMPLE")
          z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
          #resize current latent space with testing value without displaying it
-         print("resize latent without evaluation value")
+         #print("resize latent without evaluation value")
          l = []
          l = self.habit[self.index_vae].get_latent_space()
          l.append(z)
@@ -763,7 +765,7 @@ class Habituation(object):
          self.send_latent_space()
          #rospy.sleep(5.0)
          #test new value
-         print("TESTING new sample...")
+         #print("TESTING new sample...")
          msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
          self.send_eval_latent(msg)
          self.send_latent_test(z)
@@ -773,13 +775,15 @@ class Habituation(object):
       self.learn_new_latent(tensor_sample)
       t = self.time - rospy.get_time()
       #rospy.sleep(5.0)
-      print("Time elapsed : ",t)
+      #print("Time elapsed : ",t)
       
 
    def callback_input_latent(self, msg):
+      print("got latent value !",msg)
       x_dnf = msg.latent_x
       y_dnf = msg.latent_y      
       latent_value = self.habit[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
+      print("latent : ",latent_value)
       t_latent = torch.tensor(latent_value,dtype=torch.float)
       output = self.habit[self.index_vae].reconstruct_latent(t_latent)
       dmp = Dmp()

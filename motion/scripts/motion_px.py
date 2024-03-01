@@ -77,7 +77,7 @@ class Motion(object):
     #rospy.init_node('motion', anonymous=True)
     #rate = rospy.Rate(100)
     self.threshold_touch_min = 0.02
-    self.threshold_touch_max = 0.03
+    self.threshold_touch_max = 0.0278
     self.record = False
     self.dmp_folder = rospy.get_param("dmp_folder")
     self.current_folder = ""
@@ -179,10 +179,14 @@ class Motion(object):
     tmp.x = msg.x
     tmp.y = msg.y
     tmp.pitch = msg.pitch
+    self.ready = False
     if self.rnd_explore and len(self.poses) < 2:
       self.poses.append(tmp)
     if self.rnd_explore and len(self.poses) == 1:
       self.send_inhibition(1.0)
+    if self.rnd_explore and len(self.poses) == 2:
+      self.ready = True
+    print("poses cb : ",len(self.poses))
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -190,9 +194,11 @@ class Motion(object):
     self.gripper_state = msg.position[6]
     if self.gripper_state < self.threshold_touch_max and self.gripper_state > self.threshold_touch_min:
       self.count_touch = self.count_touch +1
+      #print(self.gripper_state)
+      #print("touch : ",self.count_touch)
     else:
       self.count_touch = 0
-    if(self.count_touch > 300):
+    if(self.count_touch > 450):
       self.touch_value = True
     #self.count_touch = 0
     #self.pub_touch.publish(t)
@@ -222,8 +228,8 @@ class Motion(object):
 
   def callback_retry(self,msg):
     print("Retry with another pose")
-    #if msg.data == True:
-    #  self.send_inhibition(True)
+    if msg.data == True and self.direct_explore:
+      self.poses = []
 
   def callback_rnd_exploration(self,msg):
     if msg.data > 0.5:
@@ -268,6 +274,7 @@ class Motion(object):
     self.dmp_direct_explore.v_pitch = msg.v_pitch
     self.dmp_direct_explore.roll = msg.roll
     self.dmp_direct_explore.grasp = msg.grasp
+    print("direct explore : ",self.dmp_direct_explore)
 
   def callback_pause(self, msg):
     self.poses = []
@@ -528,6 +535,7 @@ class Motion(object):
     jsc.cmd = -250.0
     self.pub_gripper.publish(jsc)
     while not self.touch_value and self.gripper_state > 0.017:
+      #print(self.gripper_state)
       pass
     jsc.cmd = 0
     self.pub_gripper.publish(jsc)
@@ -536,6 +544,8 @@ class Motion(object):
       
   #execute the action
   def execute_rnd_exploration(self,record_dmp):
+    
+    self.ready = False
     self.send_state(True)
     print("RANDOM EXPLORATION")
     r = random.choice(self.possible_roll)
@@ -551,20 +561,24 @@ class Motion(object):
     self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.4)
+    self.bot.gripper.set_pressure(0.7)
     #rospy.sleep(3.0)
     self.init_position()     
     if g > 0.5:
       self.bot.gripper.open()
+      print("OPEN GRIPPER")
     else:
       self.bot.gripper.close()
+      print("CLOSE GRIPPER")
+    rospy.sleep(2.0)
     self.record = record_dmp
     self.recording_dmp = record_dmp
+    print("nb pose : ",len(self.poses))
     self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=r, pitch=self.poses[0].pitch)
     self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=0.06, roll=r, pitch=self.poses[1].pitch)
     self.record = False
     self.bot.gripper.close()
-    rospy.sleep(2.0)
+    rospy.sleep(3.0)
     self.init_position()  
     self.sleep_pose()
     #send touch value
@@ -582,21 +596,22 @@ class Motion(object):
     self.bool_last_p = False
     self.ready_depth = False
     self.ready_outcome = False
-    self.ready = False
     self.touch_value = False
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
     self.bot.gripper.open()
+    #self.ready = True
 
   def execute_direct_exploration(self,record_dmp):
+    self.ready = False
     self.send_state(True)
     print("DIRECT EXPLORATION")
     self.dmp_direct_explore.fpos_x = self.poses[0].x
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.4)
+    self.bot.gripper.set_pressure(0.7)
     #rospy.sleep(3.0)
     self.init_position()     
     if self.dmp_direct_explore.grasp > 0.5:
@@ -629,56 +644,62 @@ class Motion(object):
     self.poses.pop()
     self.ready_depth = False
     self.ready_outcome = False
-    self.ready = False
     self.touch_value = False
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
     self.bot.gripper.open()
+    #self.ready = True
 
   def run_possibilities(self):
-    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/possible_positions.txt"
+    name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/home_positions.txt"
     exist = path.exists(name_dataset)
     self.init_position()
     x = 0
     y = 0
     p = 0
     r = 0
-    for i in range(18,47):
-      for j in range(-35,33):
+    for i in range(10,20):
+      for j in range(-1,2):
         for k in range(0,18,2):
-          if i == 0:
-            x = 0
-          else:
-            x = i/100
-          if j == 0:
-            y = 0
-          else:
-            y = j/100
-          if k == 0:
-            p = 0
-          else:
-            p = k/10
-          z = 0.02
-          r = 0.0
-          data = str(x) + " " + str(y) + " " + str(p) + "\n"
-          joints, f = self.pose_to_joints(x,y,z,r,p)
-          if f == True:
-            print("Done ",data)
-            with open(name_dataset, "a") as f:
-              f.write(data)
-            f.close()
+          for l in range(0,50):
+            if i == 0:
+              x = 0
+            else:
+              x = i/100
+            if j == 0:
+              y = 0
+            else:
+              y = j/100
+            if k == 0:
+              p = 0
+            else:
+              p = k/10
+            if l == 0:
+              z = 0
+            else:
+              z = l/100
+            r = 0.0
+            data = str(x) + " " + str(y) + " " + str(z) + " " + str(p) + "\n"
+            joints, f = self.pose_to_joints(x,y,z,r,p)
+            if f == True:
+              print("Done ",data)
+              with open(name_dataset, "a") as f:
+                f.write(data)
+              f.close()
 
   def test_interface(self):
     self.bot.gripper.open()
-    self.bot.gripper.set_pressure(0.4)
+    self.bot.gripper.set_pressure(1.0)
     self.bot.gripper.close()
+    #self.close_gripper()
     rospy.sleep(2.0)
     self.bot.gripper.open()
 
   def init_position(self):
-    self.bot.arm.go_to_home_pose()
-    rospy.sleep(1.0)
+    #self.bot.arm.go_to_home_pose()
+    self.bot.arm.set_ee_pose_components(x=0.15, y=0, z=0.25, roll=0, pitch=0.0)
+    #rospy.sleep(1.0)
 
   def sleep_pose(self):
     self.bot.arm.go_to_sleep_pose(moving_time=2.0,accel_time=0.3)
@@ -698,9 +719,9 @@ if __name__ == '__main__':
   first = True
   sent_inh = False
   rospy.sleep(3.0)
-
+  #motion_pincher.init_position()
   while not rospy.is_shutdown():
-    if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2:
+    if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2 and motion_pincher.get_ready():
         print("EXECUTE rnd action")
         motion_pincher.execute_rnd_exploration(False)
     if motion_pincher.get_direct_explore() and motion_pincher.get_number_pose() == 1:
@@ -709,7 +730,8 @@ if __name__ == '__main__':
     if motion_pincher.get_exploit():
       motion_pincher.execute_dmp()
   #if first:
-  #  motion_pincher.run_possibilities()
+  #  motion_pincher.test_interface()
+    #motion_pincher.run_possibilities()
   #  print("DONE !")  
   #  first = False
 

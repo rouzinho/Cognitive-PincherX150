@@ -265,7 +265,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(1.0).sleep();
+         ros::Duration(2.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
@@ -294,10 +294,9 @@ class ClusterMessage
    void CallbackDirectExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       direct_explore = msg->data;
-      if(direct_explore > 0.5 && new_state && outcome_b && !send_sample)
+      if(direct_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
       {
          std::cout<<"Cluster_msg : DIRECT exploration, sending datas to models...\n";
-         ros::Duration(10.5).sleep();
          cluster_message::SampleExplore s;
          s.state_x = state.state_x;
          s.state_y = state.state_y;
@@ -315,7 +314,6 @@ class ClusterMessage
          s.outcome_angle = outcome.angle;
          s.outcome_touch = outcome.touch;
          pub_datas_explore.publish(s);
-         send_sample = true;
          outcome_b = false;
          dmp_b = false;
          state_b = false;
@@ -324,7 +322,7 @@ class ClusterMessage
       if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn)
       {
          std::cout<<"Cluster_msg : DIRECT exploration DONE\n";
-         ros::Duration(10.5).sleep();
+         
          std_msgs::Bool b;
          b.data = true;
          pub_new_state.publish(b);
@@ -335,7 +333,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(2.5).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
@@ -353,7 +351,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(2.5).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
@@ -441,6 +439,10 @@ class ClusterMessage
    void CallbackNewState(const std_msgs::Bool::ConstPtr& msg)
    {
       new_state = msg->data;
+      if(new_state)
+      {
+         std::cout<<"cluster_msg: got new state\n";
+      }
    }
 
    void CallbackRetry(const std_msgs::Bool::ConstPtr& msg)
@@ -451,11 +453,19 @@ class ClusterMessage
    void CallbackReadyHabit(const std_msgs::Bool::ConstPtr& msg)
    {
       ready_habbit = msg->data;
+      if(ready_habbit)
+      {
+         std::cout<<"cluster_msg: got ready_habit\n";
+      }
    }
 
    void CallbackReadyNN(const std_msgs::Bool::ConstPtr& msg)
    {
       ready_nn = msg->data;
+      if(ready_nn)
+      {
+         std::cout<<"cluster_msg: got ready_nnga\n";
+      }
    }
 
    void CallbackValidate(const std_msgs::Float64::ConstPtr& msg)

@@ -177,7 +177,7 @@ class DepthImage
       count = 0;
       threshold = 5;
       start = true;
-      threshold_change = 10;
+      threshold_change = 45;
       out_boundary = false;
       init_values = false;
       first_gen = true;
@@ -220,10 +220,10 @@ class DepthImage
         }
       }
       
-      if(begin_count && !lock_callback)
+      if(!lock_callback)
       {
         count_lock++;
-        std::cout<<"count lock: "<<count_lock<<"\n";
+        //std::cout<<"count lock: "<<count_lock<<"\n";
       }
       if(count_lock > 30 && !lock_callback)
       {
@@ -315,7 +315,7 @@ class DepthImage
       msg.data = true;
       pub_activate_detector.publish(msg);
       start = false;
-      ros::Duration(6.5).sleep();
+      //ros::Duration(6.5).sleep();
       rmStates();
       first = true;
       msg.data = true;
@@ -540,7 +540,7 @@ class DepthImage
             if(first == false)
             {
               //check if object isn't out of robot's reach
-              bool border = detectBoundaries(final_image);
+              bool border = false;//detectBoundaries(final_image);
               if(!border)
               {
                 change = stateChanged(final_image,c);
@@ -570,12 +570,13 @@ class DepthImage
                     cv::imwrite(name_state, final_image);
                     std_msgs::String msg_state;
                     msg_state.data = name_state;
+                    touch = false;
                     //pub_name_state.publish(msg_state);
                     std_msgs::Bool msg;
                     msg.data = true;
                     pub_new_state.publish(msg);
                     pub_activate_detector.publish(msg);
-                    ros::Duration(10.5).sleep();
+                    //ros::Duration(10.5).sleep();
                     pub_reset_detector.publish(msg);
                     pub_reset.publish(msg);
                   }
@@ -882,7 +883,7 @@ class DepthImage
           }
         }
       }
-      //std::cout<<"total change : "<<tot<<"\n";
+      std::cout<<"total change : "<<tot<<"\n";
       if(tot > threshold_change)
       {
         suc = true;
