@@ -216,6 +216,8 @@ class VariationalAE(object):
    def set_dnf_to_latent(self, peak, exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
       latent_value = []
+      #print("ext_x :",ext_x)
+      #print("ext_y :",ext_y)
       if exploration == "static":
          self.max_bound_x = 100
          self.max_bound_y = 100
@@ -656,7 +658,7 @@ class Habituation(object):
       self.pub_eval_perception = rospy.Publisher("/habituation/goal_perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_perception = rospy.Publisher("/habituation/test_perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
-      self.pub_direct = rospy.Publisher("/motion_pincher/direct_exploration",Dmp, queue_size=1, latch=True)
+      self.pub_direct = rospy.Publisher("/motion_pincher/dmp_direct_exploration",Dmp, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       rospy.Subscriber("/habituation/mt", Image, self.field_callback)
@@ -779,7 +781,7 @@ class Habituation(object):
       
 
    def callback_input_latent(self, msg):
-      print("got latent value !",msg)
+      print("got latent value for direct exploration : ",msg)
       x_dnf = msg.latent_x
       y_dnf = msg.latent_y      
       latent_value = self.habit[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
