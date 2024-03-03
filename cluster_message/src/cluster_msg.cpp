@@ -46,6 +46,7 @@ class ClusterMessage
    ros::Subscriber sub_validate;
    ros::Subscriber sub_invalidate;
    ros::Subscriber sub_pause;
+   ros::Subscriber sub_touch;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_new_state;
@@ -78,6 +79,7 @@ class ClusterMessage
    double invalid_perception;
    bool init_valid;
    bool init_invalid;
+   bool touch;
 
   public:
    ClusterMessage()
@@ -96,6 +98,7 @@ class ClusterMessage
       sub_validate = nh_.subscribe("/habituation/valid_perception", 10, &ClusterMessage::CallbackValidate,this);
       sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 10, &ClusterMessage::CallbackInvalidate,this);
       sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 10, &ClusterMessage::CallbackPause,this);
+      sub_touch = nh_.subscribe("/motion_pincher/touch", 10, &ClusterMessage::CallbackTouch,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
@@ -262,12 +265,15 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         std_msgs::Float64 f;
-         f.data = 1.0;
-         pub_signal.publish(f);
-         ros::Duration(2.0).sleep();
-         f.data = 0.0;
-         pub_signal.publish(f);
+         if(!touch)
+         {
+            std_msgs::Float64 f;
+            f.data = 1.0;
+            pub_signal.publish(f);
+            ros::Duration(2.5).sleep();
+            f.data = 0.0;
+            pub_signal.publish(f);
+         } 
       }
       if(rnd_explore > 0.5 && retry)
       {
@@ -322,7 +328,6 @@ class ClusterMessage
       if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn)
       {
          std::cout<<"Cluster_msg : DIRECT exploration DONE\n";
-         
          std_msgs::Bool b;
          b.data = true;
          pub_new_state.publish(b);
@@ -330,12 +335,15 @@ class ClusterMessage
          ready_habbit = false;
          ready_nn = false;
          send_sample = false;
-         std_msgs::Float64 f;
-         f.data = 1.0;
-         pub_signal.publish(f);
-         ros::Duration(2.5).sleep();
-         f.data = 0.0;
-         pub_signal.publish(f);
+         if(!touch)
+         {
+            std_msgs::Float64 f;
+            f.data = 1.0;
+            pub_signal.publish(f);
+            ros::Duration(2.5).sleep();
+            f.data = 0.0;
+            pub_signal.publish(f);
+         }  
       }
       if(direct_explore > 0.5 && retry)
       {
@@ -500,6 +508,11 @@ class ClusterMessage
          tmp.data = 0.0;
          pub_pause.publish(tmp);
       }
+   }
+
+   void CallbackTouch(const std_msgs::Bool::ConstPtr& msg)
+   {
+      touch = msg->data;
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)
