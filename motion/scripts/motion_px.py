@@ -198,7 +198,7 @@ class Motion(object):
     if self.gripper_state < self.threshold_touch_max and self.gripper_state > self.threshold_touch_min:
       self.count_touch = self.count_touch +1
       #print(self.gripper_state)
-      #print("touch : ",self.count_touch)
+      print("touch : ",self.count_touch)
     else:
       self.count_touch = 0
     if(self.count_touch > 450):
@@ -581,7 +581,7 @@ class Motion(object):
     self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=0.06, roll=r, pitch=self.poses[1].pitch)
     self.record = False
     self.bot.gripper.close()
-    rospy.sleep(3.0)
+    #rospy.sleep(3.0)
     self.init_position()  
     self.sleep_pose()
     #send touch value
@@ -630,7 +630,7 @@ class Motion(object):
     self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
-    rospy.sleep(2.0)
+    #rospy.sleep(2.0)
     self.init_position()  
     self.sleep_pose()
     #send touch value

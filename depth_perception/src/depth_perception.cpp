@@ -323,7 +323,7 @@ class DepthImage
       first = true;
       msg.data = true;
       pub_new_state.publish(msg);
-      pub_reset.publish(msg);
+      //pub_reset.publish(msg);
     }
 
     void listenTransform()
@@ -580,8 +580,8 @@ class DepthImage
                     pub_new_state.publish(msg);
                     pub_activate_detector.publish(msg);
                     //ros::Duration(10.5).sleep();
-                    pub_reset_detector.publish(msg);
-                    pub_reset.publish(msg);
+                    //pub_reset_detector.publish(msg);
+                    //pub_reset.publish(msg);
                   }
                   else
                   {
