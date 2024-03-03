@@ -564,7 +564,7 @@ class Motion(object):
     self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.8)
+    self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
     self.init_position()     
     if g > 0.5:

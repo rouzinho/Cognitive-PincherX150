@@ -281,6 +281,7 @@ class Detector
         if(first_time && activate_angle)
         {
             cout<<"Recording first angle\n";
+            std::cout<<object_state_angle<<"\n";
             first_angle = msg->data;
             first_pose = pose_object;
             activate_angle = false;
@@ -293,6 +294,7 @@ class Detector
         if(!first_time && activate_angle)
         {
             cout<<"Recording second angle\n";
+            std::cout<<object_state_angle<<"\n";
             second_angle = msg->data;
             second_pose = pose_object;
             setOutcomeAngle(first_pose,second_pose,first_angle,second_angle);

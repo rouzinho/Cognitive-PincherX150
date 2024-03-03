@@ -122,6 +122,7 @@ class DepthImage
     cv::Mat display;
     bool pause;
     bool touch;
+    bool grasping;
 
   public:
     DepthImage():
@@ -184,6 +185,7 @@ class DepthImage
       count_init = 0;
       lock_callback = false;
       count_lock = 0;
+      grasping = false;
     }
     ~DepthImage()
     {
@@ -256,10 +258,10 @@ class DepthImage
       //print4x4Matrix(robot_frame);
       //getExtremeValues(cloud_transformed);
       //if(init_params)
-      
-      genDepthFromPcl(cloud_transformed);
-      
-      
+      if(!grasping)
+      {
+        genDepthFromPcl(cloud_transformed);
+      }
       //std::string name_state = "/home/altair/interbotix_ws/src/depth_perception/states/state_48.jpg";
       //cv::Mat img1 = imread(name_state, cv::IMREAD_COLOR);
       //stateChanged(img1,48);
@@ -311,6 +313,7 @@ class DepthImage
     void resetDepth()
     {
       std::cout<<"Grasping detected, waiting for object to be back\n";
+      grasping = true;
       std_msgs::Bool msg;
       msg.data = true;
       pub_activate_detector.publish(msg);
