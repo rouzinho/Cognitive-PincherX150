@@ -54,6 +54,7 @@ class ClusterMessage
    ros::Publisher pub_signal;
    ros::Publisher pub_dmp_outcome;
    ros::Publisher pub_pause;
+   ros::Publisher pub_ready;
    ros::ServiceServer service;
    ros::ServiceServer service_;
    detector::Outcome outcome;
@@ -106,6 +107,7 @@ class ClusterMessage
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_dmp_outcome = nh_.advertise<motion::DmpOutcome>("/cluster_msg/perception",1);
+      pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
       rnd_explore = 0.0;
@@ -255,7 +257,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && ready_habbit && ready_nn)
+      if(rnd_explore > 0.5 && ready_habbit )//&& ready_nn)
       {
          std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
          //ros::Duration(3.5).sleep();
@@ -265,6 +267,8 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
+         pub_ready.publish(b);
+         /*
          if(!touch)
          {
             std_msgs::Float64 f;
@@ -273,7 +277,7 @@ class ClusterMessage
             ros::Duration(2.5).sleep();
             f.data = 0.0;
             pub_signal.publish(f);
-         } 
+         } */
       }
       if(rnd_explore > 0.5 && retry)
       {

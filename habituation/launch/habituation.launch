@@ -1,5 +1,5 @@
 <launch>
-    <param name="load_vae" type="bool" value="true" />
+    <param name="load_vae" type="bool" value="false" />
     <param name="exploration" type="string" value="static" />
     <param name="habituation_folder" type="string" value="/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/habituation/" />
     <!-- <include file="$(find cluster_message)/launch/cluster.launch" />

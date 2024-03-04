@@ -18,10 +18,11 @@ class Testing(object):
       self.pub_id = rospy.Publisher("/cog_learning/id_object", Int16, queue_size=1, latch=True)
       self.pub_action_sample = rospy.Publisher('/motion_pincher/action_sample', Action, latch=True, queue_size=1)
       self.pub_state = rospy.Publisher('/outcome_detector/state', State, latch=True, queue_size=1)
-      self.pub_explore = rospy.Publisher('/cog_learning/exploration', Bool, latch=True, queue_size=1)
-      self.pub_exploit = rospy.Publisher('/cog_learning/exploitation', Bool, latch=True, queue_size=1)
+      self.pub_explore = rospy.Publisher('/cog_learning/rnd_exploration', Float64, latch=True, queue_size=1)
+      self.pub_exploit = rospy.Publisher('/cog_learning/exploitation', Float64, latch=True, queue_size=1)
+      self.pub_new_state = rospy.Publisher('/depth_perception/new_state', Bool, latch=True, queue_size=1)
       self.pub_lpos = rospy.Publisher('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, latch=True, queue_size=1)
-      rospy.Subscriber("/cog_learning/ready", Bool, self.callback_ready)
+      rospy.Subscriber("/test/ready", Bool, self.callback_ready)
       self.ready = True
 
    def publish_outcome(self,data):
@@ -63,6 +64,11 @@ class Testing(object):
    def get_ready(self):
       return self.ready
    
+   def send_new_state(self):
+      b = Bool()
+      b.data = True
+      self.pub_new_state.publish(b)
+   
    def set_ready(self, val):
       self.ready = val
 
@@ -72,13 +78,13 @@ class Testing(object):
       self.pub_id.publish(tmp)
 
    def pub_exploration(self):
-      tmp = Bool()
-      tmp.data = True
+      tmp = Float64()
+      tmp.data = 1.0
       self.pub_explore.publish(tmp)
 
    def pub_exploitation(self):
-      tmp = Bool()
-      tmp.data = True
+      tmp = Float64()
+      tmp.data = 1.0
       self.pub_exploit.publish(tmp)
 
    def retrieve_dmp(self):
@@ -135,8 +141,8 @@ if __name__ == "__main__":
    #dmp3 = [0.1,0.0,0.3,-0.5,0.0]
    #action3 = [0.19,0.1,0.5]
    #state3 = [0.3,-0.1,100.0]
-   outcome3 = [-0.1,0.0,100.0,0.0]
-   dmp3 = [0.1,-0.1,0.3,-0.5,0.0,0.1,-0.1]
+   outcome3 = [0.0,0.0,45.0,0.0]
+   dmp3 = [0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
    outcome4 = [0.0,0.0,0.0,1.0]
@@ -152,6 +158,22 @@ if __name__ == "__main__":
    dmp6 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
    action6 = [0.2,0.2,1.0]
    state6 = [0.2,0.2,20.0]
+
+   outcome3_1 = [0.0,0.0,45.0,0.0]
+   dmp3_1 = [-0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
+   action3_1 = [0.2,0.2,1.0]
+   state3_1 = [0.2,0.2,20.0]
+
+   outcome3_2 = [0.0,0.0,45.0,0.0]
+   dmp3_2 = [0.0,0.1,0.1,-0.5,0.0,0.1,-0.1]
+   action3_2 = [0.2,0.2,1.0]
+   state3_2 = [0.2,0.2,20.0]
+
+   outcome3_3 = [0.0,0.0,45.0,0.0]
+   dmp3_3 = [0.0,-0.1,0.1,-0.5,0.0,0.1,-0.1]
+   action3_3 = [0.2,0.2,1.0]
+   state3_3 = [0.2,0.2,20.0]
+
 
    sim1_out = [0.1,0.1,30.0,0.0]
    sim1_dmp = [0.1,0.11,1.0,0.6,0.0]
@@ -171,6 +193,9 @@ if __name__ == "__main__":
    
    data.append([outcome5,dmp5])
    data.append([outcome6,dmp6])
+   data.append([outcome3_1,dmp3_1])
+   data.append([outcome3_2,dmp3_2])
+   data.append([outcome3_3,dmp3_3])
    #data.append([sim1_out,sim1_dmp])
    #data.append([sim2_out,sim2_dmp])
    #data.append([sim3_out,sim3_dmp])
@@ -182,25 +207,32 @@ if __name__ == "__main__":
    actions.append(action4)
    actions.append(action5)
    actions.append(action6)
+   actions.append(action3_1)
+   actions.append(action3_2)
+   actions.append(action3_3)
    states.append(state1)
    states.append(state2)
    states.append(state3)
    states.append(state4)
    states.append(state5)
    states.append(state6)
+   states.append(state3_1)
+   states.append(state3_2)
+   states.append(state3_3)
 
    i = 0
    seconds = 0
    explore = True
    while not rospy.is_shutdown():
+      test.pub_exploration()
       if explore:
-         test.pub_exploration()
-         if(test.get_ready() and i < 6):
+         if(test.get_ready() and i < 9):
             #if i == 2:
             #   print("change object")
             #   rospy.sleep(1.5)
             #   test.send_id(1)
             #   rospy.sleep(5.5)
+            test.send_new_state()
             test.publish_state(states[i])
             test.publish_dmp(data[i][1])
             test.publish_action(actions[i])
