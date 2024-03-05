@@ -101,7 +101,7 @@ class ClusterMessage
       sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 10, &ClusterMessage::CallbackPause,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 10, &ClusterMessage::CallbackTouch,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
-      pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
+      pub_datas_exploit = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);

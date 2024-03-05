@@ -61,13 +61,13 @@ class HebbServer(object):
         
 
     def hebbianActivationAction(self, point_ga):
-        ind = []
+        l_ind = []
         for i in range(0,self.weights_action.shape[2]):
             for j in range(0,self.weights_action.shape[3]):
                 if self.weights_action[point_ga[0],point_ga[1],i,j] == 1:
-                    ind = [i,j]
+                    l_ind.append([i,j])
 
-        return ind
+        return l_ind
 
     def saveWeights(self, name_weights):
         save(name_weights,self.weights)
@@ -85,11 +85,13 @@ if __name__ == "__main__":
     hebb_srv = HebbServer()
     ga = [90,50]
     pa = [10,20]
+    p2 = [35,45]
     hebb_srv.hebbianLearningAction(ga,pa)
+    hebb_srv.hebbianLearningAction(ga,p2)
     #hebb_srv.hebbianLearningAction([50,50],9)
     #ind = hebb_srv.hebbianActivation(ga)
     #print(ind)
-    ind = hebb_srv.hebbianActivationAction([89,48])
+    ind = hebb_srv.hebbianActivationAction([89,49])
     print("res : ",ind)
     
 

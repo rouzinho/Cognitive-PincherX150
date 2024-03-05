@@ -13,6 +13,8 @@ from motion.msg import Action
 from cog_learning.msg import Goal
 from cog_learning.msg import LatentGoalDnf
 from cog_learning.msg import LatentNNDNF
+from cog_learning.msg import DmpDnf
+from cog_learning.msg import ActionDmpDnf
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
@@ -24,7 +26,7 @@ class NNGoalAction(object):
         self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
         self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
-        self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
+        self.pub_dmp = rospy.Publisher('/motion_pincher/activate_actions', ActionDmpDnf, queue_size=10)
         self.pub_latent_space_display_out = rospy.Publisher("/display/latent_space_out", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
@@ -363,7 +365,7 @@ class NNGoalAction(object):
 
         return sample
 
-    def scale_samples_new_skill(self, sample):
+    def scale_samples_skill(self, sample):
         #scale sample betwen [-1,1] for learning
         new_state = State()
         new_outcome = Outcome()
@@ -403,6 +405,7 @@ class NNGoalAction(object):
         return new_state, new_dmp, new_outcome, new_action
     
     def scale_samples_existing_skill(self, sample):
+        #scale sample betwen [-1,1] for learning
         new_state = State()
         new_outcome = Outcome()
         new_action = Action()
@@ -421,8 +424,8 @@ class NNGoalAction(object):
 
     def continue_learning(self, data):
         #print("CONTINUAL sample before scaling : ",data)
-        state, outcome, sample_action = self.scale_samples_existing_skill(data)
-        sample = self.create_skill_sample(state,outcome,sample_action)
+        state, outcome, sample_action = self.scale_samples_skill(data)
+        sample = self.create_skill_sample(state,outcome,sample_action,[data.dnf_x,data.dnf_y])
         self.skills[self.index_skill].add_to_memory(sample)
         #self.skills[self.index_skill].print_memory()
         err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
@@ -453,8 +456,7 @@ class NNGoalAction(object):
     #bootstrap learning when we discover first skill during exploration
     def bootstrap_learning(self, sample):
         #print("BOOTSTRAP sample before scaling : ",sample)
-        state, dmp, outcome, sample_action = self.scale_samples_new_skill(sample)
-        print("outcome : ",outcome)
+        state, dmp, outcome, sample_action = self.scale_samples_skill(sample)
         #ouput of decoders
         tmp_sample_outcome = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         tmp_sample_action = [dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
@@ -757,18 +759,30 @@ class NNGoalAction(object):
         dmp_out.grasp = self.reconstruct_latent(out[8],self.min_grasp,self.max_vx)
         self.pub_habituation.publish(dmp_out)
     
-    def activate_dmp(self, goal):
+    def activate_dmp_actions(self, goal):
+        l_action = ActionDmpDnf()
         tmp = [goal.latent_x,goal.latent_y]
-        tensor_latent = torch.tensor(tmp,dtype=torch.float)
-        output = self.forward_decoder(tensor_latent)
-        out = output.detach().numpy()
-        dmp = Dmp()
-        dmp.v_x = self.reconstruct_latent(out[4],self.min_vx,self.max_vx)
-        dmp.v_y = self.reconstruct_latent(out[5],self.min_vy,self.max_vy)
-        dmp.v_pitch = self.reconstruct_latent(out[6],self.min_vpitch,self.max_vpitch)
-        dmp.roll = self.reconstruct_latent(out[7],self.min_roll,self.max_roll)
-        dmp.grasp = self.reconstruct_latent(out[8],self.min_grasp,self.max_vx)
-        self.pub_dmp.publish(dmp)
+        l_act = self.hebbian_action.hebbianActivationAction(tmp)
+        for i in l_act:
+            t0 = i[0] / 100
+            t1 = i[1] / 100
+            e0 = self.scale_dnf_to_latent(t0)
+            e1 = self.scale_dnf_to_latent(t1)
+            inp0 = self.scale_latent_to_reduce(e0)
+            inp1 = self.scale_latent_to_reduce(e1)
+            t_inp = torch.tensor([inp0,inp1],dtype=torch.float)
+            out = self.forward_decoder_action(t_inp)
+            n_out = out.detach().numpy()
+            dmpdnf = DmpDnf()
+            dmpdnf.v_x = round(n_out[0],2)
+            dmpdnf.v_y = round(n_out[1],2)
+            dmpdnf.v_pitch = round(n_out[2],2)
+            dmpdnf.roll = round(n_out[3],2)
+            dmpdnf.grasp = round(n_out[4],2)
+            dmpdnf.dnf_x = i[0]
+            dmpdnf.dnf_y = i[1]
+            l_action.list_action.append(dmpdnf)
+        self.pub_dmp.publish(l_action)
 
     def activate_hebbian(self, goal):
         tmp = [goal.latent_x,goal.latent_y]
