@@ -145,8 +145,8 @@ if __name__ == "__main__":
    dmp3 = [0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
-   outcome4 = [0.0,0.0,0.0,1.0]
-   dmp4 = [0.15,0.0,0.6,0.0,1.0,0.2,0.3]
+   outcome4 = [0.1,0.2,0.0,0.0]
+   dmp4 = [-0.1,-0.1,0.6,0.0,1.0,0.2,0.3]
    action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
    outcome5 = [-0.1,0.1,10.0,0.0]
@@ -154,8 +154,8 @@ if __name__ == "__main__":
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    
-   outcome6 = [-0.1,-0.1,140.0,0.0]
-   dmp6 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
+   outcome6 = [0.0,0.0,0.0,1.0]
+   dmp6 = [0,0,0.0,0.0,0.0,1.0,0.19,0.23]
    action6 = [0.2,0.2,1.0]
    state6 = [0.2,0.2,20.0]
 
@@ -216,9 +216,9 @@ if __name__ == "__main__":
    states.append(state4)
    states.append(state5)
    states.append(state6)
-   states.append(state3_1)
-   states.append(state3_2)
-   states.append(state3_3)
+   #states.append(state3_1)
+   #states.append(state3_2)
+   #states.append(state3_3)
 
    i = 0
    seconds = 0
@@ -226,7 +226,8 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       test.pub_exploration()
       if explore:
-         if(test.get_ready() and i < 9):
+         if(test.get_ready() and i < 6):
+            print(i)
             #if i == 2:
             #   print("change object")
             #   rospy.sleep(1.5)

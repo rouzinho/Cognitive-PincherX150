@@ -257,7 +257,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && ready_habbit )//&& ready_nn)
+      if(rnd_explore > 0.5 && ready_nn )//&& ready_nn)
       {
          std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
          //ros::Duration(3.5).sleep();

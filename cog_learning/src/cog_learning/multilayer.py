@@ -43,12 +43,14 @@ class MultiLayerEncoder(nn.Module):
         return self.layers(x)
     
 class MultiLayerDecoder(nn.Module):
-    def __init__(self,input_layer,middle_layer1,output_layer):
+    def __init__(self,input_layer,middle_layer1,middle_layer2,output_layer):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_layer, middle_layer1),
             nn.Tanh(),
-            nn.Linear(middle_layer1, output_layer),
+            nn.Linear(middle_layer1, middle_layer2),
+            nn.Tanh(),
+            nn.Linear(middle_layer2, output_layer),
             nn.Tanh()
         )
         

@@ -16,7 +16,8 @@ class DisplayPts(object):
       self.sub_gauss = rospy.Subscriber('/display/gauss', ListPeaks, self.callback_gauss)
       self.sub_fp = rospy.Subscriber('/display/first_pose', GripperOrientation, self.callback_first_pose)
       self.sub_lp = rospy.Subscriber('/display/last_pose', GripperOrientation, self.callback_last_pose)
-      self.sub_latent = rospy.Subscriber('/display/latent_space', LatentPos, self.callback_latent)
+      self.sub_latent = rospy.Subscriber('/display/latent_space_out', LatentPos, self.callback_latent)
+      self.sub_latent_a = rospy.Subscriber('/display/latent_space_act', LatentPos, self.callback_latent_act)
       self.sub_test = rospy.Subscriber('/display/latent_test', LatentGoalNN, self.callback_latent_test)
       self.x_object = np.array([0.3])
       self.y_object = np.array([0.0])
@@ -76,6 +77,14 @@ class DisplayPts(object):
       self.y_lpose = np.array([msg.y])
 
    def callback_latent(self, msg):
+      print("got out display")
+      self.latent_x = np.array(msg.x)
+      self.latent_y = np.array(msg.y)
+      self.colors = msg.colors
+      #print(self.colors)
+
+   def callback_latent_act(self, msg):
+      print("got action display")
       self.latent_x = np.array(msg.x)
       self.latent_y = np.array(msg.y)
       self.colors = msg.colors

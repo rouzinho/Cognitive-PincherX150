@@ -16,6 +16,7 @@ from cog_learning.msg import LatentNNDNF
 from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
+import random
 
 class NNGoalAction(object):
     def __init__(self, id_obj):
@@ -36,19 +37,21 @@ class NNGoalAction(object):
         torch.manual_seed(24)
         self.encoder_outcome = MultiLayerEncoder(4,2)#9,6,4,2
         self.encoder_outcome.to(device)
-        self.decoder_outcome = MultiLayerDecoder(2,3,4)
+        self.decoder_outcome = MultiLayerDecoder(2,4,6,4)
         self.decoder_outcome.to(device)
         self.encoder_action = MultiLayerEncoder(5,2)#9,6,4,2
         self.encoder_action.to(device)
-        self.decoder_action = MultiLayerDecoder(2,4,5)
+        self.decoder_action = MultiLayerDecoder(2,4,6,5)
         self.decoder_action.to(device)
         self.memory_size = 20
         self.memory = []
         self.memory_action = []
         self.latent_space = []
         self.latent_space_scaled = []
+        self.latent_space_extend = []
         self.latent_space_action = []
         self.latent_space_action_scaled = []
+        self.latent_space_action_extend = []
         self.hebbian = HebbServer()
         self.hebbian_action = HebbServer()
         self.current_dmp = Dmp()
@@ -132,17 +135,17 @@ class NNGoalAction(object):
     
     def plot_latent(self):
         msg_latent = LatentPos()
-        for i in self.latent_space:
+        for i in self.latent_space_extend:
             msg_latent.x.append(i[0])
             msg_latent.y.append(i[1])
             msg_latent.colors.append("red")
+        #self.pub_latent_space_display_out.publish(msg_latent)
+        #msg_l = LatentPos()
+        for i in self.latent_space_action_extend:
+            msg_latent.x.append(i[0])
+            msg_latent.y.append(i[1])
+            msg_latent.colors.append("blue")
         self.pub_latent_space_display_out.publish(msg_latent)
-        msg_l = LatentPos()
-        for i in self.latent_space_action:
-            msg_l.x.append(i[0])
-            msg_l.y.append(i[1])
-            msg_l.colors.append("blue")
-        self.pub_latent_space_display_act.publish(msg_l)
     
     def save_memory(self):
         n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
@@ -451,6 +454,7 @@ class NNGoalAction(object):
     def bootstrap_learning(self, sample):
         #print("BOOTSTRAP sample before scaling : ",sample)
         state, dmp, outcome, sample_action = self.scale_samples_new_skill(sample)
+        print("outcome : ",outcome)
         #ouput of decoders
         tmp_sample_outcome = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         tmp_sample_action = [dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
@@ -466,6 +470,7 @@ class NNGoalAction(object):
         a_y = self.scale_latent_to_expend(act[1])
         act_x = self.scale_latent_to_dnf(a_x)
         act_y = self.scale_latent_to_dnf(a_y)
+        self.latent_space_extend.append([a_x,a_y])
         act_inputs = [round(act_x*100),round(act_y*100),1.0]
         print("Action Latent : ",act)
         print("Action DNF : ",act_inputs)
@@ -493,6 +498,7 @@ class NNGoalAction(object):
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
+        self.latent_space_action_extend.append([e0,e1])
         inputs = [round(t0*100),round(t1*100),error_fwd]
         print("Outcome latent : ",output_l)
         print("Outcome DNF : ",inputs)
@@ -519,9 +525,11 @@ class NNGoalAction(object):
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
+        self.reset_models()
         self.train_decoder_action()
         self.train_decoder_outcome()
-        #self.test_training()
+        self.test_training_action()
+        self.test_training_outcome()
         self.save_nn()
         self.save_memory()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
@@ -534,14 +542,15 @@ class NNGoalAction(object):
     def train_decoder_outcome(self):
         current_cost = 0
         last_cost = 15
-        learning_rate = 5e-3
+        learning_rate = 1e-3
         epochs = 150
-        print("Train NNGA DECODER")
+        i = 0
+        print("Train NNGA outcome")
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.decoder_outcome.parameters(),lr=learning_rate)        
         current_cost = 0
-        for i in range(0,1):
+        """for i in range(0,1):
             self.decoder_outcome.train()
             self.encoder_outcome.eval()
             optimizer.zero_grad()
@@ -555,8 +564,10 @@ class NNGoalAction(object):
             cost = criterion(outputs,targets)
             cost.backward()
             optimizer.step()
-            #current_cost = current_cost + cost.item()
-        while last_cost > 0.0001:
+            #current_cost = current_cost + cost.item()"""
+        while last_cost > 0.001:
+            #print("outcome")
+            random.shuffle(self.memory)
             for j in range(0,len(self.memory)):
                 self.encoder_outcome.eval()
                 self.decoder_outcome.train()
@@ -575,19 +586,21 @@ class NNGoalAction(object):
                 last_cost = current_cost
             #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
-        print("finish training NNGA")
+            i += 1
+        print("finish training NNGA outcome")
 
     def train_decoder_action(self):
         current_cost = 0
         last_cost = 15
-        learning_rate = 5e-3
+        learning_rate = 1e-3
         epochs = 150
-        print("Train NNGA DECODER")
+        i = 0
+        print("Train NNGA action")
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.decoder_action.parameters(),lr=learning_rate)        
         current_cost = 0
-        for i in range(0,1):
+        """for i in range(0,1):
             self.decoder_action.train()
             self.encoder_action.eval()
             optimizer.zero_grad()
@@ -601,8 +614,10 @@ class NNGoalAction(object):
             cost = criterion(outputs,targets)
             cost.backward()
             optimizer.step()
-            #current_cost = current_cost + cost.item()
-        while last_cost > 0.0001:
+            #current_cost = current_cost + cost.item()"""
+        while last_cost > 0.001:
+            random.shuffle(self.memory_action)
+            #print("action")
             for j in range(0,len(self.memory_action)):
                 self.encoder_action.eval()
                 self.decoder_action.train()
@@ -621,10 +636,11 @@ class NNGoalAction(object):
                 last_cost = current_cost
             #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
-        print("finish training NNGA")
+            i += 1
+        print("finish training NNGA action")
 
-    def test_training(self):
-        print("EVALUATION")
+    def test_training_outcome(self):
+        print("EVALUATION OUTCOME")
         for i in range(0,len(self.memory)):
             self.encoder_outcome.eval()
             self.decoder_outcome.eval()
@@ -637,9 +653,33 @@ class NNGoalAction(object):
             inputs = inputs.to(device)
             outputs = self.decoder_outcome(inputs)
             out  = outputs.detach().numpy()
+            print("sample : ",sample)
             print("reconstruction : ",out)
         print("latent space : ",self.latent_space)
         print("latent space scaled : ",self.latent_space_scaled)
+
+    def test_training_action(self):
+        print("EVALUATION ACTION")
+        for i in range(0,len(self.memory_action)):
+            self.encoder_action.eval()
+            self.decoder_action.eval()
+            sample = self.memory_action[i]
+            print("input sample ",sample)
+            sample = sample.to(device)
+            inputs = self.encoder_action(sample)
+            inp = inputs.detach().numpy()
+            print("Latent values : ",inp)
+            inputs = inputs.to(device)
+            outputs = self.decoder_action(inputs)
+            out  = outputs.detach().numpy()
+            print("sample : ",sample)
+            print("reconstruction : ",out)
+        print("latent space : ",self.latent_space_action)
+        print("latent space scaled : ",self.latent_space_action_scaled)
+
+    def reset_models(self):
+        self.decoder_outcome = MultiLayerDecoder(2,4,6,4)
+        self.decoder_action = MultiLayerDecoder(2,4,6,5)
 
     def forward_encoder(self, data):
         self.encoder_outcome.eval()
