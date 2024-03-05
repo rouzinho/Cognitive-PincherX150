@@ -5,12 +5,12 @@ from cog_learning.multilayer import *
 class Skill(object):
     def __init__(self):
         #7 3
-        #I:x_object, y_object, angle_object, vx_object, vy_object, vangle_object, touch_object O: lposx, lposy, lpospitch
-        self.inverse_model = MultiLayerP(7,5,3)
+        #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: lposx, lposy, lpospitch, ind x, ind y
+        self.inverse_model = MultiLayerP(7,6,5)
         self.inverse_model.to(device)
         #6 4
-        #I: x_object, y_object, angle_object, lposx, lposy, lpospitch O: vx_object, vy_object, vangle_object, touch_object
-        self.forward_model = MultiLayerP(6,5,4)
+        #I: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
+        self.forward_model = MultiLayerP(8,6,4)
         self.forward_model.to(device)
         self.memory_size = 30
         self.memory = []

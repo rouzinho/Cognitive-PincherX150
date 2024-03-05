@@ -11,6 +11,7 @@ class HebbServer(object):
     def __init__(self):
         super(HebbServer, self).__init__() 
         self.weights = np.zeros((100,100,40))
+        self.weights_action = np.zeros((100,100,100,100))
         self.weights_init = False
         self.activation = 0
         self.init_size = True
@@ -50,23 +51,45 @@ class HebbServer(object):
                 ind = i
 
         return ind
+    
+    def hebbianLearningAction(self, point_ga, point_act): #lupdate weights when there is a incoming field with reward
+        #one shot learning, setting weights directly to one for faster processing
+        # learninf a small patch, easier to retrieve with DNF
+        for i in range(point_ga[0]-1,point_ga[0]+2):
+            for j in range(point_ga[1]-1,point_ga[1]+2):
+                self.weights_action[i,j,point_act[0],point_act[1]] = 1
+        
+
+    def hebbianActivationAction(self, point_ga):
+        ind = []
+        for i in range(0,self.weights_action.shape[2]):
+            for j in range(0,self.weights_action.shape[3]):
+                if self.weights_action[point_ga[0],point_ga[1],i,j] == 1:
+                    ind = [i,j]
+
+        return ind
 
     def saveWeights(self, name_weights):
         save(name_weights,self.weights)
         
-        
     def loadWeights(self, name_weights):
         self.weights = load(name_weights)
+
+    def saveWeightsAction(self, name_weights):
+        save(name_weights,self.weights_action)
+        
+    def loadWeightsAction(self, name_weights):
+        self.weights_action = load(name_weights)
 
 if __name__ == "__main__":
     hebb_srv = HebbServer()
     ga = [90,50]
-    fi = 3
-    hebb_srv.hebbianLearning(ga,fi)
-    hebb_srv.hebbianLearning([50,50],9)
-    ind = hebb_srv.hebbianActivation(ga)
-    print(ind)
-    ind = hebb_srv.hebbianActivation([50,50])
-    print(ind)
+    pa = [10,20]
+    hebb_srv.hebbianLearningAction(ga,pa)
+    #hebb_srv.hebbianLearningAction([50,50],9)
+    #ind = hebb_srv.hebbianActivation(ga)
+    #print(ind)
+    ind = hebb_srv.hebbianActivationAction([89,48])
+    print("res : ",ind)
     
 

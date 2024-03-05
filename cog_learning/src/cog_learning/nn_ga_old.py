@@ -24,8 +24,7 @@ class NNGoalAction(object):
         self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.pub_dmp = rospy.Publisher('/motion_pincher/activate_dmp', Dmp, queue_size=10)
-        self.pub_latent_space_display_out = rospy.Publisher("/display/latent_space_out", LatentPos, queue_size=1, latch=True)
-        self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
+        self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.pub_habituation = rospy.Publisher("/habituation/eval_perception", DmpOutcome, queue_size=1, latch=True)
@@ -34,23 +33,15 @@ class NNGoalAction(object):
         self.mt_error = np.zeros((100,100,1), np.float32)
         self.mt_lp = np.zeros((100,100,1), np.float32)
         torch.manual_seed(24)
-        self.encoder_outcome = MultiLayerEncoder(4,2)#9,6,4,2
-        self.encoder_outcome.to(device)
-        self.decoder_outcome = MultiLayerDecoder(2,3,4)
-        self.decoder_outcome.to(device)
-        self.encoder_action = MultiLayerEncoder(5,2)#9,6,4,2
-        self.encoder_action.to(device)
-        self.decoder_action = MultiLayerDecoder(2,4,5)
-        self.decoder_action.to(device)
+        self.encoder = MultiLayerEncoder(9,2)#9,6,4,2
+        self.encoder.to(device)
+        self.decoder = MultiLayerDecoder(2,4,6,9)
+        self.decoder.to(device)
         self.memory_size = 20
         self.memory = []
-        self.memory_action = []
         self.latent_space = []
         self.latent_space_scaled = []
-        self.latent_space_action = []
-        self.latent_space_action_scaled = []
         self.hebbian = HebbServer()
-        self.hebbian_action = HebbServer()
         self.current_dmp = Dmp()
         self.current_goal = LatentGoalDnf()
         self.id_nnga =  id_obj
@@ -135,14 +126,8 @@ class NNGoalAction(object):
         for i in self.latent_space:
             msg_latent.x.append(i[0])
             msg_latent.y.append(i[1])
-            msg_latent.colors.append("red")
-        self.pub_latent_space_display_out.publish(msg_latent)
-        msg_l = LatentPos()
-        for i in self.latent_space_action:
-            msg_l.x.append(i[0])
-            msg_l.y.append(i[1])
-            msg_l.colors.append("blue")
-        self.pub_latent_space_display_act.publish(msg_l)
+            msg_latent.colors.append("blue")
+        self.pub_latent_space_display.publish(msg_latent)
     
     def save_memory(self):
         n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
@@ -150,7 +135,6 @@ class NNGoalAction(object):
         n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
         n_skills = self.folder_nnga + str(self.id_nnga) + "/list_skills.pkl"
         n_hebb = self.folder_nnga + str(self.id_nnga) + "/hebbian_weights.npy"
-        n_hebb_action = self.folder_nnga + str(self.id_nnga) + "/hebbian_weights_action.npy"
         n_mtlatent = self.folder_nnga + str(self.id_nnga) + "/latent_space.npy"
         n_mterror = self.folder_nnga + str(self.id_nnga) + "/mt_error.npy"
         n_mtlp = self.folder_nnga + str(self.id_nnga) + "/mt_lp.npy"
@@ -161,7 +145,6 @@ class NNGoalAction(object):
             os.remove(n_latent_scaled)
             os.remove(n_skills)
             os.remove(n_hebb)
-            os.remove(n_hebb_action)
             os.remove(n_mtlatent)
             os.remove(n_mterror)
             os.remove(n_mtlp)
@@ -174,7 +157,6 @@ class NNGoalAction(object):
         filehandler_s = open(n_skills, 'wb')
         pickle.dump(self.skills, filehandler_s)
         self.hebbian.saveWeights(n_hebb)
-        self.hebbian.saveWeightsAction(n_hebb_action)
         np.save(n_mtlatent,self.mt_field)
         np.save(n_mterror,self.mt_error)
         np.save(n_mtlp,self.mt_lp)
@@ -182,30 +164,20 @@ class NNGoalAction(object):
     def save_nn(self):
         name_dir = self.folder_nnga + str(self.id_nnga) 
         n = name_dir + "/nn_ga.pt"
-        n_action = name_dir + "/nn_action.pt"
         path = os.path.join(self.folder_nnga, str(self.id_nnga)) 
         access = 0o755
         if os.path.isdir(path):
             os.remove(n)
-            os.remove(n_action)
             torch.save({
-            'encoder': self.encoder_outcome.state_dict(),
-            'decoder': self.decoder_outcome.state_dict(),
+            'encoder': self.encoder.state_dict(),
+            'decoder': self.decoder.state_dict(),
             }, n)
-            torch.save({
-            'encoder': self.encoder_action.state_dict(),
-            'decoder': self.decoder_action.state_dict(),
-            }, n_action)
         else:
             os.makedirs(path,access)  
             torch.save({
-            'encoder': self.encoder_outcome.state_dict(),
-            'decoder': self.decoder_outcome.state_dict(),
+            'encoder': self.encoder.state_dict(),
+            'decoder': self.decoder.state_dict(),
             }, n)
-            torch.save({
-            'encoder': self.encoder_action.state_dict(),
-            'decoder': self.decoder_action.state_dict(),
-            }, n_action)
 
     def load_memory(self, n):
         n_mem = self.folder_nnga + str(n) + "/memory_samples.pkl"
@@ -213,7 +185,6 @@ class NNGoalAction(object):
         n_latent_scaled = self.folder_nnga + str(n) + "/latent_space_scaled.pkl"
         n_skills = self.folder_nnga + str(n) + "/list_skills.pkl"
         n_hebb = self.folder_nnga + str(n) + "/hebbian_weights.npy"
-        n_hebb_action = self.folder_nnga + str(n) + "/hebbian_weights_action.npy"
         n_mtlatent = self.folder_nnga + str(self.id_nnga) + "/latent_space.npy"
         n_mterror = self.folder_nnga + str(self.id_nnga) + "/mt_error.npy"
         n_mtlp = self.folder_nnga + str(self.id_nnga) + "/mt_lp.npy"
@@ -230,20 +201,15 @@ class NNGoalAction(object):
         s = pickle.load(filehandler_s)
         self.skills = s
         self.hebbian.loadWeights(n_hebb)
-        self.hebbian_action.loadWeightsAction(n_hebb_action)
         self.mt_field = np.load(n_mtlatent)
         self.mt_error = np.load(n_mterror)
         self.mt_lp = np.load(n_mtlp)
 
     def load_nn(self, n):
         nn = self.folder_nnga + str(n) + "/nn_ga.pt"
-        nn_action = self.folder_nnga + str(n) + "/nn_action.pt"
         checkpoint = torch.load(nn)
-        checkpoint_ = torch.load(nn_action)
-        self.encoder_outcome.load_state_dict(checkpoint['encoder'])
-        self.decoder_outcome.load_state_dict(checkpoint['decoder'])
-        self.encoder_action.load_state_dict(checkpoint_['encoder'])
-        self.decoder_action.load_state_dict(checkpoint_['decoder'])
+        self.encoder.load_state_dict(checkpoint['encoder'])
+        self.decoder.load_state_dict(checkpoint['decoder'])
 
     def load_skills(self, n):
         name = self.folder_nnga + str(n) + "/"
@@ -319,18 +285,6 @@ class NNGoalAction(object):
                     
         return n_x[0]
     
-    def scale_inp_out(self, data, inp_min, inp_max, out_min, out_max):
-        n_x = np.array(data)
-        n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(out_min,out_max))
-        x_minmax = np.array([inp_min, inp_max])
-        scaler_x.fit(x_minmax[:, np.newaxis])
-        n_x = scaler_x.transform(n_x)
-        n_x = n_x.reshape(1,-1)
-        n_x = n_x.flatten()
-                    
-        return n_x[0]
-    
     def reconstruct_latent(self, data, min_, max_):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
@@ -343,11 +297,11 @@ class NNGoalAction(object):
                     
         return n_x[0]
     
-    def create_skill_sample(self, state, outcome, sample_action, ind_action):
-        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch,ind_action[0],ind_action[1]]
+    def create_skill_sample(self, state, outcome, sample_action):
+        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         sample_inp_inv = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
-        sample_out_inv = [sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch,ind_action[0],ind_action[1]]
+        sample_out_inv = [sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch]
         t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
         t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
         t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
@@ -451,42 +405,23 @@ class NNGoalAction(object):
     def bootstrap_learning(self, sample):
         #print("BOOTSTRAP sample before scaling : ",sample)
         state, dmp, outcome, sample_action = self.scale_samples_new_skill(sample)
-        #ouput of decoders
-        tmp_sample_outcome = [outcome.x,outcome.y,outcome.angle,outcome.touch]
-        tmp_sample_action = [dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
+        #ouput of decoder
+        tmp_sample = [outcome.x,outcome.y,outcome.angle,outcome.touch,dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
         #print("scaled dmp : ",tmp_sample)
-        tensor_sample_outcome = torch.tensor(tmp_sample_outcome,dtype=torch.float)
-        tensor_sample_action = torch.tensor(tmp_sample_action,dtype=torch.float)
-        self.memory.append(tensor_sample_outcome)
-        self.memory_action.append(tensor_sample_action)
-        #get indice from action_nn and scale them
-        t_act = self.forward_encoder_action(tensor_sample_action)
-        act = t_act.detach().numpy()
-        a_x = self.scale_latent_to_expend(act[0])
-        a_y = self.scale_latent_to_expend(act[1])
-        act_x = self.scale_latent_to_dnf(a_x)
-        act_y = self.scale_latent_to_dnf(a_y)
-        act_inputs = [round(act_x*100),round(act_y*100),1.0]
-        print("Action Latent : ",act)
-        print("Action DNF : ",act_inputs)
-        self.latent_space_action.append([act[0],act[1]])
-        self.latent_space_action_scaled.append(act_inputs)
-        #scale DNF to -1,1 for fwd and inv models
-        a0 = self.scale_inp_out(act_inputs[0],0,100,-1,1)
-        a1 = self.scale_inp_out(act_inputs[1],0,100,-1,1)
+        tensor_sample_go = torch.tensor(tmp_sample,dtype=torch.float)
+        self.add_to_memory(tensor_sample_go)
         ind_skill = self.create_skill()
-        sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+        sample = self.create_skill_sample(state,outcome,sample_action)
         #print("Input NNGA ; ",sample)
         self.skills[ind_skill].add_to_memory(sample)
         #self.skills[ind_skill].print_memory()
-        #err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
-        #err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
-        #first time discovering the skills so setting them all to 0.9
-        error_fwd = 0.9
-        error_inv = 0.9
+        err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
+        err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
+        error_fwd = err_fwd.item()
+        error_inv = err_inv.item()
         #print("ERROR INVERSE : ",error_inv)
         #print("ERROR FORWARD : ",error_fwd)
-        t_inputs = self.forward_encoder(tensor_sample_outcome)
+        t_inputs = self.forward_encoder(tensor_sample_go)
         output_l = t_inputs.detach().numpy()
         #print("latent space original : ",output_l)
         e0 = self.scale_latent_to_expend(output_l[0])
@@ -494,8 +429,6 @@ class NNGoalAction(object):
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
         inputs = [round(t0*100),round(t1*100),error_fwd]
-        print("Outcome latent : ",output_l)
-        print("Outcome DNF : ",inputs)
         self.skills[ind_skill].set_name(inputs)
         #print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
@@ -509,18 +442,16 @@ class NNGoalAction(object):
         self.update_learning_progress(inputs,0)
         self.send_new_goal(inputs,0.0)
         self.pub_timing(0.0)
-        #self.end_action(True)
-        #rospy.sleep(1)
-        #self.end_action(False)
+        self.end_action(True)
+        rospy.sleep(1)
+        self.end_action(False)
         self.send_latent_space()
         #print("Hebbian learning, index : ",ind_skill)
         #print("Inputs Hebbian : ",inputs)
-        self.hebbian_action.hebbianLearningAction(inputs,act_inputs)
         self.hebbian.hebbianLearning(inputs,ind_skill)
         self.skills[ind_skill].train_forward_model()
         self.skills[ind_skill].train_inverse_model()
-        self.train_decoder_action()
-        self.train_decoder_outcome()
+        self.trainDecoder()
         #self.test_training()
         self.save_nn()
         self.save_memory()
@@ -531,7 +462,7 @@ class NNGoalAction(object):
         self.skills[ind_skill].save_inv_nn(pwd)
         self.send_ready(True)
 
-    def train_decoder_outcome(self):
+    def trainDecoder(self):
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
@@ -539,81 +470,35 @@ class NNGoalAction(object):
         print("Train NNGA DECODER")
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.decoder_outcome.parameters(),lr=learning_rate)        
+        optimizer = torch.optim.Adam(self.decoder.parameters(),lr=learning_rate)        
         current_cost = 0
         for i in range(0,1):
-            self.decoder_outcome.train()
-            self.encoder_outcome.eval()
+            self.decoder.train()
+            self.encoder.eval()
             optimizer.zero_grad()
             sample = self.memory[-1]
             sample = sample.to(device)
-            inputs = self.encoder_outcome(sample)
+            inputs = self.encoder(sample)
             inputs = inputs.to(device)
             targets = sample
             targets = targets.to(device)
-            outputs = self.decoder_outcome(inputs)
+            outputs = self.decoder(inputs)
             cost = criterion(outputs,targets)
             cost.backward()
             optimizer.step()
             #current_cost = current_cost + cost.item()
         while last_cost > 0.0001:
             for j in range(0,len(self.memory)):
-                self.encoder_outcome.eval()
-                self.decoder_outcome.train()
+                self.encoder.eval()
+                self.decoder.train()
                 optimizer.zero_grad()
                 sample = self.memory[j]
                 sample = sample.to(device)
-                inputs = self.encoder_outcome(sample)
+                inputs = self.encoder(sample)
                 inputs = inputs.to(device)
                 targets = sample
                 targets = targets.to(device)
-                outputs = self.decoder_outcome(inputs)
-                cost = criterion(outputs,targets)
-                cost.backward()
-                optimizer.step()
-                current_cost = current_cost + cost.item()
-                last_cost = current_cost
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
-            current_cost = 0
-        print("finish training NNGA")
-
-    def train_decoder_action(self):
-        current_cost = 0
-        last_cost = 15
-        learning_rate = 5e-3
-        epochs = 150
-        print("Train NNGA DECODER")
-        #self.inverse_model.to(device)
-        criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.decoder_action.parameters(),lr=learning_rate)        
-        current_cost = 0
-        for i in range(0,1):
-            self.decoder_action.train()
-            self.encoder_action.eval()
-            optimizer.zero_grad()
-            sample = self.memory_action[-1]
-            sample = sample.to(device)
-            inputs = self.encoder_action(sample)
-            inputs = inputs.to(device)
-            targets = sample
-            targets = targets.to(device)
-            outputs = self.decoder_action(inputs)
-            cost = criterion(outputs,targets)
-            cost.backward()
-            optimizer.step()
-            #current_cost = current_cost + cost.item()
-        while last_cost > 0.0001:
-            for j in range(0,len(self.memory_action)):
-                self.encoder_action.eval()
-                self.decoder_action.train()
-                optimizer.zero_grad()
-                sample = self.memory_action[j]
-                sample = sample.to(device)
-                inputs = self.encoder_action(sample)
-                inputs = inputs.to(device)
-                targets = sample
-                targets = targets.to(device)
-                outputs = self.decoder_action(inputs)
+                outputs = self.decoder(inputs)
                 cost = criterion(outputs,targets)
                 cost.backward()
                 optimizer.step()
@@ -626,46 +511,32 @@ class NNGoalAction(object):
     def test_training(self):
         print("EVALUATION")
         for i in range(0,len(self.memory)):
-            self.encoder_outcome.eval()
-            self.decoder_outcome.eval()
+            self.encoder.eval()
+            self.decoder.eval()
             sample = self.memory[i]
             print("input sample ",sample)
             sample = sample.to(device)
-            inputs = self.encoder_outcome(sample)
+            inputs = self.encoder(sample)
             inp = inputs.detach().numpy()
             print("Latent values : ",inp)
             inputs = inputs.to(device)
-            outputs = self.decoder_outcome(inputs)
+            outputs = self.decoder(inputs)
             out  = outputs.detach().numpy()
             print("reconstruction : ",out)
         print("latent space : ",self.latent_space)
         print("latent space scaled : ",self.latent_space_scaled)
 
     def forward_encoder(self, data):
-        self.encoder_outcome.eval()
+        self.encoder.eval()
         data = data.to(device)
-        output = self.encoder_outcome(data)
+        output = self.encoder(data)
 
         return output
     
     def forward_decoder(self, data):
-        self.decoder_outcome.eval()
+        self.decoder.eval()
         data = data.to(device)
-        output = self.decoder_outcome(data)
-
-        return output
-    
-    def forward_encoder_action(self, data):
-        self.encoder_action.eval()
-        data = data.to(device)
-        output = self.encoder_action(data)
-
-        return output
-    
-    def forward_decoder_action(self, data):
-        self.decoder_action.eval()
-        data = data.to(device)
-        output = self.decoder_action(data)
+        output = self.decoder(data)
 
         return output
     
