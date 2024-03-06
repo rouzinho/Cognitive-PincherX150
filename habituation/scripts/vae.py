@@ -674,6 +674,7 @@ class Habituation(object):
       self.min_angle = -180
       self.max_angle = 180
       self.busy = False
+      self.tot = 0
       self.colors = []
       #self.colors.append("orange")
       self.colors.append("red")
@@ -749,11 +750,14 @@ class Habituation(object):
       return n_x[0]
    
    def callback_same_perception(self, msg):
+      #receiving high value once in a while from cedar even if it's 0
       if msg.data > 0.9:
-         print(msg.data)
+         self.tot += 1
+      else:
+         self.tot = 0
+         self.busy = False
+      if self.tot > 10 and not self.busy:
          self.busy = True
-         print("busy")
-      if self.busy:
          print("SAME PERCEPTION")
          b = Bool()
          b.data = True
@@ -762,10 +766,9 @@ class Habituation(object):
          self.habit[self.index_vae].remove_last_latent()
          self.habit[self.index_vae].remove_last_latent_dnf()
          self.send_latent_space_outcome()
-         rospy.sleep(10.0)
+         #rospy.sleep(10.0)
          b.data = False
          self.pub_busy.publish(b)
-         self.busy = False
    
    def send_latent_space_outcome(self):
       ls = self.habit[self.index_vae].get_latent_space_dnf()
@@ -969,32 +972,25 @@ class Habituation(object):
       l = LatentNNDNF()
       self.send_perception(l)
 
-   def relearn_latent_outcome(self):
-      print("TRAINING VAE...")
-      torch.manual_seed(24)
-      self.habit[self.index_vae].reset_model()
-      self.habit[self.index_vae].train()
-      self.save_nn()
-      self.save_memory()
-      self.incoming_dmp = False
-      self.incoming_outcome = False
-      print("finished training VAE")
-
    def learn_new_latent(self):
-      self.time = rospy.get_time()
       print("TRAINING VAE...")
       torch.manual_seed(24)
       self.habit[self.index_vae].reset_model()
       self.vae_action[self.index_vae].reset_model()
+      self.time = rospy.get_time()
       self.habit[self.index_vae].train()
+      t = self.time - rospy.get_time()
+      print("Training time OUTCOME: ",t)
+      self.time = rospy.get_time()
       self.vae_action[self.index_vae].train()
+      t = self.time - rospy.get_time()
+      print("Training time ACTION: ",t)
       self.save_nn()
       self.save_memory()
       self.incoming_dmp = False
       self.incoming_outcome = False
       print("finished training VAE")
-      t = self.time - rospy.get_time()
-      print("Training time : ",t)
+      
 
    def add_to_memory(self, sample_out, sample_act):
       self.habit[self.index_vae].add_to_memory(sample_out)
