@@ -36,6 +36,7 @@ class NNGoalAction(object):
         self.mt_field = np.zeros((100,100,1), np.float32)
         self.mt_error = np.zeros((100,100,1), np.float32)
         self.mt_lp = np.zeros((100,100,1), np.float32)
+        self.mt_action = np.zeros((100,100,1), np.float32)
         torch.manual_seed(24)
         self.encoder_outcome = MultiLayerEncoder(4,2)#9,6,4,2
         self.encoder_outcome.to(device)
@@ -134,6 +135,12 @@ class NNGoalAction(object):
 
     def get_mt_lp(self):
       return self.mt_lp
+    
+    def get_mt_action(self):
+        return self.mt_action
+    
+    def set_mt_action(self, img):
+        self.mt_action = img
     
     def plot_latent(self):
         msg_latent = LatentPos()

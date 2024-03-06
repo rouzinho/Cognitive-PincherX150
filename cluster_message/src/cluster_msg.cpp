@@ -47,6 +47,7 @@ class ClusterMessage
    ros::Subscriber sub_invalidate;
    ros::Subscriber sub_pause;
    ros::Subscriber sub_touch;
+   ros::Subscriber sub_busy;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_new_state;
@@ -81,25 +82,27 @@ class ClusterMessage
    bool init_valid;
    bool init_invalid;
    bool touch;
+   bool busy;
 
   public:
    ClusterMessage()
    {
-      sub_dmp = nh_.subscribe("/motion_pincher/dmp", 10, &ClusterMessage::CallbackDMP,this);
-      sub_outcome = nh_.subscribe("/outcome_detector/outcome", 10, &ClusterMessage::CallbackOutcome,this);
-      sub_rnd_explore = nh_.subscribe("/cog_learning/rnd_exploration", 10, &ClusterMessage::CallbackRndExplore,this);
-      sub_direct_explore = nh_.subscribe("/cog_learning/direct_exploration", 10, &ClusterMessage::CallbackDirectExplore,this);
-      sub_exploit = nh_.subscribe("/cog_learning/exploitation", 10, &ClusterMessage::CallbackExploit,this);
-      sub_state = nh_.subscribe("/outcome_detector/state", 10, &ClusterMessage::CallbackState,this);
-      sub_sample = nh_.subscribe("/motion_pincher/action_sample", 10, &ClusterMessage::CallbackSample,this);
-      sub_ready_habituation = nh_.subscribe("/habituation/ready", 10, &ClusterMessage::CallbackReadyHabit,this);
-      sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 10, &ClusterMessage::CallbackReadyNN,this);
-      sub_new = nh_.subscribe("/depth_perception/new_state", 10, &ClusterMessage::CallbackNewState,this);
-      sub_retry = nh_.subscribe("/depth_perception/retry", 10, &ClusterMessage::CallbackRetry,this);
-      sub_validate = nh_.subscribe("/habituation/valid_perception", 10, &ClusterMessage::CallbackValidate,this);
-      sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 10, &ClusterMessage::CallbackInvalidate,this);
-      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 10, &ClusterMessage::CallbackPause,this);
-      sub_touch = nh_.subscribe("/motion_pincher/touch", 10, &ClusterMessage::CallbackTouch,this);
+      sub_dmp = nh_.subscribe("/motion_pincher/dmp", 1, &ClusterMessage::CallbackDMP,this);
+      sub_outcome = nh_.subscribe("/outcome_detector/outcome", 1, &ClusterMessage::CallbackOutcome,this);
+      sub_rnd_explore = nh_.subscribe("/cog_learning/rnd_exploration", 1, &ClusterMessage::CallbackRndExplore,this);
+      sub_direct_explore = nh_.subscribe("/cog_learning/direct_exploration", 1, &ClusterMessage::CallbackDirectExplore,this);
+      sub_exploit = nh_.subscribe("/cog_learning/exploitation", 1, &ClusterMessage::CallbackExploit,this);
+      sub_state = nh_.subscribe("/outcome_detector/state", 1, &ClusterMessage::CallbackState,this);
+      sub_sample = nh_.subscribe("/motion_pincher/action_sample", 1, &ClusterMessage::CallbackSample,this);
+      sub_ready_habituation = nh_.subscribe("/habituation/ready", 1, &ClusterMessage::CallbackReadyHabit,this);
+      sub_ready_nnga = nh_.subscribe("/cog_learning/ready", 1, &ClusterMessage::CallbackReadyNN,this);
+      sub_new = nh_.subscribe("/depth_perception/new_state", 1, &ClusterMessage::CallbackNewState,this);
+      sub_retry = nh_.subscribe("/depth_perception/retry", 1, &ClusterMessage::CallbackRetry,this);
+      sub_validate = nh_.subscribe("/habituation/valid_perception", 1, &ClusterMessage::CallbackValidate,this);
+      sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 1, &ClusterMessage::CallbackInvalidate,this);
+      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &ClusterMessage::CallbackPause,this);
+      sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &ClusterMessage::CallbackTouch,this);
+      sub_busy = nh_.subscribe("/cluster_msg/busy", 1, &ClusterMessage::CallbackBusy,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
@@ -230,7 +233,7 @@ class ClusterMessage
    void CallbackRndExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       rnd_explore = msg->data;
-      if(rnd_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
+      if(rnd_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy)
       {
          std::cout<<"Cluster_msg : RANDOM exploration, sending datas to models...\n";
          //ros::Duration(4.5).sleep();
@@ -257,7 +260,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && ready_nn )//&& ready_nn)
+      if(rnd_explore > 0.5 && ready_habbit )//&& ready_nn)
       {
          std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
          //ros::Duration(3.5).sleep();
@@ -304,7 +307,7 @@ class ClusterMessage
    void CallbackDirectExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       direct_explore = msg->data;
-      if(direct_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
+      if(direct_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy)
       {
          std::cout<<"Cluster_msg : DIRECT exploration, sending datas to models...\n";
          cluster_message::SampleExplore s;
@@ -517,6 +520,11 @@ class ClusterMessage
    void CallbackTouch(const std_msgs::Bool::ConstPtr& msg)
    {
       touch = msg->data;
+   }
+
+   void CallbackBusy(const std_msgs::Bool::ConstPtr& msg)
+   {
+      busy = msg->data;
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)

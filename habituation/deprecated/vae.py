@@ -67,11 +67,11 @@ class Sampling(nn.Module):
 class VariationalEncoder(nn.Module):
    def __init__(self, input_dim, middle_dim, latent_dims):
       super(VariationalEncoder, self).__init__()
-      self.linear1 = nn.Linear(input_dim, middle_dim)
+      self.linear1 = nn.Linear(9, 6)
       #self.linear2 = nn.Linear(7, 5)
       #self.linear3 = nn.Linear(5, 3)
-      self.linear4 = nn.Linear(middle_dim, latent_dims)
-      self.linear5 = nn.Linear(middle_dim, latent_dims)
+      self.linear4 = nn.Linear(6, latent_dims)
+      self.linear5 = nn.Linear(6, latent_dims)
       #self.N = torch.distributions.Normal(0, 1)
       #self.kl = 0
       self.sampling = Sampling()
@@ -95,12 +95,12 @@ class VariationalEncoder(nn.Module):
       return z_mean, z_log_var, z_reparametrized
 
 class Decoder(nn.Module):
-   def __init__(self, latent_dims, middle_dim, output_dim):
+   def __init__(self, latent_dims):
       super(Decoder, self).__init__()
-      self.linear1 = nn.Linear(latent_dims, middle_dim)
+      self.linear1 = nn.Linear(latent_dims, 6)
       #self.linear2 = nn.Linear(3, 5)
       #self.linear3 = nn.Linear(5, 7)
-      self.linear4 = nn.Linear(middle_dim, output_dim)
+      self.linear4 = nn.Linear(6, 9)
 
    def forward(self, z):
       z = torch.tanh(self.linear1(z)) #F.relu
@@ -109,10 +109,10 @@ class Decoder(nn.Module):
       return z
 
 class VariationalAutoencoder(nn.Module):
-   def __init__(self, input_dim, middle_dim, latent_dims):
+   def __init__(self, latent_dims):
       super(VariationalAutoencoder, self).__init__()
-      self.encoder = VariationalEncoder(input_dim, middle_dim, latent_dims)
-      self.decoder = Decoder(latent_dims, middle_dim, input_dim)
+      self.encoder = VariationalEncoder(latent_dims)
+      self.decoder = Decoder(latent_dims)
 
    def forward(self, x):
       #z = self.encoder(x)
@@ -137,17 +137,13 @@ class VariationalAutoencoder(nn.Module):
       
 
 class VariationalAE(object):
-   def __init__(self,id_object,input_dim,middle_dim,latent_dim):
-      self.input_dim = input_dim
-      self.middle_dim = middle_dim
-      self.latent_dim = latent_dim
-      self.vae = VariationalAutoencoder(self.input_dim,self.middle_dim,self.latent_dim)
+   def __init__(self,id_object):
+      self.vae = VariationalAutoencoder(2)
       self.memory = []
       self.mt_field = np.zeros((100,100,1), np.float32)
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.list_latent_action = []
       self.scale_factor = 30
       self.tmp_list = []
       self.bound_x = 0
@@ -159,23 +155,17 @@ class VariationalAE(object):
       self.min_latent_y = -1
       self.max_latent_y = 1
 
-   def fill_latent(self):
-      self.list_latent = []
-      for sample in self.memory:
-         self.vae.eval()
-         z, z_log, recon = self.vae.encoder(sample)
-         z = z.to('cpu').detach().numpy()
-         self.list_latent.append(z)
-      print("latent space : ",len(self.list_latent))
-
-   def set_latent_dnf(self, exploration):
-      ext_x, ext_y = self.get_latent_extremes(self.list_latent)
+   def set_latent_dnf(self, l_values, exploration):
+      ext_x, ext_y = self.get_latent_extremes(l_values)
       self.list_latent_scaled = []
       if exploration == "static":
          self.bound_x = 100
          self.bound_y = 100
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
+               #print("Latent Value : ",i)
+               #print("extreme values X : ",ext_x)
+               #print("extreme values Y : ",ext_y)
                self.min_latent_x = -1
                self.max_latent_x = 1
                self.min_latent_y = -1
@@ -205,6 +195,8 @@ class VariationalAE(object):
          padding_y = round(self.max_bound_y * 0.1)
          self.bound_x = round(self.max_bound_x)
          self.bound_y = round(self.max_bound_y)
+         #print("max bound X ",bound_x)
+         #print("max bound Y ",bound_y)
          if len(self.list_latent) >= 1:
             for i in self.list_latent:
                x = self.scale_latent_to_dnf_dynamic(i[0],ext_x[0],ext_x[1],padding_x,self.bound_x-padding_x)
@@ -214,40 +206,12 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
-
-   def get_latent_dnf_split(self, sample):
-      msg_display_one = LatentPos()
-      msg_display_minus = LatentPos()
-      new_latent_single = LatentNNDNF()
-      new_latent_single.max_x = self.bound_x
-      new_latent_single.max_y = self.bound_y
-      new_latent_minus_one = LatentNNDNF()
-      new_latent_minus_one.max_x = self.bound_x
-      new_latent_minus_one.max_y = self.bound_y
-      self.vae.eval()
-      z, z_log, recon = self.vae.encoder(sample)
-      z = z.to('cpu').detach().numpy()
-      for (i,j) in zip(self.list_latent,self.list_latent_scaled):
-         if abs(abs(i[0]) - abs(z[0])) < 0.01 and abs(abs(i[1]) - abs(z[1])) < 0.01:
-            print("found latent value")
-            g = Goal()
-            g.x = j[0]
-            g.y = j[1]
-            g.value = 1.0
-            new_latent_single.list_latent.append(g)
-            msg_display_one.x.append(i[0])
-            msg_display_one.y.append(i[1])
-         else:
-            print("latent not found")
-            g = Goal()
-            g.x = j[0]
-            g.y = j[1]
-            g.value = 1.0
-            new_latent_minus_one.list_latent.append(g)
-            msg_display_minus.x.append(i[0])
-            msg_display_minus.y.append(i[1])
-      
-      return new_latent_single, new_latent_minus_one, msg_display_one, msg_display_minus
+         #print("bound x : ", self.bound_x)
+         #print("bound y : ", self.bound_y)
+         #print("max bound x : ", self.max_bound_x)
+         #print("max bound y : ", self.max_bound_y)
+      #print("Latent DNF : ",self.list_latent_scaled)
+      #print(" LATENT FORMED bound x ", self.bound_x, " bound y ", self.bound_y," max_bound_x ", self.max_bound_x, " max_bound_y ", self.max_bound_y)
             
    def set_dnf_to_latent(self, peak, exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
@@ -311,11 +275,11 @@ class VariationalAE(object):
          max_bound_x = round(max_bound_x)
          max_bound_y = round(max_bound_y)
          x = self.scale_latent_to_dnf_dynamic(z[0],ext_x[0],ext_x[1],padding_x,max_bound_x-padding_x)
-         #print("data",z[1])
-         #print("min y ",ext_y[0])
-         #print("max y ",ext_y[1])
-         #print("padding min ",padding_y)
-         #print("padding max ",max_bound_y-padding_y)
+         print("data",z[1])
+         print("min y ",ext_y[0])
+         print("max y ",ext_y[1])
+         print("padding min ",padding_y)
+         print("padding max ",max_bound_y-padding_y)
          y = self.scale_latent_to_dnf_dynamic(z[1],ext_y[0],ext_y[1],padding_y,max_bound_y-padding_y)
          eval_value.x = round(x)
          eval_value.y = round(y)
@@ -488,10 +452,9 @@ class VariationalAE(object):
       i = 0
       min_err = 1.0
       err_rec = 1.0
-      mem = copy.deepcopy(self.memory)
       while not stop:
-         random.shuffle(mem)
-         for sample in mem:
+         random.shuffle(self.memory)
+         for sample, y in self.memory:
             self.vae.train()
             s = sample.to(device) # GPU
             opt.zero_grad()
@@ -511,6 +474,7 @@ class VariationalAE(object):
             if self.kld_loss < 0.04 and self.recon_loss < 0.0005:
                stop = True
                break
+      print("END TRAINING")
 
    def get_sample_latent(self, sample):
       self.vae.eval()
@@ -528,11 +492,22 @@ class VariationalAE(object):
       return out
 
    #send latent space for display and keep it in memory
-   def plot_latent(self):
+   def plot_latent(self, num_batches=100):
       msg_latent = LatentPos()
-      for i in self.list_latent:
-         msg_latent.x.append(i[0])
-         msg_latent.y.append(i[1])
+      self.list_latent = []
+      self.tmp_list = []
+      for i in range(0,1):
+         for sample, col in self.memory:
+            self.vae.eval()
+            z, z_log, recon = self.vae.encoder(sample)
+            z = z.to('cpu').detach().numpy()
+            msg_latent.x.append(z[0])
+            msg_latent.y.append(z[1])
+            t = [z[0],z[1],col]
+            self.tmp_list.append(t)
+            msg_latent.colors.append(col)
+            self.list_latent.append(z)
+            #plt.scatter(z[0], z[1], c=col, cmap='tab10')
             
       return msg_latent
    
@@ -548,7 +523,7 @@ class VariationalAE(object):
             print(i[1],z)
 
    def reset_model(self):
-      self.vae = VariationalAutoencoder(self.input_dim,self.middle_dim,self.latent_dim)
+      self.vae = VariationalAutoencoder(2)
 
    def get_memory_size(self):
       return len(self.memory)
@@ -556,69 +531,59 @@ class VariationalAE(object):
    def get_memory(self):
       return self.memory
    
-   def remove_last_sample(self):
-      self.memory.pop()
-
-   def remove_last_latent_dnf(self):
-      self.list_latent_scaled.pop()
-
-   def remove_last_latent(self):
-      self.list_latent.pop()
-   
-   def saveNN(self, name_folder, id_obj, model_name):
+   def saveNN(self, name_folder, id_obj):
       name_dir = name_folder + str(id_obj) 
-      n = name_dir + "/" + model_name + "_vae.pt"
+      n = name_dir + "/habituation.pt"
       path = os.path.join(name_folder, str(id_obj)) 
       access = 0o755
       if os.path.isdir(path):
-         if os.path.isfile(n):
-            os.remove(n)
+         os.remove(n)
          self.vae.save(n)
       else:
          os.makedirs(path,access)  
          self.vae.save(n)
 
-   def load_nn(self, name_folder, id_obj, model_name):
-      name_dir = name_folder + str(id_obj) + "/" + model_name + "_vae.pt"
-      self.vae.load(name_dir)
+   def load_nn(self, name_folder):
+      self.vae.load(name_folder)
 
-   def save_memory(self, name_folder, id_object, model_name):
-      path = os.path.join(name_folder, str(id_object)) 
-      n_mem = name_folder + str(id_object) + "/" + model_name + "_memory_samples.pkl"
-      n_latent = name_folder + str(id_object) + "/" + model_name + "_latent_space.pkl"
-      n_latent_scaled = name_folder + str(id_object) + "/" + model_name + "_latent_space_scaled.pkl"
-      n_latent_bounds = name_folder + str(id_object) + "/" + model_name + "_bounds.pkl"
-      n_latent_max_bounds = name_folder + str(id_object) + "/" + model_name + "_max_bounds.pkl"
-      n_mtlatent = name_folder + str(id_object) + "/" + model_name + "_latent_space.npy"
-      if os.path.isdir(path):
-         if os.path.isfile(n_mem):
-            os.remove(n_mem)
-            os.remove(n_latent)
-            os.remove(n_latent_scaled)
-            os.remove(n_latent_bounds)
-            os.remove(n_latent_max_bounds)
-            os.remove(n_mtlatent)
-         np.save(n_mtlatent,self.mt_field)
-         filehandler = open(n_mem, 'wb')
-         pickle.dump(self.memory, filehandler)
-         filehandler_l = open(n_latent, 'wb')
-         pickle.dump(self.list_latent, filehandler_l)
-         filehandler_ls = open(n_latent_scaled, 'wb')
-         pickle.dump(self.list_latent_scaled, filehandler_ls)
-         filehandler_b = open(n_latent_bounds, 'wb')
-         t = [self.bound_x,self.bound_y]
-         pickle.dump(t, filehandler_b)
-         filehandler_mb = open(n_latent_max_bounds, 'wb')
-         mb = [self.max_bound_x,self.max_bound_y,self.bound_x,self.bound_y]
-         pickle.dump(mb, filehandler_mb)
+   def save_memory(self, name_folder, id_object):
+      n_mem = name_folder + str(id_object) + "/memory_samples.pkl"
+      n_latent = name_folder + str(id_object) + "/latent_space.pkl"
+      n_latent_scaled = name_folder + str(id_object) + "/latent_space_scaled.pkl"
+      n_latent_bounds = name_folder + str(id_object) + "/bounds.pkl"
+      n_latent_max_bounds = name_folder + str(id_object) + "/max_bounds.pkl"
+      n_mtlatent = name_folder + str(id_object) + "/latent_space.npy"
+      exist = path.exists(n_mem)
+      if exist:
+         os.remove(n_mem)
+         os.remove(n_latent)
+         os.remove(n_latent_scaled)
+         os.remove(n_latent_bounds)
+         os.remove(n_latent_max_bounds)
+         os.remove(n_mtlatent)
+      print("saving MT")
+      np.save(n_mtlatent,self.mt_field)
+      print('---')
+      filehandler = open(n_mem, 'wb')
+      pickle.dump(self.memory, filehandler)
+      filehandler_l = open(n_latent, 'wb')
+      pickle.dump(self.list_latent, filehandler_l)
+      filehandler_ls = open(n_latent_scaled, 'wb')
+      pickle.dump(self.list_latent_scaled, filehandler_ls)
+      filehandler_b = open(n_latent_bounds, 'wb')
+      t = [self.bound_x,self.bound_y]
+      pickle.dump(t, filehandler_b)
+      filehandler_mb = open(n_latent_max_bounds, 'wb')
+      mb = [self.max_bound_x,self.max_bound_y,self.bound_x,self.bound_y]
+      pickle.dump(mb, filehandler_mb)
 
-   def load_memory(self, name_folder, model_name):
-      n_mem = name_folder + model_name + "_memory_samples.pkl"
-      n_l = name_folder + model_name + "_latent_space.pkl"
-      n_ls = name_folder + model_name + "_latent_space_scaled.pkl"
-      n_b = name_folder + model_name + "_bounds.pkl"
-      n_mb = name_folder + model_name + "_max_bounds.pkl"
-      n_mtlatent = name_folder + model_name + "_latent_space.npy"
+   def load_memory(self, name_folder):
+      n_mem = name_folder + "memory_samples.pkl"
+      n_l = name_folder + "latent_space.pkl"
+      n_ls = name_folder + "latent_space_scaled.pkl"
+      n_b = name_folder + "bounds.pkl"
+      n_mb = name_folder + "max_bounds.pkl"
+      n_mtlatent = name_folder + "latent_space.npy"
       self.mt_field = np.load(n_mtlatent)
       filehandler = open(n_mem, 'rb') 
       mem = pickle.load(filehandler)
@@ -659,7 +624,6 @@ class Habituation(object):
       self.dmp_exploit = Dmp()
       self.outcome_exploit = Outcome()
       self.habit = []
-      self.vae_action = []
       self.max_pitch = 1.5
       self.min_vx = -0.2
       self.max_vx = 0.2
@@ -673,33 +637,28 @@ class Habituation(object):
       self.max_grasp = 1
       self.min_angle = -180
       self.max_angle = 180
-      self.busy = False
       self.colors = []
-      #self.colors.append("orange")
+      self.colors.append("orange")
       self.colors.append("red")
-      #self.colors.append("purple")
+      self.colors.append("purple")
       self.colors.append("blue")
-      #self.colors.append("green")
-      #self.colors.append("yellow")
-      #self.colors.append("pink")
-      #self.colors.append("cyan")
-      #self.colors.append("brown")
-      #self.colors.append("gray")
+      self.colors.append("green")
+      self.colors.append("yellow")
+      self.colors.append("pink")
+      self.colors.append("cyan")
+      self.colors.append("brown")
+      self.colors.append("gray")
       self.time = 0
       self.first = True
-      self.pub_latent_space_display_out = rospy.Publisher("/display/latent_space_out", LatentPos, queue_size=1, latch=True)
-      self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
+      self.pub_latent_space_display = rospy.Publisher("/display/latent_space", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
-      self.pub_latent_space_dnf_out = rospy.Publisher("/habituation/outcome/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
-      self.pub_latent_space_dnf_act = rospy.Publisher("/habituation/action/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
-      self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentPos, queue_size=1, latch=True)
+      self.pub_latent_space_dnf = rospy.Publisher("/habituation/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
+      self.pub_test_latent = rospy.Publisher("/display/latent_test", LatentGoalNN, queue_size=1, latch=True)
       self.pub_eval_latent = rospy.Publisher("/habituation/evaluation", LatentNNDNF, queue_size=1, latch=True)
       self.pub_eval_perception = rospy.Publisher("/habituation/goal_perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_perception = rospy.Publisher("/habituation/test_perception", LatentNNDNF, queue_size=1, latch=True)
       self.pub_field = rospy.Publisher("/habituation/cedar/mt",Image, queue_size=1, latch=True)
-      self.pub_field_action = rospy.Publisher("/habituation/cedar/mt_action",Image, queue_size=1, latch=True)
       self.pub_direct = rospy.Publisher("/motion_pincher/dmp_direct_exploration",Dmp, queue_size=1, latch=True)
-      self.pub_busy = rospy.Publisher("/cluster_msg/busy",Bool, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       rospy.Subscriber("/habituation/mt", Image, self.field_callback)
@@ -708,7 +667,6 @@ class Habituation(object):
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
       rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
       rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
-      rospy.Subscriber("/habituation/same_perception", Float64, self.callback_same_perception)
       self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
@@ -748,28 +706,8 @@ class Habituation(object):
             
       return n_x[0]
    
-   def callback_same_perception(self, msg):
-      if msg.data > 0.9:
-         print(msg.data)
-         self.busy = True
-         print("busy")
-      if self.busy:
-         print("SAME PERCEPTION")
-         b = Bool()
-         b.data = True
-         self.pub_busy.publish(b)
-         self.habit[self.index_vae].remove_last_sample()
-         self.habit[self.index_vae].remove_last_latent()
-         self.habit[self.index_vae].remove_last_latent_dnf()
-         self.send_latent_space_outcome()
-         rospy.sleep(10.0)
-         b.data = False
-         self.pub_busy.publish(b)
-         self.busy = False
-   
-   def send_latent_space_outcome(self):
+   def send_latent_space(self):
       ls = self.habit[self.index_vae].get_latent_space_dnf()
-      print("sending latent with ",len(ls))
       msg_latent = LatentNNDNF()
       msg_latent.max_x = self.habit[self.index_vae].get_bound_x()
       msg_latent.max_y = self.habit[self.index_vae].get_bound_y()
@@ -780,24 +718,7 @@ class Habituation(object):
          lg.value = 1.0
          msg_latent.list_latent.append(lg)
       #print("Latent space DNF : ",msg_latent)
-      self.pub_latent_space_dnf_out.publish(msg_latent)
-
-   def send_latent_space_outcome_minus(self,msg):
-      self.pub_latent_space_dnf_out.publish(msg)
-
-   def send_latent_space_action(self):
-      ls_a = self.vae_action[self.index_vae].get_latent_space_dnf()
-      msg_latent = LatentNNDNF()
-      msg_latent.max_x = self.vae_action[self.index_vae].get_bound_x()
-      msg_latent.max_y = self.vae_action[self.index_vae].get_bound_y()
-      for i in ls_a:
-         lg = Goal() 
-         lg.x = i[0]
-         lg.y = i[1]
-         lg.value = 1.0
-         msg_latent.list_latent.append(lg)
-      #print("Latent space DNF : ",msg_latent)
-      self.pub_latent_space_dnf_act.publish(msg_latent)
+      self.pub_latent_space_dnf.publish(msg_latent)
 
    def send_latent_test(self, v):
       tmp = LatentGoalNN()
@@ -816,11 +737,8 @@ class Habituation(object):
 
    def send_mt_field(self):
       img_field = self.habit[self.index_vae].get_mt_field()
-      img_field_action = self.vae_action[self.index_vae].get_mt_field()
       img_msg = self.bridge.cv2_to_imgmsg(img_field, encoding="passthrough")
-      act_msg = self.bridge.cv2_to_imgmsg(img_field_action, encoding="passthrough")
       self.pub_field.publish(img_msg)
-      self.pub_field_action.publish(act_msg)
 
    def callback_sample_explore(self, msg):
       if self.first:
@@ -835,35 +753,28 @@ class Habituation(object):
       self.outcome.y = self.scale_data(msg.outcome_y, self.min_vy, self.max_vy)
       self.outcome.angle = self.scale_data(msg.outcome_angle, self.min_angle, self.max_angle)
       self.outcome.touch = self.scale_data(msg.outcome_touch, self.min_grasp, self.max_grasp)
-      sample_outcome = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch]
-      sample_action = [self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
-      tensor_outcome = torch.tensor(sample_outcome,dtype=torch.float)
-      tensor_action = torch.tensor(sample_action,dtype=torch.float)
-      self.add_to_memory(tensor_outcome,tensor_action)
-      self.learn_new_latent()
-      self.habit[self.index_vae].fill_latent()
-      self.vae_action[self.index_vae].fill_latent()
-      self.habit[self.index_vae].set_latent_dnf(self.exploration_mode)
-      self.vae_action[self.index_vae].set_latent_dnf(self.exploration_mode)
-      self.send_latent_space_action()
-      #for display
-      msg_act = self.vae_action[self.index_vae].plot_latent()
-      self.pub_latent_space_display_act.publish(msg_act)
+      sample = [self.outcome.x,self.outcome.y,self.outcome.angle,self.outcome.touch,self.dmp.v_x,self.dmp.v_y,self.dmp.v_pitch,self.dmp.roll,self.dmp.grasp]
+      tensor_sample = torch.tensor(sample,dtype=torch.float)
       if self.habit[self.index_vae].get_memory_size() > 0:
-         lat_one, lat_minus, dis_one, dis_minus = self.habit[self.index_vae].get_latent_dnf_split(tensor_outcome)
-         self.send_latent_space_outcome_minus(lat_minus)
-         self.send_eval_latent(lat_one)
-         #for display
-         self.pub_latent_space_display_out.publish(dis_minus)
-         self.pub_test_latent.publish(dis_one)
-         rospy.sleep(4.0)
-         self.send_latent_space_outcome()
+         #print("GOT SAMPLE")
+         z = self.habit[self.index_vae].get_sample_latent(tensor_sample)
+         #resize current latent space with testing value without displaying it
+         #print("resize latent without evaluation value")
+         l = []
+         l = self.habit[self.index_vae].get_latent_space()
+         l.append(z)
+         self.habit[self.index_vae].set_latent_dnf(l,self.exploration_mode)
+         self.send_latent_space()
+         #rospy.sleep(5.0)
+         #test new value
+         #print("TESTING new sample...")
+         msg = self.habit[self.index_vae].set_eval_to_latent_dnf(z,self.exploration_mode)
+         self.send_eval_latent(msg)
+         self.send_latent_test(z)
+         rospy.sleep(1.0)
          l = LatentNNDNF()
          self.send_eval_latent(l)
-         #for display
-         msg_out = self.habit[self.index_vae].plot_latent()
-         self.pub_latent_space_display_out.publish(msg_out)
-      self.pub_ready.publish(True)
+      self.learn_new_latent(tensor_sample)
       t = self.time - rospy.get_time()
       #rospy.sleep(5.0)
       #print("Time elapsed : ",t)
@@ -930,15 +841,12 @@ class Habituation(object):
                   print("found MT")
                   self.send_mt_field()
          if not found:
-            tmp_habbit = VariationalAE(self.id_object,4,3,2)
+            tmp_habbit = VariationalAE(self.id_object)
             self.habit.append(tmp_habbit)
-            tmp_action = VariationalAE(self.id_object,5,4,2)
-            self.vae_action.append(tmp_action)
             self.index_vae = len(self.habit) - 1
             print("Creation new VAE : ",self.id_object)
             blank_mt = np.zeros((100,100,1), np.float32)
             self.habit[self.index_vae].set_mt_field(blank_mt)
-            self.vae_action[self.index_vae].set_mt_field(blank_mt)
             self.send_mt_field()
          self.prev_id_object = self.id_object
          self.id_defined = True
@@ -969,36 +877,35 @@ class Habituation(object):
       l = LatentNNDNF()
       self.send_perception(l)
 
-   def relearn_latent_outcome(self):
+   def learn_new_latent(self, sample):
       print("TRAINING VAE...")
       torch.manual_seed(24)
       self.habit[self.index_vae].reset_model()
+      self.add_to_memory(sample)
       self.habit[self.index_vae].train()
+      msg = self.habit[self.index_vae].plot_latent()
+      self.pub_latent_space_display.publish(msg)
+      tmp = self.habit[self.index_vae].get_latent_space()
+      self.habit[self.index_vae].set_latent_dnf(tmp,self.exploration_mode)
+      self.send_latent_space()
       self.save_nn()
+      rospy.sleep(0.5)
       self.save_memory()
       self.incoming_dmp = False
       self.incoming_outcome = False
       print("finished training VAE")
+      self.pub_ready.publish(True)
+      #print("Latent Space : ",self.habit[self.index_vae].get_latent_space())
+      print("Latent Space DNF : ",self.habit[self.index_vae].get_latent_space_dnf())
+      #bx = self.habit[self.index_vae].get_bound_x()
+      #by = self.habit[self.index_vae].get_bound_y()
+      #mbx = self.habit[self.index_vae].get_max_bound_x()
+      #mby = self.habit[self.index_vae].get_max_bound_y()
+      #print("LATENT FORMED bound x ", bx, " bound y ", by," max_bound_x ", mbx, " max_bound_y ", mby)
+      #self.test_reconstruct()
 
-   def learn_new_latent(self):
-      self.time = rospy.get_time()
-      print("TRAINING VAE...")
-      torch.manual_seed(24)
-      self.habit[self.index_vae].reset_model()
-      self.vae_action[self.index_vae].reset_model()
-      self.habit[self.index_vae].train()
-      self.vae_action[self.index_vae].train()
-      self.save_nn()
-      self.save_memory()
-      self.incoming_dmp = False
-      self.incoming_outcome = False
-      print("finished training VAE")
-      t = self.time - rospy.get_time()
-      print("Training time : ",t)
-
-   def add_to_memory(self, sample_out, sample_act):
-      self.habit[self.index_vae].add_to_memory(sample_out)
-      self.vae_action[self.index_vae].add_to_memory(sample_act)
+   def add_to_memory(self, sample):
+      self.habit[self.index_vae].add_to_memory([sample,self.colors[self.count_color]])
       self.outcome = Outcome()
       self.dmp = Dmp()
       self.count_color += 1
@@ -1007,25 +914,20 @@ class Habituation(object):
       self.habit[self.index_vae].test_reconstruct()
 
    def save_nn(self):
-      self.habit[self.index_vae].saveNN(self.folder_habituation, self.id_object,"outcome")
-      self.vae_action[self.index_vae].saveNN(self.folder_habituation, self.id_object,"action")
+      self.habit[self.index_vae].saveNN(self.folder_habituation, self.id_object)
 
    def save_memory(self):
-      self.habit[self.index_vae].save_memory(self.folder_habituation, self.id_object, "outcome")
-      self.vae_action[self.index_vae].save_memory(self.folder_habituation, self.id_object, "action")
+      self.habit[self.index_vae].save_memory(self.folder_habituation, self.id_object)
 
    def load_nn(self):
       list_dir = os.listdir(self.folder_habituation)
       for i in range(0,len(list_dir)):
-         tmp_habit = VariationalAE(i,4,3,2)
-         tmp_act = VariationalAE(i,5,4,2)
+         tmp_vae = VariationalAE(i)
+         n = self.folder_habituation + str(i) + "/habituation.pt"
          n_f = self.folder_habituation + str(i) + "/"
-         tmp_habit.load_nn(self.folder_habituation,i,"oucome")
-         tmp_habit.load_memory(n_f,"outcome")
-         tmp_act.load_nn(self.folder_habituation,i,"action")
-         tmp_act.load_memory(n_f,"action")
-         self.habit.append(tmp_habit)
-         self.vae_action.append(tmp_act)
+         tmp_vae.load_nn(n)
+         tmp_vae.load_memory(n_f)
+         self.habit.append(tmp_vae)
       for i in self.habit:
          print("VAE : ",i.get_id())
          print("memory : ",len(i.memory))

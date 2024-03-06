@@ -130,7 +130,7 @@ if __name__ == "__main__":
    action1 = [0.2,0.2,1.0]
    state1 = [0.2,0.2,20.0]
    outcome2 = [0.1,0.0,10.0,0.0]
-   dmp2 = [0.141,0.0,0.2,0.1,0.0,0.15,0.0]
+   dmp2 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
    action2 = [0.2,0.2,1.2]
    state2 = [0.3,0.1,60.0]
    #outcome2 = [-0.1,-0.1,10.0,0.0]
@@ -146,20 +146,20 @@ if __name__ == "__main__":
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
    outcome4 = [0.1,0.2,0.0,0.0]
-   dmp4 = [-0.1,-0.1,0.6,0.0,1.0,0.2,0.3]
+   dmp4 = [0.1,0.2,0.6,0.0,1.0,0.2,0.3]
    action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
-   outcome5 = [-0.1,0.1,10.0,0.0]
-   dmp5 = [-0.1,0.1,-0.2,0.0,0.0,-0.2,0.3]
+   outcome5 = [-0.1,0.0,10.0,0.0]
+   dmp5 = [-0.1,0.0,-0.2,0.0,0.0,-0.2,0.3]
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    
    outcome6 = [0.0,0.0,0.0,1.0]
-   dmp6 = [0,0,0.0,0.0,0.0,1.0,0.19,0.23]
+   dmp6 = [0,-0.1,0.0,0.0,0.0,1.0,0.19,0.23]
    action6 = [0.2,0.2,1.0]
    state6 = [0.2,0.2,20.0]
 
-   outcome3_1 = [0.0,0.0,45.0,0.0]
+   outcome3_1 = [0.0,0.0,25.0,0.0]
    dmp3_1 = [-0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
    action3_1 = [0.2,0.2,1.0]
    state3_1 = [0.2,0.2,20.0]
@@ -186,12 +186,12 @@ if __name__ == "__main__":
    sim5_out = [0.8,0.6,0.1,0.0]
    sim5_dmp = [0.5,0.15,0.9,0.1,0.0]
    data.append([outcome1,dmp1])
-   data.append([outcome2,dmp2])
+   #data.append([outcome2,dmp2])
    #data.append([sim1_out,sim1_dmp])
    data.append([outcome3,dmp3])
-   data.append([outcome4,dmp4])
+   #data.append([outcome4,dmp4])
    
-   data.append([outcome5,dmp5])
+   #data.append([outcome5,dmp5])
    data.append([outcome6,dmp6])
    data.append([outcome3_1,dmp3_1])
    data.append([outcome3_2,dmp3_2])
@@ -203,20 +203,20 @@ if __name__ == "__main__":
    #data.append([sim5_out,sim5_dmp])
    actions.append(action1)
    actions.append(action2)
-   actions.append(action3)
-   actions.append(action4)
-   actions.append(action5)
+   #actions.append(action3)
+   #actions.append(action4)
+   #actions.append(action5)
    actions.append(action6)
    actions.append(action3_1)
    actions.append(action3_2)
    actions.append(action3_3)
    states.append(state1)
    states.append(state2)
-   states.append(state3)
-   states.append(state4)
-   states.append(state5)
+   #states.append(state3)
+   #states.append(state4)
+   #states.append(state5)
    states.append(state6)
-   #states.append(state3_1)
+   states.append(state3_1)
    #states.append(state3_2)
    #states.append(state3_3)
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
    while not rospy.is_shutdown():
       test.pub_exploration()
       if explore:
-         if(test.get_ready() and i < 6):
+         if(test.get_ready() and i < 4):
             print(i)
             #if i == 2:
             #   print("change object")
@@ -241,7 +241,7 @@ if __name__ == "__main__":
             test.publish_outcome(data[i][0])
             test.set_ready(False)
             i += 1
-            rospy.sleep(4.5)
+            #rospy.sleep(4.5)
       else:
          test.pub_exploitation()
          test.send_id(0)
