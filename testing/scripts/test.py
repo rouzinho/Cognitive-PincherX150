@@ -145,7 +145,7 @@ if __name__ == "__main__":
    dmp3 = [0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
-   outcome4 = [0.1,0.2,0.0,0.0]
+   outcome4 = [-0.1,-0.05,0.0,0.0]
    dmp4 = [0.1,0.2,0.6,0.0,1.0,0.2,0.3]
    action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
@@ -246,7 +246,7 @@ if __name__ == "__main__":
          test.pub_exploitation()
          test.send_id(0)
          rospy.sleep(0.5)
-         if(test.get_ready() and i < 5):
+         if(test.get_ready() and i < 6):
             test.publish_state(states[i])
             #test.publish_dmp(data[i][1])
             test.publish_action(actions[i])
