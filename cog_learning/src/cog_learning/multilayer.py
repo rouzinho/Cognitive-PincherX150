@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
 is_cuda = torch.cuda.is_available()
 #device = torch.device("cpu")
-torch.manual_seed(32)
+#torch.manual_seed(32)
 
 if not is_cuda:
     device = torch.device("cuda")
@@ -32,9 +32,9 @@ class MultiLayerEncoder(nn.Module):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_layer, output_layer),
-            #nn.Tanh(),
-            #nn.Linear(middle_layer1, middle_layer2),
             nn.Tanh()
+            #nn.Linear(output_layer, output_layer),
+            #nn.Tanh()
             #nn.Linear(middle_layer1, output_layer),
             ##nn.Sigmoid()
         )

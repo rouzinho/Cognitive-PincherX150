@@ -97,7 +97,7 @@ class Skill(object):
             optimizer.step()
             #current_cost = current_cost + cost.item()
         for i in range(0,epochs):
-            print("Inverse model")
+            #print("Inverse model")
             for j in range(0,len(self.memory)):
                 self.inverse_model.train()
                 optimizer.zero_grad()
@@ -111,7 +111,7 @@ class Skill(object):
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
             #if current_cost > last_cost:
             #    break
@@ -145,7 +145,7 @@ class Skill(object):
             optimizer.step()
             #current_cost = current_cost + cost.item()
         for i in range(0,epochs):
-            print("Forward model")
+            #print("Forward model")
             for j in range(0,len(self.memory)):
                 self.forward_model.train()
                 optimizer.zero_grad()
@@ -159,7 +159,7 @@ class Skill(object):
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
             #if current_cost > last_cost:
             #    break

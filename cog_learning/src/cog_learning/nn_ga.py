@@ -37,7 +37,7 @@ class NNGoalAction(object):
         self.mt_error = np.zeros((100,100,1), np.float32)
         self.mt_lp = np.zeros((100,100,1), np.float32)
         self.mt_action = np.zeros((100,100,1), np.float32)
-        torch.manual_seed(24)
+        torch.manual_seed(3407)
         self.encoder_outcome = MultiLayerEncoder(4,2)#9,6,4,2
         self.encoder_outcome.to(device)
         self.decoder_outcome = MultiLayerDecoder(2,4,6,4)
@@ -68,10 +68,10 @@ class NNGoalAction(object):
         self.max_y = 0.32
         self.min_pitch = 0
         self.max_pitch = 1.5
-        self.min_vx = -0.2
-        self.max_vx = 0.2
-        self.min_vy = -0.2
-        self.max_vy = 0.2
+        self.min_vx = -0.15
+        self.max_vx = 0.15
+        self.min_vy = -0.15
+        self.max_vy = 0.15
         self.min_vpitch = -1.2
         self.max_vpitch = 1.2
         self.min_roll = -1.5
@@ -80,8 +80,8 @@ class NNGoalAction(object):
         self.max_grasp = 1
         self.min_angle = -180
         self.max_angle = 180
-        self.min_scale = -1.2
-        self.max_scale = 1.2
+        self.min_scale = -1.3
+        self.max_scale = 1.3
         
     def update_learning_progress(self, data, error):
         update_lp = Goal()
@@ -306,12 +306,12 @@ class NNGoalAction(object):
             
         return n_x[0]
     
-    #scale latent variable to [0,1] for dft
+    #scale latent variable to [0,100] for dft
     def scale_latent_to_dnf(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler()
-        x_minmax = np.array([self.min_scale, self.max_scale])
+        scaler_x = MinMaxScaler(feature_range=(0,100))
+        x_minmax = np.array([-1, 1])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -322,8 +322,8 @@ class NNGoalAction(object):
     def scale_dnf_to_latent(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(self.min_scale,self.max_scale))
-        x_minmax = np.array([0, 1])
+        scaler_x = MinMaxScaler(feature_range=(-1,1))
+        x_minmax = np.array([0, 100])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -472,6 +472,12 @@ class NNGoalAction(object):
         tensor_sample_action = torch.tensor(tmp_sample_action,dtype=torch.float)
         self.memory.append(tensor_sample_outcome)
         self.memory_action.append(tensor_sample_action)
+        """t_inputs = self.forward_encoder(tensor_sample_outcome)
+        t = t_inputs.detach().numpy()
+        e0 = self.scale_latent_to_expend(t)
+        t0 = self.scale_latent_to_dnf(e0)
+        print("One dimension ",round(t0))
+        self.send_ready(True)"""
         #get indice from action_nn and scale them
         t_act = self.forward_encoder_action(tensor_sample_action)
         act = t_act.detach().numpy()
@@ -479,10 +485,10 @@ class NNGoalAction(object):
         a_y = self.scale_latent_to_expend(act[1])
         act_x = self.scale_latent_to_dnf(a_x)
         act_y = self.scale_latent_to_dnf(a_y)
-        self.latent_space_extend.append([a_x,a_y])
-        act_inputs = [round(act_x*100),round(act_y*100),1.0]
-        print("Action Latent : ",act)
-        print("Action DNF : ",act_inputs)
+        self.latent_space_action_extend.append([a_x,a_y])
+        act_inputs = [round(act_x),round(act_y),1.0]
+        #print("Action Latent : ",act)
+        #print("Action DNF : ",act_inputs)
         self.latent_space_action.append([act[0],act[1]])
         self.latent_space_action_scaled.append(act_inputs)
         #scale DNF to -1,1 for fwd and inv models
@@ -507,10 +513,10 @@ class NNGoalAction(object):
         e1 = self.scale_latent_to_expend(output_l[1])
         t0 = self.scale_latent_to_dnf(e0)
         t1 = self.scale_latent_to_dnf(e1)
-        self.latent_space_action_extend.append([e0,e1])
-        inputs = [round(t0*100),round(t1*100),error_fwd]
-        print("Outcome latent : ",output_l)
-        print("Outcome DNF : ",inputs)
+        self.latent_space_extend.append([e0,e1])
+        inputs = [round(t0),round(t1),error_fwd]
+        #print("Outcome latent : ",output_l)
+        #print("Outcome DNF : ",inputs)
         self.skills[ind_skill].set_name(inputs)
         #print("dnf input : ",inputs)
         self.latent_space.append([output_l[0],output_l[1]])
@@ -537,11 +543,12 @@ class NNGoalAction(object):
         self.reset_models()
         self.train_decoder_action()
         self.train_decoder_outcome()
-        self.test_training_action()
-        self.test_training_outcome()
+        #self.test_training_action()
+        #self.test_training_outcome()
         self.save_nn()
         self.save_memory()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
+        print("latent extended : ",self.latent_space_extend)
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         self.skills[ind_skill].save_memory(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
@@ -553,6 +560,8 @@ class NNGoalAction(object):
         last_cost = 15
         learning_rate = 1e-3
         epochs = 150
+        time_cost = 0
+        stop = False
         i = 0
         print("Train NNGA outcome")
         #self.inverse_model.to(device)
@@ -574,7 +583,7 @@ class NNGoalAction(object):
             cost.backward()
             optimizer.step()
             #current_cost = current_cost + cost.item()"""
-        while last_cost > 0.001:
+        while last_cost > 0.001 and not stop:
             #print("outcome")
             random.shuffle(self.memory)
             for j in range(0,len(self.memory)):
@@ -593,7 +602,16 @@ class NNGoalAction(object):
                 optimizer.step()
                 current_cost = current_cost + cost.item()
                 last_cost = current_cost
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            if i == 0:
+                time_cost = last_cost
+            if i == 2000:
+                if abs(time_cost-last_cost) < 0.001:
+                    stop = True
+                    print("stopping training")
+                else:
+                    time_cost = last_cost
+                    i = 0
             current_cost = 0
             i += 1
         print("finish training NNGA outcome")
@@ -604,6 +622,8 @@ class NNGoalAction(object):
         learning_rate = 1e-3
         epochs = 150
         i = 0
+        time_cost = 0
+        stop = False
         print("Train NNGA action")
         #self.inverse_model.to(device)
         criterion = torch.nn.MSELoss()
@@ -624,7 +644,7 @@ class NNGoalAction(object):
             cost.backward()
             optimizer.step()
             #current_cost = current_cost + cost.item()"""
-        while last_cost > 0.001:
+        while last_cost > 0.001 and not stop:
             random.shuffle(self.memory_action)
             #print("action")
             for j in range(0,len(self.memory_action)):
@@ -643,7 +663,16 @@ class NNGoalAction(object):
                 optimizer.step()
                 current_cost = current_cost + cost.item()
                 last_cost = current_cost
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            if i == 0:
+                time_cost = last_cost
+            if i == 2000:
+                if abs(time_cost-last_cost) < 0.001:
+                    stop = True
+                    print("stopping training")
+                else:
+                    time_cost = last_cost
+                    i = 0
             current_cost = 0
             i += 1
         print("finish training NNGA action")
@@ -687,6 +716,7 @@ class NNGoalAction(object):
         print("latent space scaled : ",self.latent_space_action_scaled)
 
     def reset_models(self):
+        #torch.manual_seed(8)
         self.decoder_outcome = MultiLayerDecoder(2,4,6,4)
         self.decoder_action = MultiLayerDecoder(2,4,6,5)
 
