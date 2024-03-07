@@ -104,7 +104,7 @@ class ClusterMessage
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &ClusterMessage::CallbackTouch,this);
       sub_busy = nh_.subscribe("/cluster_msg/busy", 1, &ClusterMessage::CallbackBusy,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
-      pub_datas_exploit = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_exploit",1);
+      pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
@@ -260,7 +260,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && ready_habbit )//&& ready_nn)
+      if(rnd_explore > 0.5 && ready_habbit && ready_nn)
       {
          std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
          //ros::Duration(3.5).sleep();
