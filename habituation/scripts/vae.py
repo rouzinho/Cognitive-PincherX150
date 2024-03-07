@@ -716,7 +716,7 @@ class Habituation(object):
       #receiving high value once in a while from cedar even if it's 0
       if msg.data > 0.9:
          self.total_out += 1
-      """else:
+      else:
          self.total_out = 0
          self.busy_out = False
       if self.total_out > 10 and not self.busy_out:
@@ -731,7 +731,7 @@ class Habituation(object):
          self.send_latent_space_outcome()
          #rospy.sleep(10.0)
          b.data = False
-         self.pub_busy.publish(b)"""
+         self.pub_busy.publish(b)
 
    def callback_same_action(self, msg):
       #receiving high value once in a while from cedar even if it's 0
