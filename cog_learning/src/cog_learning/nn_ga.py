@@ -355,6 +355,15 @@ class NNGoalAction(object):
                     
         return n_x[0]
     
+    def full_scale_latent_to_dnf(self,data):
+        a_x = self.scale_latent_to_expend(data[0])
+        a_y = self.scale_latent_to_expend(data[1])
+        act_x = self.scale_latent_to_dnf(a_x)
+        act_y = self.scale_latent_to_dnf(a_y)
+        res = [round(act_x),round(act_y),1.0]
+
+        return res
+    
     def create_skill_sample(self, state, outcome, sample_action, ind_action):
         sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch,ind_action[0],ind_action[1]]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
@@ -429,6 +438,17 @@ class NNGoalAction(object):
 
         return new_state, new_outcome, new_action
 
+    #search for value in DNF latent space    
+    def search_dnf_value(self, value, list_):
+        ind = -1
+        j = 0
+        for i in list_:
+            if abs(value[0] - i[0]) < 2 and abs(value[1] - i[1]) < 2:
+                ind = j
+            j += 1
+
+        return ind
+
     def continue_learning(self, data):
         #print("CONTINUAL sample before scaling : ",data)
         state, outcome, sample_action = self.scale_samples_skill(data)
@@ -460,8 +480,8 @@ class NNGoalAction(object):
         self.skills[self.index_skill].save_inv_nn(pwd)
         self.send_ready(True)
 
-    #bootstrap learning when we discover first skill during exploration
-    def bootstrap_learning(self, sample):
+    def bootstrap_learning(self, out_b, act_b, sample):
+        ind_skill = -1
         #print("BOOTSTRAP sample before scaling : ",sample)
         state, dmp, outcome, sample_action = self.scale_samples_skill(sample)
         #ouput of decoders
@@ -470,81 +490,123 @@ class NNGoalAction(object):
         #print("scaled dmp : ",tmp_sample)
         tensor_sample_outcome = torch.tensor(tmp_sample_outcome,dtype=torch.float)
         tensor_sample_action = torch.tensor(tmp_sample_action,dtype=torch.float)
-        self.memory.append(tensor_sample_outcome)
-        self.memory_action.append(tensor_sample_action)
-        """t_inputs = self.forward_encoder(tensor_sample_outcome)
-        t = t_inputs.detach().numpy()
-        e0 = self.scale_latent_to_expend(t)
-        t0 = self.scale_latent_to_dnf(e0)
-        print("One dimension ",round(t0))
-        self.send_ready(True)"""
-        #get indice from action_nn and scale them
         t_act = self.forward_encoder_action(tensor_sample_action)
         act = t_act.detach().numpy()
-        a_x = self.scale_latent_to_expend(act[0])
-        a_y = self.scale_latent_to_expend(act[1])
-        act_x = self.scale_latent_to_dnf(a_x)
-        act_y = self.scale_latent_to_dnf(a_y)
-        self.latent_space_action_extend.append([a_x,a_y])
-        act_inputs = [round(act_x),round(act_y),1.0]
-        #print("Action Latent : ",act)
-        #print("Action DNF : ",act_inputs)
-        self.latent_space_action.append([act[0],act[1]])
-        self.latent_space_action_scaled.append(act_inputs)
-        #scale DNF to -1,1 for fwd and inv models
-        a0 = self.scale_inp_out(act_inputs[0],0,100,-1,1)
-        a1 = self.scale_inp_out(act_inputs[1],0,100,-1,1)
-        ind_skill = self.create_skill()
-        sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
-        #print("Input NNGA ; ",sample)
-        self.skills[ind_skill].add_to_memory(sample)
-        #self.skills[ind_skill].print_memory()
-        #err_fwd = self.skills[ind_skill].predictForwardModel(sample[2],sample[0])
-        #err_inv = self.skills[ind_skill].predictInverseModel(sample[3],sample[1])
-        #first time discovering the skills so setting them all to 0.9
-        error_fwd = 0.9
-        error_inv = 0.9
-        #print("ERROR INVERSE : ",error_inv)
-        #print("ERROR FORWARD : ",error_fwd)
         t_inputs = self.forward_encoder(tensor_sample_outcome)
         output_l = t_inputs.detach().numpy()
-        #print("latent space original : ",output_l)
-        e0 = self.scale_latent_to_expend(output_l[0])
-        e1 = self.scale_latent_to_expend(output_l[1])
-        t0 = self.scale_latent_to_dnf(e0)
-        t1 = self.scale_latent_to_dnf(e1)
-        self.latent_space_extend.append([e0,e1])
-        inputs = [round(t0),round(t1),error_fwd]
-        #print("Outcome latent : ",output_l)
-        #print("Outcome DNF : ",inputs)
-        self.skills[ind_skill].set_name(inputs)
-        #print("dnf input : ",inputs)
-        self.latent_space.append([output_l[0],output_l[1]])
-        self.latent_space_scaled.append(inputs)
-        self.plot_latent()
-        #publish new goal and fwd error
-        self.update_learning_progress(inputs,error_fwd)
-        self.send_new_goal(inputs,1.0)
-        self.pub_timing(1.0)
-        rospy.sleep(1.0)
-        self.update_learning_progress(inputs,0)
-        self.send_new_goal(inputs,0.0)
-        self.pub_timing(0.0)
-        #self.end_action(True)
-        #rospy.sleep(1)
-        #self.end_action(False)
-        self.send_latent_space()
-        #print("Hebbian learning, index : ",ind_skill)
-        #print("Inputs Hebbian : ",inputs)
-        self.hebbian_action.hebbianLearningAction(inputs,act_inputs)
-        self.hebbian.hebbianLearning(inputs,ind_skill)
-        self.skills[ind_skill].train_forward_model()
-        self.skills[ind_skill].train_inverse_model()
-        self.reset_models()
-        self.train_decoder_action()
-        self.train_decoder_outcome()
-        #self.test_training_action()
-        #self.test_training_outcome()
+        action_dnf = self.full_scale_latent_to_dnf(act)
+        outcome_dnf = self.full_scale_latent_to_dnf(output_l)
+        if out_b and act_b:
+            self.memory.append(tensor_sample_outcome)
+            self.memory_action.append(tensor_sample_action)
+            action_dnf.append(1.0)
+            outcome_dnf.append(0.9)
+            self.latent_space.append(output_l)
+            self.latent_space_scaled.append(outcome_dnf)
+            self.latent_space_action.append(act)
+            self.latent_space_action_scaled.append(action_dnf)
+            ind_skill = self.create_skill()
+            #scale DNF to -1,1 for fwd and inv models
+            a0 = self.scale_inp_out(action_dnf[0],0,100,-1,1)
+            a1 = self.scale_inp_out(action_dnf[1],0,100,-1,1)
+            sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            self.skills[ind_skill].add_to_memory(sample)
+            self.skills[ind_skill].set_name(outcome_dnf)
+            self.update_learning_progress(outcome_dnf,0.9)
+            self.send_new_goal(outcome_dnf,1.0)
+            self.pub_timing(1.0)
+            rospy.sleep(1.0)
+            self.update_learning_progress(outcome_dnf,0)
+            self.send_new_goal(outcome_dnf,0.0)
+            self.pub_timing(0.0)
+            self.send_latent_space()
+            self.hebbian_action.hebbianLearningAction(outcome_dnf,action_dnf)
+            self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
+            self.skills[ind_skill].train_forward_model()
+            self.skills[ind_skill].train_inverse_model()
+            self.reset_models()
+            self.train_decoder_action()
+            self.train_decoder_outcome()
+        if out_b and not act_b:
+            self.memory.append(tensor_sample_outcome)
+            outcome_dnf.append(0.9)
+            self.latent_space.append(output_l)
+            self.latent_space_scaled.append(outcome_dnf)
+            ind = self.search_dnf_value(action_dnf,self.latent_space_action_scaled)
+            act_dnf = self.latent_space_action_scaled[ind]
+            ind_skill = self.create_skill()
+            #scale DNF to -1,1 for fwd and inv models
+            a0 = self.scale_inp_out(act_dnf[0],0,100,-1,1)
+            a1 = self.scale_inp_out(act_dnf[1],0,100,-1,1)
+            sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            self.skills[ind_skill].add_to_memory(sample)
+            self.skills[ind_skill].set_name(outcome_dnf)
+            self.update_learning_progress(outcome_dnf,0.9)
+            self.send_new_goal(outcome_dnf,1.0)
+            self.pub_timing(1.0)
+            rospy.sleep(1.0)
+            self.update_learning_progress(outcome_dnf,0)
+            self.send_new_goal(outcome_dnf,0.0)
+            self.pub_timing(0.0)
+            self.send_latent_space()
+            self.hebbian_action.hebbianLearningAction(outcome_dnf,act_dnf)
+            self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
+            self.skills[ind_skill].train_forward_model()
+            self.skills[ind_skill].train_inverse_model()
+            self.reset_models()
+            self.train_decoder_outcome()
+        if not out_b and act_b:
+            self.memory_action.append(tensor_sample_action)
+            action_dnf.append(1.0)
+            self.latent_space_action.append(act)
+            self.latent_space_action_scaled.append(action_dnf)
+            ind = self.search_dnf_value(outcome_dnf,self.latent_space_scaled)
+            out_dnf = self.latent_space_scaled[ind]
+            ind_skill = self.hebbian.hebbianActivation(out_dnf)
+            a0 = self.scale_inp_out(action_dnf[0],0,100,-1,1)
+            a1 = self.scale_inp_out(action_dnf[1],0,100,-1,1)
+            sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            self.skills[ind_skill].add_to_memory(sample)
+            err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
+            err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
+            error_fwd = err_fwd.item()
+            self.update_learning_progress(out_dnf,error_fwd)
+            self.send_new_goal(out_dnf,1.0)
+            self.pub_timing(1.0)
+            rospy.sleep(1.0)
+            self.update_learning_progress(out_dnf,0)
+            self.send_new_goal(out_dnf,0.0)
+            self.pub_timing(0.0)
+            self.send_latent_space()
+            self.hebbian_action.hebbianLearningAction(out_dnf,action_dnf)
+            self.skills[ind_skill].train_forward_model()
+            self.skills[ind_skill].train_inverse_model()
+            self.reset_models()
+            self.train_decoder_action()
+        if not out_b and not act_b:
+            ind_o = self.search_dnf_value(outcome_dnf,self.latent_space_scaled)
+            ind_a = self.search_dnf_value(action_dnf,self.latent_space_action_scaled)
+            out_dnf = self.latent_space_scaled[ind_o]
+            act_dnf = self.latent_space_action_scaled[ind_a]
+            ind_skill = self.hebbian.hebbianActivation(out_dnf)
+            a0 = self.scale_inp_out(act_dnf[0],0,100,-1,1)
+            a1 = self.scale_inp_out(act_dnf[1],0,100,-1,1)
+            sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            self.skills[ind_skill].add_to_memory(sample)
+            err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
+            err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
+            error_fwd = err_fwd.item()
+            self.update_learning_progress(outcome_dnf,error_fwd)
+            self.send_new_goal(out_dnf,1.0)
+            self.pub_timing(1.0)
+            rospy.sleep(1.0)
+            self.update_learning_progress(out_dnf,0)
+            self.send_new_goal(out_dnf,0.0)
+            self.pub_timing(0.0)
+            self.send_latent_space()
+            self.hebbian_action.hebbianLearningAction(out_dnf,act_dnf)
+            self.skills[ind_skill].train_forward_model()
+            self.skills[ind_skill].train_inverse_model()
         self.save_nn()
         self.save_memory()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
@@ -568,29 +630,14 @@ class NNGoalAction(object):
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.decoder_outcome.parameters(),lr=learning_rate)        
         current_cost = 0
-        """for i in range(0,1):
-            self.decoder_outcome.train()
-            self.encoder_outcome.eval()
-            optimizer.zero_grad()
-            sample = self.memory[-1]
-            sample = sample.to(device)
-            inputs = self.encoder_outcome(sample)
-            inputs = inputs.to(device)
-            targets = sample
-            targets = targets.to(device)
-            outputs = self.decoder_outcome(inputs)
-            cost = criterion(outputs,targets)
-            cost.backward()
-            optimizer.step()
-            #current_cost = current_cost + cost.item()"""
         while last_cost > 0.001 and not stop:
             #print("outcome")
-            random.shuffle(self.memory)
-            for j in range(0,len(self.memory)):
+            mem = copy.deepcopy(self.memory)
+            for j in range(0,len(mem)):
                 self.encoder_outcome.eval()
                 self.decoder_outcome.train()
                 optimizer.zero_grad()
-                sample = self.memory[j]
+                sample = mem[j]
                 sample = sample.to(device)
                 inputs = self.encoder_outcome(sample)
                 inputs = inputs.to(device)
@@ -629,29 +676,15 @@ class NNGoalAction(object):
         criterion = torch.nn.MSELoss()
         optimizer = torch.optim.Adam(self.decoder_action.parameters(),lr=learning_rate)        
         current_cost = 0
-        """for i in range(0,1):
-            self.decoder_action.train()
-            self.encoder_action.eval()
-            optimizer.zero_grad()
-            sample = self.memory_action[-1]
-            sample = sample.to(device)
-            inputs = self.encoder_action(sample)
-            inputs = inputs.to(device)
-            targets = sample
-            targets = targets.to(device)
-            outputs = self.decoder_action(inputs)
-            cost = criterion(outputs,targets)
-            cost.backward()
-            optimizer.step()
-            #current_cost = current_cost + cost.item()"""
         while last_cost > 0.001 and not stop:
-            random.shuffle(self.memory_action)
+            mem = copy.deepcopy(self.memory_action)
+            random.shuffle(mem)
             #print("action")
-            for j in range(0,len(self.memory_action)):
+            for j in range(0,len(mem)):
                 self.encoder_action.eval()
                 self.decoder_action.train()
                 optimizer.zero_grad()
-                sample = self.memory_action[j]
+                sample = mem[j]
                 sample = sample.to(device)
                 inputs = self.encoder_action(sample)
                 inputs = inputs.to(device)
