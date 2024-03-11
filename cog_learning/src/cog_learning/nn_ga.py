@@ -451,7 +451,7 @@ class NNGoalAction(object):
 
     def continue_learning(self, data):
         #print("CONTINUAL sample before scaling : ",data)
-        state, outcome, sample_action = self.scale_samples_skill(data)
+        state, dmp, outcome, sample_action = self.scale_samples_skill(data)
         sample = self.create_skill_sample(state,outcome,sample_action,[data.dnf_x,data.dnf_y])
         self.skills[self.index_skill].add_to_memory(sample)
         #self.skills[self.index_skill].print_memory()
@@ -834,21 +834,25 @@ class NNGoalAction(object):
         tmp = [goal.latent_x,goal.latent_y]
         l_act = self.hebbian_action.hebbianActivationAction(tmp)
         for i in l_act:
-            t0 = i[0] / 100
-            t1 = i[1] / 100
-            e0 = self.scale_dnf_to_latent(t0)
-            e1 = self.scale_dnf_to_latent(t1)
+            e0 = self.scale_dnf_to_latent(i[0])
+            e1 = self.scale_dnf_to_latent(i[1])
             inp0 = self.scale_latent_to_reduce(e0)
             inp1 = self.scale_latent_to_reduce(e1)
             t_inp = torch.tensor([inp0,inp1],dtype=torch.float)
             out = self.forward_decoder_action(t_inp)
             n_out = out.detach().numpy()
             dmpdnf = DmpDnf()
-            dmpdnf.v_x = round(n_out[0],2)
-            dmpdnf.v_y = round(n_out[1],2)
-            dmpdnf.v_pitch = round(n_out[2],2)
-            dmpdnf.roll = round(n_out[3],2)
-            dmpdnf.grasp = round(n_out[4],2)
+            #rescale to real values
+            v_x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
+            v_y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
+            v_pitch = self.reconstruct_latent(out[2],self.min_vpitch,self.max_vpitch)
+            roll = self.reconstruct_latent(out[3],self.min_roll,self.max_roll)
+            grasp = self.reconstruct_latent(out[4],self.min_grasp,self.max_vx)
+            dmpdnf.v_x = round(v_x,2)
+            dmpdnf.v_y = round(v_y,2)
+            dmpdnf.v_pitch = round(v_pitch,1)
+            dmpdnf.roll = round(roll,1)
+            dmpdnf.grasp = round(grasp)
             dmpdnf.dnf_x = i[0]
             dmpdnf.dnf_y = i[1]
             l_action.list_action.append(dmpdnf)
@@ -856,7 +860,9 @@ class NNGoalAction(object):
 
     def activate_hebbian(self, goal):
         tmp = [goal.latent_x,goal.latent_y]
-        self.current_goal.latent_x = goal.latent_x
-        self.current_goal.latent_y = goal.latent_y
-        self.index_skill = self.hebbian.hebbianActivation(tmp)
+        ind = self.search_dnf_value(tmp,self.latent_space_scaled)
+        out_dnf = self.latent_space_scaled[ind]
+        self.current_goal.latent_x = out_dnf[0]
+        self.current_goal.latent_y = out_dnf[1]
+        self.index_skill = self.hebbian.hebbianActivation(out_dnf)
         print("index models : ",self.index_skill)
