@@ -142,15 +142,15 @@ if __name__ == "__main__":
    #action3 = [0.19,0.1,0.5]
    #state3 = [0.3,-0.1,100.0]
    outcome3 = [0.0,0.0,45.0,0.0]
-   dmp3 = [0.1,0.0,0.3,-0.5,0.0,0.1,-0.1]
+   dmp3 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
    action3 = [0.19,0.1,0.5]
    state3 = [0.3,-0.1,100.0]
-   outcome4 = [-0.1,-0.05,0.0,0.0]
+   outcome4 = [0.1,0.1,40.0,0.0]
    dmp4 = [0.1,0.2,0.6,0.0,1.0,0.2,0.3]
    action4 = [0.5,-0.1,1.2]
    state4 = [0.3,-0.2,80.0]
-   outcome5 = [-0.1,0.0,10.0,0.0]
-   dmp5 = [-0.1,0.0,-0.2,0.0,0.0,-0.2,0.3]
+   outcome5 = [0.1,0.0,10.0,0.0]
+   dmp5 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
    action5 = [0.35,-0.1,1.0]
    state5 = [0.2,0.3,110.0]
    
@@ -194,8 +194,8 @@ if __name__ == "__main__":
    data.append([outcome5,dmp5])
    data.append([outcome6,dmp6])
    data.append([outcome3_1,dmp3_1])
-   data.append([outcome3_2,dmp3_2])
-   data.append([outcome3_3,dmp3_3])
+   #data.append([outcome3_2,dmp3_2])
+   #data.append([outcome3_3,dmp3_3])
    #data.append([sim1_out,sim1_dmp])
    #data.append([sim2_out,sim2_dmp])
    #data.append([sim3_out,sim3_dmp])

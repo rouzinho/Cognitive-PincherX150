@@ -7,7 +7,6 @@ from cog_learning.hebb_server import *
 from cog_learning.skill import *
 from detector.msg import Outcome
 from detector.msg import State
-from motion.msg import DmpOutcome
 from motion.msg import Dmp
 from motion.msg import Action
 from cog_learning.msg import Goal
@@ -31,7 +30,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
-        self.pub_habituation = rospy.Publisher("/habituation/eval_perception", DmpOutcome, queue_size=1, latch=True)
+        self.pub_habituation = rospy.Publisher("/habituation/perception", Outcome, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
         self.mt_field = np.zeros((100,100,1), np.float32)
         self.mt_error = np.zeros((100,100,1), np.float32)
@@ -360,7 +359,7 @@ class NNGoalAction(object):
         a_y = self.scale_latent_to_expend(data[1])
         act_x = self.scale_latent_to_dnf(a_x)
         act_y = self.scale_latent_to_dnf(a_y)
-        res = [round(act_x),round(act_y),1.0]
+        res = [round(act_x),round(act_y)]
 
         return res
     
@@ -497,6 +496,7 @@ class NNGoalAction(object):
         action_dnf = self.full_scale_latent_to_dnf(act)
         outcome_dnf = self.full_scale_latent_to_dnf(output_l)
         if out_b and act_b:
+            print("new outcome and new action")
             self.memory.append(tensor_sample_outcome)
             self.memory_action.append(tensor_sample_action)
             action_dnf.append(1.0)
@@ -528,6 +528,7 @@ class NNGoalAction(object):
             self.train_decoder_action()
             self.train_decoder_outcome()
         if out_b and not act_b:
+            print("new outcome and old action")
             self.memory.append(tensor_sample_outcome)
             outcome_dnf.append(0.9)
             self.latent_space.append(output_l)
@@ -556,6 +557,7 @@ class NNGoalAction(object):
             self.reset_models()
             self.train_decoder_outcome()
         if not out_b and act_b:
+            print("old outcome and new action")
             self.memory_action.append(tensor_sample_action)
             action_dnf.append(1.0)
             self.latent_space_action.append(act)
@@ -584,6 +586,7 @@ class NNGoalAction(object):
             self.reset_models()
             self.train_decoder_action()
         if not out_b and not act_b:
+            print("old outcome and old action")
             ind_o = self.search_dnf_value(outcome_dnf,self.latent_space_scaled)
             ind_a = self.search_dnf_value(action_dnf,self.latent_space_action_scaled)
             out_dnf = self.latent_space_scaled[ind_o]
@@ -610,7 +613,7 @@ class NNGoalAction(object):
         self.save_nn()
         self.save_memory()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
-        print("latent extended : ",self.latent_space_extend)
+        #print("latent extended : ",self.latent_space_extend)
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         self.skills[ind_skill].save_memory(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
@@ -649,7 +652,7 @@ class NNGoalAction(object):
                 optimizer.step()
                 current_cost = current_cost + cost.item()
                 last_cost = current_cost
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             if i == 0:
                 time_cost = last_cost
             if i == 2000:
@@ -696,7 +699,7 @@ class NNGoalAction(object):
                 optimizer.step()
                 current_cost = current_cost + cost.item()
                 last_cost = current_cost
-            print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             if i == 0:
                 time_cost = last_cost
             if i == 2000:
@@ -812,22 +815,23 @@ class NNGoalAction(object):
     
     def send_habituation(self, goal):
         tmp = [goal.latent_x,goal.latent_y]
-        tensor_latent = torch.tensor(tmp,dtype=torch.float)
+        ind = self.search_dnf_value(tmp,self.latent_space_scaled)
+        out_latent = self.latent_space[ind]
+        tensor_latent = torch.tensor(out_latent,dtype=torch.float)
         output = self.forward_decoder(tensor_latent)
         out = output.detach().numpy()
         print("output sample : ",out)
         print("memory : ",self.memory)
-        dmp_out = DmpOutcome()
-        dmp_out.x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
-        dmp_out.y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
-        dmp_out.angle = self.reconstruct_latent(out[2],self.min_angle,self.max_angle)
-        dmp_out.touch = self.reconstruct_latent(out[3],self.min_grasp,self.max_grasp)
-        dmp_out.v_x = self.reconstruct_latent(out[4],self.min_vx,self.max_vx)
-        dmp_out.v_y = self.reconstruct_latent(out[5],self.min_vy,self.max_vy)
-        dmp_out.v_pitch = self.reconstruct_latent(out[6],self.min_vpitch,self.max_vpitch)
-        dmp_out.roll = self.reconstruct_latent(out[7],self.min_roll,self.max_roll)
-        dmp_out.grasp = self.reconstruct_latent(out[8],self.min_grasp,self.max_vx)
-        self.pub_habituation.publish(dmp_out)
+        outcome = Outcome()
+        x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
+        y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
+        angle = self.reconstruct_latent(out[2],self.min_angle,self.max_angle)
+        touch = self.reconstruct_latent(out[3],self.min_grasp,self.max_grasp)
+        outcome.x = round(x,2)
+        outcome.y = round(y,2)
+        outcome.angle = round(angle)
+        outcome.touch = round(touch)
+        self.pub_habituation.publish(outcome)
     
     def activate_dmp_actions(self, goal):
         l_action = ActionDmpDnf()

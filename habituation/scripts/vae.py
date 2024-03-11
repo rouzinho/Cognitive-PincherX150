@@ -660,10 +660,10 @@ class Habituation(object):
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
       rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
       rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
-      rospy.Subscriber("/habituation/eval_perception", DmpOutcome, self.callback_eval)
+      rospy.Subscriber("/habituation/perception", Outcome, self.callback_eval)
       rospy.Subscriber("/cluster_msg/perception", DmpOutcome, self.callback_perception)
-      rospy.Subscriber("/habituation/same_perception", Float64, self.callback_same_perception)
-      rospy.Subscriber("/habituation/same_action", Float64, self.callback_same_action)
+      rospy.Subscriber("/cog_learning/outcome/not_learning", Float64, self.callback_same_perception)
+      rospy.Subscriber("/cog_learning/action/not_learning", Float64, self.callback_same_action)
       self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
@@ -852,7 +852,7 @@ class Habituation(object):
          #for display
          self.pub_latent_space_display_out.publish(dis_minus)
          self.pub_test_latent.publish(dis_one)
-         rospy.sleep(4.0)
+         rospy.sleep(2.0)
          #send full latent space and empty the evaluation
          l = LatentNNDNF()
          self.send_eval_outcome(l)
@@ -864,6 +864,28 @@ class Habituation(object):
          msg_out = self.habit[self.index_vae].plot_latent()
          self.pub_latent_space_display_out.publish(msg_out)
       else:
+         #For the first value to trigger the learning through DFT
+         empty_latent = LatentNNDNF()
+         empty_latent.max_x = self.habit[self.index_vae].get_bound_x()
+         empty_latent.max_y = self.habit[self.index_vae].get_bound_y()
+         new_latent_single = LatentNNDNF()
+         new_latent_single.max_x = self.habit[self.index_vae].get_bound_x()
+         new_latent_single.max_y = self.habit[self.index_vae].get_bound_y()
+         t = self.habit[self.index_vae].get_latent_space_dnf()
+         g = Goal()
+         g.x = t[0][0]
+         g.y = t[0][1]
+         g.value = 1.0
+         new_latent_single.list_latent.append(g)
+         self.send_latent_space_outcome_minus(empty_latent)
+         self.send_eval_outcome(new_latent_single)
+         self.send_latent_space_action_minus(empty_latent)
+         self.send_eval_action(new_latent_single)
+         rospy.sleep(2.0)
+         l = LatentNNDNF()
+         self.send_eval_outcome(l)
+         self.send_eval_action(l)
+         rospy.sleep(0.5)
          self.send_latent_space_outcome()
          self.send_latent_space_action()
       self.pub_ready.publish(True)
@@ -892,7 +914,8 @@ class Habituation(object):
       #print("Outcome : ",outcome)
 
    def callback_eval(self,msg):
-      dmp_out = DmpOutcome()
+      pass
+      """dmp_out = DmpOutcome()
       dmp_out.v_x = self.scale_data(msg.v_x,self.min_vx,self.max_vx)
       dmp_out.v_y = self.scale_data(msg.v_y,self.min_vy,self.max_vy)
       dmp_out.v_pitch = self.scale_data(msg.v_pitch,self.min_vpitch,self.max_vpitch)
@@ -915,7 +938,7 @@ class Habituation(object):
       #self.send_latent_test(z)
       #rospy.sleep(1.0)
       #l = LatentNNDNF()
-      #self.send_eval_perception(l)
+      #self.send_eval_perception(l)"""
 
    def callback_id(self, msg):
       if self.prev_id_object != self.id_object and msg.data != -1:
