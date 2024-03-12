@@ -270,7 +270,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(rnd_explore > 0.5 && ready_habbit && ready_nn)
+      if(rnd_explore > 0.5 && ready_habbit && ready_nn && !busy_nn_out && !busy_nn_act && !busy_vae_out && !busy_vae_act)
       {
          std::cout<<"Cluster_msg : RANDOM exploration DONE\n";
          //ros::Duration(3.5).sleep();
@@ -342,7 +342,7 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
       }
-      if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn)
+      if(direct_explore > 0.5 && new_state && ready_habbit && ready_nn && !busy_nn_out && !busy_nn_act && !busy_vae_out && !busy_vae_act)
       {
          std::cout<<"Cluster_msg : DIRECT exploration DONE\n";
          std_msgs::Bool b;
