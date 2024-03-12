@@ -156,6 +156,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display_out.publish(msg_latent)
     
     def save_memory(self):
+        print("save datas...")
         n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
         n_latent = self.folder_nnga + str(self.id_nnga) + "/latent_space.pkl"
         n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
@@ -572,6 +573,8 @@ class NNGoalAction(object):
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
+            print("name skill ",self.skills[self.index_skill].get_name())
+            print("Error fwd : ",error_fwd)
             self.update_learning_progress(out_dnf,error_fwd)
             self.send_new_goal(out_dnf,1.0)
             self.pub_timing(1.0)
@@ -599,6 +602,8 @@ class NNGoalAction(object):
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
+            print("name skill ",self.skills[self.index_skill].get_name())
+            print("Error fwd : ",error_fwd)
             self.update_learning_progress(outcome_dnf,error_fwd)
             self.send_new_goal(out_dnf,1.0)
             self.pub_timing(1.0)
@@ -610,10 +615,10 @@ class NNGoalAction(object):
             self.hebbian_action.hebbianLearningAction(out_dnf,act_dnf)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
-        self.save_nn()
-        self.save_memory()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
         #print("latent extended : ",self.latent_space_extend)
+        self.save_nn()
+        self.save_memory()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         self.skills[ind_skill].save_memory(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
@@ -820,17 +825,20 @@ class NNGoalAction(object):
         tensor_latent = torch.tensor(out_latent,dtype=torch.float)
         output = self.forward_decoder(tensor_latent)
         out = output.detach().numpy()
-        print("output sample : ",out)
-        print("memory : ",self.memory)
+        
+        #print("memory : ",self.memory)
         outcome = Outcome()
         x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
         y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
         angle = self.reconstruct_latent(out[2],self.min_angle,self.max_angle)
         touch = self.reconstruct_latent(out[3],self.min_grasp,self.max_grasp)
-        outcome.x = round(x,2)
-        outcome.y = round(y,2)
+        outcome.x = round(x,3)
+        outcome.y = round(y,3)
         outcome.angle = round(angle)
         outcome.touch = round(touch)
+        tmp = [outcome.x,outcome.y,outcome.angle,outcome.touch]
+        print("output sample : ",out)
+        print("output sample reconstructed: ",tmp)
         self.pub_habituation.publish(outcome)
     
     def activate_dmp_actions(self, goal):
@@ -847,11 +855,11 @@ class NNGoalAction(object):
             n_out = out.detach().numpy()
             dmpdnf = DmpDnf()
             #rescale to real values
-            v_x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
-            v_y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
-            v_pitch = self.reconstruct_latent(out[2],self.min_vpitch,self.max_vpitch)
-            roll = self.reconstruct_latent(out[3],self.min_roll,self.max_roll)
-            grasp = self.reconstruct_latent(out[4],self.min_grasp,self.max_vx)
+            v_x = self.reconstruct_latent(n_out[0],self.min_vx,self.max_vx)
+            v_y = self.reconstruct_latent(n_out[1],self.min_vy,self.max_vy)
+            v_pitch = self.reconstruct_latent(n_out[2],self.min_vpitch,self.max_vpitch)
+            roll = self.reconstruct_latent(n_out[3],self.min_roll,self.max_roll)
+            grasp = self.reconstruct_latent(n_out[4],self.min_grasp,self.max_vx)
             dmpdnf.v_x = round(v_x,2)
             dmpdnf.v_y = round(v_y,2)
             dmpdnf.v_pitch = round(v_pitch,1)
@@ -863,6 +871,7 @@ class NNGoalAction(object):
         self.pub_dmp.publish(l_action)
 
     def activate_hebbian(self, goal):
+        print("latent scaled hebb : ",self.latent_space_scaled)
         tmp = [goal.latent_x,goal.latent_y]
         ind = self.search_dnf_value(tmp,self.latent_space_scaled)
         out_dnf = self.latent_space_scaled[ind]

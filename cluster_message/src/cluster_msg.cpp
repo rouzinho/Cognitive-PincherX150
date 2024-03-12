@@ -47,7 +47,10 @@ class ClusterMessage
    ros::Subscriber sub_invalidate;
    ros::Subscriber sub_pause;
    ros::Subscriber sub_touch;
-   ros::Subscriber sub_busy;
+   ros::Subscriber sub_busy_out;
+   ros::Subscriber sub_busy_act;
+   ros::Subscriber sub_busy_nn_out;
+   ros::Subscriber sub_busy_nn_act;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_new_state;
@@ -82,7 +85,11 @@ class ClusterMessage
    bool init_valid;
    bool init_invalid;
    bool touch;
-   bool busy;
+   bool busy_vae_out;
+   bool busy_vae_act;
+   bool busy_nn_out;
+   bool busy_nn_act;
+
 
   public:
    ClusterMessage()
@@ -102,7 +109,10 @@ class ClusterMessage
       sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 1, &ClusterMessage::CallbackInvalidate,this);
       sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &ClusterMessage::CallbackPause,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &ClusterMessage::CallbackTouch,this);
-      sub_busy = nh_.subscribe("/cluster_msg/busy", 1, &ClusterMessage::CallbackBusy,this);
+      sub_busy_out = nh_.subscribe("/cluster_msg/vae/busy_out", 1, &ClusterMessage::CallbackBusyVAEout,this);
+      sub_busy_act = nh_.subscribe("/cluster_msg/vae/busy_act", 1, &ClusterMessage::CallbackBusyVAEact,this);
+      sub_busy_nn_out = nh_.subscribe("/cluster_msg/nnga/busy_out", 1, &ClusterMessage::CallbackBusyNNout,this);
+      sub_busy_nn_act = nh_.subscribe("/cluster_msg/nnga/busy_act", 1, &ClusterMessage::CallbackBusyNNact,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
@@ -233,7 +243,7 @@ class ClusterMessage
    void CallbackRndExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       rnd_explore = msg->data;
-      if(rnd_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy)
+      if(rnd_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy_nn_out && !busy_nn_act && !busy_vae_out && !busy_vae_act)
       {
          std::cout<<"Cluster_msg : RANDOM exploration, sending datas to models...\n";
          //ros::Duration(4.5).sleep();
@@ -307,7 +317,7 @@ class ClusterMessage
    void CallbackDirectExplore(const std_msgs::Float64::ConstPtr& msg)
    {
       direct_explore = msg->data;
-      if(direct_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy)
+      if(direct_explore > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b && !busy_nn_out && !busy_nn_act && !busy_vae_out && !busy_vae_act)
       {
          std::cout<<"Cluster_msg : DIRECT exploration, sending datas to models...\n";
          cluster_message::SampleExplore s;
@@ -522,9 +532,24 @@ class ClusterMessage
       touch = msg->data;
    }
 
-   void CallbackBusy(const std_msgs::Bool::ConstPtr& msg)
+   void CallbackBusyVAEout(const std_msgs::Bool::ConstPtr& msg)
    {
-      busy = msg->data;
+      busy_vae_out = msg->data;
+   }
+
+   void CallbackBusyVAEact(const std_msgs::Bool::ConstPtr& msg)
+   {
+      busy_vae_act = msg->data;
+   }
+
+   void CallbackBusyNNout(const std_msgs::Bool::ConstPtr& msg)
+   {
+      busy_nn_out = msg->data;
+   }
+
+   void CallbackBusyNNact(const std_msgs::Bool::ConstPtr& msg)
+   {
+      busy_nn_act = msg->data;
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)
