@@ -30,7 +30,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
-        self.pub_habituation = rospy.Publisher("/habituation/perception", Outcome, queue_size=1, latch=True)
+        self.pub_habituation = rospy.Publisher("/habituation/existing_perception", Outcome, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
         self.mt_field = np.zeros((100,100,1), np.float32)
         self.mt_error = np.zeros((100,100,1), np.float32)
@@ -55,7 +55,6 @@ class NNGoalAction(object):
         self.latent_space_action_scaled = []
         self.latent_space_action_extend = []
         self.hebbian = HebbServer()
-        self.hebbian_action = HebbServer()
         self.current_dmp = Dmp()
         self.current_goal = LatentGoalDnf()
         self.id_nnga =  id_obj
@@ -242,7 +241,7 @@ class NNGoalAction(object):
         s = pickle.load(filehandler_s)
         self.skills = s
         self.hebbian.loadWeights(n_hebb)
-        self.hebbian_action.loadWeightsAction(n_hebb_action)
+        self.hebbian.loadWeightsAction(n_hebb_action)
         self.mt_field = np.load(n_mtlatent)
         self.mt_error = np.load(n_mterror)
         self.mt_lp = np.load(n_mtlp)
@@ -442,9 +441,12 @@ class NNGoalAction(object):
     def search_dnf_value(self, value, list_):
         ind = -1
         j = 0
+        min_dist = 500
         for i in list_:
-            if abs(value[0] - i[0]) < 2 and abs(value[1] - i[1]) < 2:
+            dist = math.sqrt(pow(value[0]-i[0],2)+pow(value[1]-i[1],2))
+            if dist <= min_dist:
                 ind = j
+                min_dist = dist
             j += 1
 
         return ind
@@ -521,7 +523,9 @@ class NNGoalAction(object):
             self.send_new_goal(outcome_dnf,0.0)
             self.pub_timing(0.0)
             self.send_latent_space()
-            self.hebbian_action.hebbianLearningAction(outcome_dnf,action_dnf)
+            print("association between : ",outcome_dnf)
+            print("and : ",action_dnf)
+            self.hebbian.hebbianLearningAction(outcome_dnf,action_dnf)
             self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
@@ -551,7 +555,9 @@ class NNGoalAction(object):
             self.send_new_goal(outcome_dnf,0.0)
             self.pub_timing(0.0)
             self.send_latent_space()
-            self.hebbian_action.hebbianLearningAction(outcome_dnf,act_dnf)
+            print("association between : ",outcome_dnf)
+            print("and : ",act_dnf)
+            self.hebbian.hebbianLearningAction(outcome_dnf,act_dnf)
             self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
@@ -583,7 +589,9 @@ class NNGoalAction(object):
             self.send_new_goal(out_dnf,0.0)
             self.pub_timing(0.0)
             self.send_latent_space()
-            self.hebbian_action.hebbianLearningAction(out_dnf,action_dnf)
+            print("association between : ",out_dnf)
+            print("and : ",action_dnf)
+            self.hebbian.hebbianLearningAction(out_dnf,action_dnf)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
             self.reset_models()
@@ -612,7 +620,9 @@ class NNGoalAction(object):
             self.send_new_goal(out_dnf,0.0)
             self.pub_timing(0.0)
             self.send_latent_space()
-            self.hebbian_action.hebbianLearningAction(out_dnf,act_dnf)
+            print("association between : ",out_dnf)
+            print("and : ",act_dnf)
+            self.hebbian.hebbianLearningAction(out_dnf,act_dnf)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
         print("NNGA latent space DNF : ",self.latent_space_scaled)
@@ -825,7 +835,8 @@ class NNGoalAction(object):
         tensor_latent = torch.tensor(out_latent,dtype=torch.float)
         output = self.forward_decoder(tensor_latent)
         out = output.detach().numpy()
-        
+        print("latent value : ",out)
+        print("latent space : ",self.latent_space)
         #print("memory : ",self.memory)
         outcome = Outcome()
         x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
@@ -844,7 +855,8 @@ class NNGoalAction(object):
     def activate_dmp_actions(self, goal):
         l_action = ActionDmpDnf()
         tmp = [goal.latent_x,goal.latent_y]
-        l_act = self.hebbian_action.hebbianActivationAction(tmp)
+        l_act = self.hebbian.hebbianActivationAction(tmp)
+        print("list action : ",l_act)
         for i in l_act:
             e0 = self.scale_dnf_to_latent(i[0])
             e1 = self.scale_dnf_to_latent(i[1])
@@ -871,7 +883,7 @@ class NNGoalAction(object):
         self.pub_dmp.publish(l_action)
 
     def activate_hebbian(self, goal):
-        print("latent scaled hebb : ",self.latent_space_scaled)
+        #print("latent scaled hebb : ",self.latent_space_scaled)
         tmp = [goal.latent_x,goal.latent_y]
         ind = self.search_dnf_value(tmp,self.latent_space_scaled)
         out_dnf = self.latent_space_scaled[ind]

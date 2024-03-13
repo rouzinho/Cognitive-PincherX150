@@ -13,6 +13,7 @@
 #include "cluster_message/SampleExplore.h"
 #include "cluster_message/SampleExploit.h"
 #include "cluster_message/State.h"
+#include "cog_learning/LatentGoalDnf.h"
 #include "motion/Dmp.h"
 #include "motion/DmpOutcome.h"
 #include "detector/Outcome.h"
@@ -31,6 +32,7 @@ class ClusterMessage
   private:
    ros::NodeHandle nh_;
    ros::Subscriber sub_dmp;
+   ros::Subscriber sub_dmp_dnf;
    ros::Subscriber sub_outcome;
    ros::Subscriber sub_rnd_explore;
    ros::Subscriber sub_direct_explore;
@@ -66,7 +68,9 @@ class ClusterMessage
    motion::Action sample;
    motion::Dmp dmp;
    motion::Dmp dmp_eval;
+   cog_learning::LatentGoalDnf latent_action;
    bool dmp_b;
+   bool dmp_dnf_b;
    bool outcome_b;
    double rnd_explore;
    double direct_explore;
@@ -95,6 +99,7 @@ class ClusterMessage
    ClusterMessage()
    {
       sub_dmp = nh_.subscribe("/motion_pincher/dmp", 1, &ClusterMessage::CallbackDMP,this);
+      sub_dmp_dnf = nh_.subscribe("/motion_pincher/dmp_dnf", 1, &ClusterMessage::CallbackDMPdnf,this);
       sub_outcome = nh_.subscribe("/outcome_detector/outcome", 1, &ClusterMessage::CallbackOutcome,this);
       sub_rnd_explore = nh_.subscribe("/cog_learning/rnd_exploration", 1, &ClusterMessage::CallbackRndExplore,this);
       sub_direct_explore = nh_.subscribe("/cog_learning/direct_exploration", 1, &ClusterMessage::CallbackDirectExplore,this);
@@ -210,6 +215,14 @@ class ClusterMessage
       dmp.roll = msg->roll;
       dmp_b = true;
       std::cout<<"cluster : got DMP\n";
+   }
+
+   void CallbackDMPdnf(const cog_learning::LatentGoalDnf::ConstPtr& msg)
+   {
+      latent_action.latent_x = msg->latent_x;
+      latent_action.latent_y = msg->latent_y;
+      dmp_dnf_b = true;
+      std::cout<<"cluster : got DMP DNF\n";
    }
 
    void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
@@ -385,9 +398,28 @@ class ClusterMessage
    void CallbackExploit(const std_msgs::Float64::ConstPtr& msg)
    {
       exploit = msg->data;
-      if(exploit > 0.5 && new_state && outcome_b && !send_perception)
+      if(exploit > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
       {
-         motion::DmpOutcome tmp;
+         detector::Outcome out;
+         cluster_message::SampleExploit s;
+         out.x = outcome.x;
+         out.y = outcome.y;
+         out.angle = outcome.angle;
+         out.touch = outcome.touch;
+         s.outcome_x = outcome.x;
+         s.outcome_y = outcome.y;
+         s.outcome_angle = outcome.angle;
+         s.outcome_touch = outcome.touch;
+         s.state_x = state.state_x;
+         s.state_y = state.state_y;
+         s.state_angle = state.state_angle;
+         s.lpos_x = sample.lpos_x;
+         s.lpos_y = sample.lpos_y;
+         s.lpos_pitch = sample.lpos_pitch;
+
+
+
+         motion::Dmp tmp;
          tmp.v_x = dmp.v_x;
          tmp.v_y = dmp.v_y;
          tmp.v_pitch = dmp.v_pitch;
@@ -400,20 +432,9 @@ class ClusterMessage
          pub_dmp_outcome.publish(tmp);
          send_perception = true;
          outcome_b = false;
-      }
-      if(exploit > 0.5 && new_state && valid_perception > 0.5 && !send_sample)
-      {
+     
          cluster_message::SampleExploit s;
-         s.state_x = state.state_x;
-         s.state_y = state.state_y;
-         s.state_angle = state.state_angle;
-         s.lpos_x = sample.lpos_x;
-         s.lpos_y = sample.lpos_y;
-         s.lpos_pitch = sample.lpos_pitch;
-         s.outcome_x = outcome.x;
-         s.outcome_y = outcome.y;
-         s.outcome_angle = outcome.angle;
-         s.outcome_touch = outcome.touch;
+         
          pub_datas_exploit.publish(s);
          state_b = false;
          sample_b = false;

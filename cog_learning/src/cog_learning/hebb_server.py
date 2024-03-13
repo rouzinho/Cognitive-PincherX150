@@ -68,6 +68,16 @@ class HebbServer(object):
                     l_ind.append([i,j])
 
         return l_ind
+    
+    def get_all(self):
+        l_ind = []
+        for i in range(0,self.weights_action.shape[0]):
+            for j in range(0,self.weights_action.shape[1]):
+                for k in range(0,self.weights_action.shape[2]):
+                    for l in range(0,self.weights_action.shape[3]):
+                        if self.weights_action[i,j,k,l] == 1:
+                            l_ind.append([i,j,k,l])
+        return l_ind
 
     def saveWeights(self, name_weights):
         save(name_weights,self.weights)
@@ -83,15 +93,18 @@ class HebbServer(object):
 
 if __name__ == "__main__":
     hebb_srv = HebbServer()
+    hebb_srv.loadWeightsAction("/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/nn_ga/0/hebbian_weights_action.npy")
     ga = [90,50]
     pa = [10,20]
     p2 = [35,45]
-    hebb_srv.hebbianLearningAction(ga,pa)
-    hebb_srv.hebbianLearningAction(ga,p2)
+    #hebb_srv.hebbianLearningAction(ga,pa)
+    #hebb_srv.hebbianLearningAction(ga,p2)
     #hebb_srv.hebbianLearningAction([50,50],9)
     #ind = hebb_srv.hebbianActivation(ga)
     #print(ind)
-    ind = hebb_srv.hebbianActivationAction([89,49])
-    print("res : ",ind)
+    #hebb_srv.saveWeightsAction("/home/altair/interbotix_ws/src/cog_learning/src/cog_learning/weights.npy")
+    #ind = hebb_srv.hebbianActivationAction([41,41])
+    #hebb_srv
+    #print("res : ",ind)
     
 

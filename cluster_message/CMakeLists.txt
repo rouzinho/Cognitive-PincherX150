@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   sensor_msgs
   motion
+  cog_learning
   tf2
   tf2_ros
   tf2_sensor_msgs
@@ -82,6 +83,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs
   motion
+  cog_learning
 )
 
 ################################################
@@ -116,7 +118,7 @@ generate_messages(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES cluster_message
-CATKIN_DEPENDS message_runtime rosbag roscpp std_msgs sensor_msgs motion
+CATKIN_DEPENDS message_runtime rosbag roscpp std_msgs sensor_msgs motion cog_learning
 #  DEPENDS system_lib
 )
 
