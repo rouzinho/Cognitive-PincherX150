@@ -11,6 +11,7 @@ from motion.msg import Dmp
 from motion.msg import Action
 from cog_learning.msg import Goal
 from cog_learning.msg import LatentGoalDnf
+from cog_learning.msg import LatentGoalNN
 from cog_learning.msg import LatentNNDNF
 from cog_learning.msg import DmpDnf
 from cog_learning.msg import ActionDmpDnf
@@ -424,6 +425,7 @@ class NNGoalAction(object):
         new_state = State()
         new_outcome = Outcome()
         new_action = Action()
+        latent_action = LatentGoalNN()
         new_state.state_x = self.scale_data(sample.state_x, self.min_x, self.max_x)
         new_state.state_y = self.scale_data(sample.state_y, self.min_y, self.max_y)
         new_state.state_angle = self.scale_data(sample.state_angle, self.min_angle, self.max_angle)
@@ -434,8 +436,10 @@ class NNGoalAction(object):
         new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
         new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
         new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+        latent_action.latent_x = self.scale_inp_out(sample.dnf_x,0,100,-1,1)
+        latent_action.latent_y = self.scale_inp_out(sample.dnf_y,0,100,-1,1)
 
-        return new_state, new_outcome, new_action
+        return new_state, new_outcome, new_action, latent_action
 
     #search for value in DNF latent space    
     def search_dnf_value(self, value, list_):
@@ -453,8 +457,8 @@ class NNGoalAction(object):
 
     def continue_learning(self, data):
         #print("CONTINUAL sample before scaling : ",data)
-        state, dmp, outcome, sample_action = self.scale_samples_skill(data)
-        sample = self.create_skill_sample(state,outcome,sample_action,[data.dnf_x,data.dnf_y])
+        state, outcome, sample_action, lat = self.scale_samples_existing_skill(data)
+        sample = self.create_skill_sample(state,outcome,sample_action,[lat.latent_x,lat.latent_y])
         self.skills[self.index_skill].add_to_memory(sample)
         #self.skills[self.index_skill].print_memory()
         err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
@@ -462,8 +466,12 @@ class NNGoalAction(object):
         error_fwd = err_fwd.item()
         error_inv = err_inv.item()
         #print("ERROR INVERSE : ",error_inv)
-        #print("ERROR FORWARD : ",error_fwd)
         inputs = [self.current_goal.latent_x,self.current_goal.latent_y]
+        act = [data.dnf_x,data.dnf_y]
+        print("Goal : ",inputs)
+        print("Action : ",act)
+        print("ERROR Forward : ",error_fwd)
+        print("ERROR Inverse : ",error_inv)
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
         #self.send_new_goal(inputs)
@@ -477,9 +485,9 @@ class NNGoalAction(object):
         self.skills[self.index_skill].train_forward_model()
         self.skills[self.index_skill].train_inverse_model()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
-        self.skills[self.index_skill].save_memory(pwd)
-        self.skills[self.index_skill].save_fwd_nn(pwd)
-        self.skills[self.index_skill].save_inv_nn(pwd)
+        #self.skills[self.index_skill].save_memory(pwd)
+        #self.skills[self.index_skill].save_fwd_nn(pwd)
+        #self.skills[self.index_skill].save_inv_nn(pwd)
         self.send_ready(True)
 
     def bootstrap_learning(self, out_b, act_b, sample):
@@ -835,9 +843,9 @@ class NNGoalAction(object):
         tensor_latent = torch.tensor(out_latent,dtype=torch.float)
         output = self.forward_decoder(tensor_latent)
         out = output.detach().numpy()
-        print("latent value : ",out)
-        print("latent space : ",self.latent_space)
-        #print("memory : ",self.memory)
+        #print("latent value : ",out)
+        #print("latent space : ",self.latent_space)
+        print("Goal : ",tmp)
         outcome = Outcome()
         x = self.reconstruct_latent(out[0],self.min_vx,self.max_vx)
         y = self.reconstruct_latent(out[1],self.min_vy,self.max_vy)
@@ -848,8 +856,8 @@ class NNGoalAction(object):
         outcome.angle = round(angle)
         outcome.touch = round(touch)
         tmp = [outcome.x,outcome.y,outcome.angle,outcome.touch]
-        print("output sample : ",out)
-        print("output sample reconstructed: ",tmp)
+        #print("output sample : ",out)
+        #print("output sample reconstructed: ",tmp)
         self.pub_habituation.publish(outcome)
     
     def activate_dmp_actions(self, goal):

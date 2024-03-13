@@ -8,6 +8,7 @@ from detector.msg import Outcome
 from detector.msg import State
 from motion.msg import Action
 from som.msg import GripperOrientation
+from cog_learning.msg import LatentGoalDnf
 
 class Testing(object):
    def __init__(self):
@@ -21,6 +22,7 @@ class Testing(object):
       self.pub_explore = rospy.Publisher('/cog_learning/rnd_exploration', Float64, latch=True, queue_size=1)
       self.pub_exploit = rospy.Publisher('/cog_learning/exploitation', Float64, latch=True, queue_size=1)
       self.pub_new_state = rospy.Publisher('/depth_perception/new_state', Bool, latch=True, queue_size=1)
+      self.pub_action_dnf = rospy.Publisher('/motion_pincher/dmp_dnf', LatentGoalDnf, latch=True, queue_size=1)
       self.pub_lpos = rospy.Publisher('/motion_pincher/gripper_orientation/first_pose', GripperOrientation, latch=True, queue_size=1)
       rospy.Subscriber("/test/ready", Bool, self.callback_ready)
       self.ready = True
@@ -43,6 +45,12 @@ class Testing(object):
       tmp.fpos_x = data[5]
       tmp.fpos_y = data[6]
       self.pub_dmp.publish(tmp)
+
+   def publish_dnf_action(self,data):
+      l = LatentGoalDnf()
+      l.latent_x = data[0]
+      l.latent_y = data[1]
+      self.pub_action_dnf.publish(l)
 
    def publish_action(self,data):
       tmp = Action()
@@ -125,6 +133,7 @@ if __name__ == "__main__":
    data = []
    actions = []
    states = []
+   dnf = []
    outcome1 = [0.1,0.1,40.0,0.0]
    dmp1 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
    action1 = [0.2,0.2,1.0]
@@ -219,12 +228,20 @@ if __name__ == "__main__":
    states.append(state3_1)
    states.append(state3_2)
    states.append(state3_3)
+   #dnf.append([21,10])
+   dnf.append([14,42])
+   dnf.append([41,41])
+   dnf.append([41,41])
+   dnf.append([21,10])
+   dnf.append([41,41])
+   dnf.append([76,44])
 
    i = 0
    seconds = 0
-   explore = True
+   explore = False
    while not rospy.is_shutdown():
-      test.pub_exploration()
+      #test.pub_exploration()
+      test.pub_exploitation()
       if explore:
          if(test.get_ready() and i < 6):
             print(i)
@@ -243,12 +260,13 @@ if __name__ == "__main__":
             i += 1
             #rospy.sleep(4.5)
       else:
-         test.pub_exploitation()
+         #test.pub_exploitation()
          test.send_id(0)
          rospy.sleep(0.5)
-         if(test.get_ready() and i < 6):
+         if(test.get_ready() and i < 1):
+            test.send_new_state()
             test.publish_state(states[i])
-            #test.publish_dmp(data[i][1])
+            test.publish_dnf_action(dnf[i])
             test.publish_action(actions[i])
             rospy.sleep(0.5)
             test.publish_outcome(data[i][0])

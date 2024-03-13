@@ -58,7 +58,7 @@ class ClusterMessage
    ros::Publisher pub_new_state;
    ros::Publisher pub_retry;
    ros::Publisher pub_signal;
-   ros::Publisher pub_dmp_outcome;
+   ros::Publisher pub_outcome;
    ros::Publisher pub_pause;
    ros::Publisher pub_ready;
    ros::ServiceServer service;
@@ -124,7 +124,7 @@ class ClusterMessage
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
-      pub_dmp_outcome = nh_.advertise<motion::DmpOutcome>("/cluster_msg/perception",1);
+      pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
@@ -364,8 +364,7 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         send_sample = false;
-         if(!touch)
+         /*if(!touch)
          {
             std_msgs::Float64 f;
             f.data = 1.0;
@@ -373,14 +372,13 @@ class ClusterMessage
             ros::Duration(2.5).sleep();
             f.data = 0.0;
             pub_signal.publish(f);
-         }  
+         }*/  
       }
       if(direct_explore > 0.5 && retry)
       {
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         send_sample = false;
          outcome_b = false;
          dmp_b = false;
          state_b = false;
@@ -389,7 +387,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(2.5).sleep();
+         ros::Duration(0.5).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
@@ -398,7 +396,7 @@ class ClusterMessage
    void CallbackExploit(const std_msgs::Float64::ConstPtr& msg)
    {
       exploit = msg->data;
-      if(exploit > 0.5 && new_state && outcome_b && dmp_b && sample_b && state_b)
+      if(exploit > 0.5 && new_state && outcome_b && dmp_dnf_b && sample_b && state_b)
       {
          detector::Outcome out;
          cluster_message::SampleExploit s;
@@ -416,67 +414,39 @@ class ClusterMessage
          s.lpos_x = sample.lpos_x;
          s.lpos_y = sample.lpos_y;
          s.lpos_pitch = sample.lpos_pitch;
-
-
-
-         motion::Dmp tmp;
-         tmp.v_x = dmp.v_x;
-         tmp.v_y = dmp.v_y;
-         tmp.v_pitch = dmp.v_pitch;
-         tmp.grasp = dmp.grasp;
-         tmp.roll = dmp.roll;
-         tmp.x = outcome.x;
-         tmp.y = outcome.y;
-         tmp.angle = outcome.angle;
-         tmp.touch = outcome.touch;
-         pub_dmp_outcome.publish(tmp);
-         send_perception = true;
-         outcome_b = false;
-     
-         cluster_message::SampleExploit s;
-         
+         s.dnf_x = latent_action.latent_x;
+         s.dnf_y = latent_action.latent_y;
          pub_datas_exploit.publish(s);
+         pub_outcome.publish(out);
+         outcome_b = false;
          state_b = false;
          sample_b = false;
-         send_sample = true;
+         dmp_dnf_b = false;
       }
-      if(exploit > 0.5 && new_state && valid_perception > 0.5 && ready_nn)
+      if(exploit > 0.5 && new_state && ready_nn)
       {
+         std::cout<<"Cluster_msg : Exploitation DONE\n";
          ready_nn = false;
-         send_sample = false;
          new_state = false;
-         valid_perception = 0.0;
+         std_msgs::Bool b;
+         b.data = true;
+         pub_new_state.publish(b);
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
          init_valid = false;
-      }
-      if(exploit > 0.5 && new_state && invalid_perception > 0.5)
-      {
-         new_state = false;
-         invalid_perception = 0.0;
-         std_msgs::Float64 f;
-         f.data = 1.0;
-         pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
-         f.data = 0.0;
-         pub_signal.publish(f);
-         init_invalid = false;
+         pub_ready.publish(b);
       }
       if(exploit > 0.5 && retry)
       {
          retry = false;
-         state_b = false;
-         sample_b = false;
-         outcome_b = false;
-         dmp_b = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }

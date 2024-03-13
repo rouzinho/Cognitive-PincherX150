@@ -1014,7 +1014,7 @@ class Habituation(object):
       touch = self.scale_data(msg.touch, self.min_grasp, self.max_grasp)
       sample = [x,y,angle,touch]
       tensor_sample = torch.tensor(sample,dtype=torch.float)
-      z = self.habit[self.index_vae].forward_encoder_outcome(sample)
+      z = self.habit[self.index_vae].forward_encoder_outcome(tensor_sample)
       p = self.habit[self.index_vae].get_value_dnf(z,self.exploration_mode)
       peak = [round(p[0]),round(p[1])]
       msg = self.habit[self.index_vae].get_eval(peak)
