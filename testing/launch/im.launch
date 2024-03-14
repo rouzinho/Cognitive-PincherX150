@@ -1,0 +1,9 @@
+<launch>
+   <arg name="x" />
+   <arg name="y" />
+   <arg name="v" /> 
+   <param name="x" value="$(arg x)"/>
+   <param name="y" value="$(arg y)"/>
+   <param name="v" value="$(arg v)"/>
+   <node name="test_vae" pkg="testing" type="im.py" output="screen"/>
+</launch>
