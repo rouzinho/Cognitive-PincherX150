@@ -117,7 +117,7 @@ class Testing(object):
 if __name__ == "__main__":
    test = Testing()
    rospy.sleep(0.5)
-   test.send_id(0)
+   test.send_id(0) 
    #test.pub_exploitation()
    """rospy.sleep(0.5)
    test.retrieve_dmp()

@@ -16,7 +16,7 @@ class Testing(object):
       rospy.init_node('test_im', anonymous=True)
       self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
       self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
-      self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
+      self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=1)
       self.x = rospy.get_param("x")
       self.y = rospy.get_param("y")
       self.v = rospy.get_param("v")
@@ -36,10 +36,11 @@ class Testing(object):
       g.x = self.x
       g.y = self.y
       g.value = self.v
-      self.pub_update_lp(g)
+      self.pub_update_lp.publish(g)
       self.send_timing(1.0)
+      rospy.sleep(1.0)
       g.value = 0
-      self.pub_update_lp(g)
+      self.pub_update_lp.publish(g)
       self.send_timing(0)
       self.end_action(True)
       rospy.sleep(1)
@@ -47,6 +48,7 @@ class Testing(object):
 
 
 if __name__ == "__main__":
-   test = Testing()
    rospy.sleep(0.5)
+   test = Testing()
+   test.send_value()
    rospy.spin()
