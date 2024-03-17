@@ -442,6 +442,9 @@ class Motion(object):
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     print(msg)
+    s = len(self.possible_action)
+    choice = random.randint(0,s-1)
+
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(0.8)
     #rospy.sleep(3.0)
