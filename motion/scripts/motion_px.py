@@ -44,6 +44,7 @@ from tf.transformations import *
 from cluster_message.srv import *
 from cog_learning.msg import DmpDnf
 from cog_learning.msg import ActionDmpDnf
+from cog_learning.msg import LatentGoalDnf
 
 class Motion(object):
   def __init__(self):
@@ -106,6 +107,7 @@ class Motion(object):
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
+    self.pub_dnf_action = rospy.Publisher("/motion_pincher/dmp_dnf", LatentGoalDnf, queue_size=1, latch=True)
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
     self.pub_inhib = rospy.Publisher("/motion_pincher/inhibition", Float64, queue_size=1, latch=True)
     rospy.Subscriber('/px150/joint_states', JointState, self.callback_joint_states)
@@ -394,9 +396,9 @@ class Motion(object):
     self.dmp_direct_explore.fpos_x = self.poses[0].x
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
-    print(msg)
+    #print(msg)
     self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.8)
+    self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
     self.init_position()     
     if self.dmp_direct_explore.grasp > 0.5:
@@ -438,26 +440,35 @@ class Motion(object):
     self.ready = False
     self.send_state(True)
     print("DIRECT EXPLORATION")
-    self.dmp_direct_explore.fpos_x = self.poses[0].x
-    self.dmp_direct_explore.fpos_y = self.poses[0].y
-    msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
-    print(msg)
     s = len(self.possible_action)
     choice = random.randint(0,s-1)
-
-    self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(0.8)
+    dmp_choice = self.possible_action[choice]
+    dmp_exploit = Dmp()
+    dmp_exploit.v_x = dmp_choice[0]
+    dmp_exploit.v_y = dmp_choice[1]
+    dmp_exploit.v_pitch = dmp_choice[2]
+    dmp_exploit.roll = dmp_choice[3]
+    dmp_exploit.grasp = dmp_choice[4]
+    dmp_exploit.fpos_x = self.poses[0].x
+    dmp_exploit.fpos_y = self.poses[0].y
+    msg = self.transform_dmp_rob_cam(dmp_exploit)
+    lat_action = LatentGoalDnf()
+    dnf_choice = self.possible_dnf[choice]
+    lat_action.latent_x = dnf_choice[0]
+    lat_action.latent_y = dnf_choice[1]
+    self.pub_dnf_action.publish(lat_action)
+    self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
     self.init_position()     
-    if self.dmp_direct_explore.grasp > 0.5:
+    if dmp_exploit.grasp > 0.5:
       self.bot.gripper.open()
     else:
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
-    lpos_p = self.poses[0].pitch + self.dmp_direct_explore.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
+    lpos_p = self.poses[0].pitch + dmp_exploit.v_pitch
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=dmp_exploit.roll, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=dmp_exploit.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(2.0)

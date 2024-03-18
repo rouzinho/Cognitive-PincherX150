@@ -240,10 +240,10 @@ if __name__ == "__main__":
    seconds = 0
    explore = False
    while not rospy.is_shutdown():
-      #test.pub_exploration()
-      test.pub_exploitation()
+      test.pub_exploration()
+      #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and i < 6):
+         if(test.get_ready() and i < 1):
             print(i)
             #if i == 2:
             #   print("change object")
