@@ -228,22 +228,23 @@ if __name__ == "__main__":
    states.append(state3_1)
    states.append(state3_2)
    states.append(state3_3)
-   #dnf.append([21,10])
+   dnf.append([21,10])
    dnf.append([14,42])
    dnf.append([41,41])
    dnf.append([41,41])
    dnf.append([21,10])
    dnf.append([41,41])
    dnf.append([76,44])
-
-   i = 0
+   i = rospy.get_param("i")
+   #i = 0
    seconds = 0
-   explore = False
+   explore = True
+   first = True
    while not rospy.is_shutdown():
       test.pub_exploration()
       #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and i < 1):
+         if(test.get_ready() and first):
             print(i)
             #if i == 2:
             #   print("change object")
@@ -257,7 +258,8 @@ if __name__ == "__main__":
             rospy.sleep(0.5)
             test.publish_outcome(data[i][0])
             test.set_ready(False)
-            i += 1
+            first = False
+            #i += 1
             #rospy.sleep(4.5)
       else:
          #test.pub_exploitation()

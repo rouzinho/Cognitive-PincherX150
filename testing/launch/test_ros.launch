@@ -1,3 +1,5 @@
 <launch>
+    <arg name="i" />
+    <param name="i" value="$(arg i)"/>
     <node name="test_vae" pkg="testing" type="test.py" output="screen"/>
 </launch>
