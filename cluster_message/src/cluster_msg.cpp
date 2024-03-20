@@ -294,16 +294,16 @@ class ClusterMessage
          ready_habbit = false;
          ready_nn = false;
          pub_ready.publish(b);
-         /*
+         
          if(!touch)
          {
             std_msgs::Float64 f;
             f.data = 1.0;
             pub_signal.publish(f);
-            ros::Duration(2.5).sleep();
+            ros::Duration(1.0).sleep();
             f.data = 0.0;
             pub_signal.publish(f);
-         } */
+         } 
       }
       if(rnd_explore > 0.5 && retry)
       {
@@ -321,7 +321,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
@@ -364,15 +364,15 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         /*if(!touch)
+         if(!touch)
          {
             std_msgs::Float64 f;
             f.data = 1.0;
             pub_signal.publish(f);
-            ros::Duration(2.5).sleep();
+            ros::Duration(1.0).sleep();
             f.data = 0.0;
             pub_signal.publish(f);
-         }*/  
+         }
       }
       if(direct_explore > 0.5 && retry)
       {
@@ -387,7 +387,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
-         ros::Duration(0.5).sleep();
+         ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
       }
