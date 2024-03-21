@@ -1,0 +1,90 @@
+push up :
+state_x: 0.2937661111354828
+state_y: -0.0006143152713775635
+state_angle: 94.94622802734375
+v_x: 0.08000001311302185
+v_y: 0.0
+v_pitch: 0.0
+roll: 1.5
+grasp: 0.0
+lpos_x: 0.3400000035762787
+lpos_y: 0.0
+lpos_pitch: 1.0
+outcome_x: 0.07651200145483017
+outcome_y: 0.006916798185557127
+outcome_angle: -22.753662109375
+outcome_touch: 0.0
+
+pull down:
+
+state_x: 0.29495665431022644
+state_y: -0.0008486121078021824
+state_angle: 99.39950561523438
+v_x: -0.08000001311302185
+v_y: 0.0
+v_pitch: 0.0
+roll: 1.5
+grasp: 0.0
+lpos_x: 0.25999999046325684
+lpos_y: 0.0
+lpos_pitch: 1.2000000476837158
+outcome_x: -0.0623570941388607
+outcome_y: 0.02243410050868988
+outcome_angle: 42.124298095703125
+outcome_touch: 0.0
+
+
+left:
+
+state_x: 0.29493436217308044
+state_y: -0.0004654116928577423
+state_angle: 95.51118469238281
+v_x: -0.016990691423416138
+v_y: 0.09854601323604584
+v_pitch: 0.0
+roll: 0.0
+grasp: 0.0
+lpos_x: 0.28999999165534973
+lpos_y: 0.05000000074505806
+lpos_pitch: 1.0
+outcome_x: 0.009944492019712925
+outcome_y: 0.06256791949272156
+outcome_angle: 3.983734130859375
+outcome_touch: 0.0
+
+right:
+
+state_x: 0.2954915761947632
+state_y: -0.0014525835867971182
+state_angle: 95.50735473632812
+v_x: -0.022286616265773773
+v_y: -0.10771864652633667
+v_pitch: 0.0
+roll: 0.0
+grasp: 0.0
+lpos_x: 0.28999999165534973
+lpos_y: -0.05000000074505806
+lpos_pitch: 1.0
+outcome_x: 0.019443951547145844
+outcome_y: -0.08681072294712067
+outcome_angle: -11.394287109375
+outcome_touch: 0.0
+
+
+grasp:
+
+state_x: 0.29535263776779175
+state_y: -0.0020531993359327316
+state_angle: 95.72959899902344
+v_x: 0.02000001072883606
+v_y: 0.0
+v_pitch: 0.0
+roll: 0.0
+grasp: 1.0
+lpos_x: 0.30000001192092896
+lpos_y: 0.0
+lpos_pitch: 0.5
+outcome_x: 0.0
+outcome_y: 0.0
+outcome_angle: 0.0
+outcome_touch: 1.0
