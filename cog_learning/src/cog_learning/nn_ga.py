@@ -23,7 +23,7 @@ import random
 class NNGoalAction(object):
     def __init__(self, id_obj):
         self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
-        self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Float64, latch=True, queue_size=1)
+        self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
         self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
         self.pub_dmp = rospy.Publisher('/motion_pincher/activate_actions', ActionDmpDnf, queue_size=10)
@@ -89,9 +89,11 @@ class NNGoalAction(object):
         update_lp.value = error
         self.pub_update_lp.publish(update_lp)
         
-    def send_new_goal(self, val):
-        new_goal = Float64()
-        new_goal.data = val
+    def send_new_goal(self, data):
+        new_goal = Goal()
+        new_goal.x = data[0]
+        new_goal.y = data[1]
+        new_goal.value = 1.0
         self.pub_new_goal.publish(new_goal)
 
     def pub_timing(self, value):
@@ -522,11 +524,10 @@ class NNGoalAction(object):
             self.skills[ind_skill].add_to_memory(sample)
             self.skills[ind_skill].set_name(outcome_dnf)
             self.update_learning_progress(outcome_dnf,0.9)
-            self.send_new_goal(1.0)
+            self.send_new_goal(outcome_dnf)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
             self.update_learning_progress(outcome_dnf,0)
-            self.send_new_goal(0.0)
             self.pub_timing(0.0)
             self.end_action(True)
             rospy.sleep(1)
@@ -557,11 +558,10 @@ class NNGoalAction(object):
             self.skills[ind_skill].add_to_memory(sample)
             self.skills[ind_skill].set_name(outcome_dnf)
             self.update_learning_progress(outcome_dnf,0.9)
-            self.send_new_goal(1.0)
+            self.send_new_goal(outcome_dnf)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
             self.update_learning_progress(outcome_dnf,0)
-            self.send_new_goal(0.0)
             self.pub_timing(0.0)
             self.end_action(True)
             rospy.sleep(1)

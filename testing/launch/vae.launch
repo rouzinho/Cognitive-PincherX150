@@ -3,4 +3,5 @@
     <!-- <include file="$(find display_points)/launch/display.launch" />  -->
     <!-- <include file="$(find cog_learning)/launch/start_learning.launch" />  -->
     <include file="$(find habituation)/launch/habituation.launch" /> 
+    <include file="$(find vizualisation)/launch/recording.launch" /> 
 </launch>

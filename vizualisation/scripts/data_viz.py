@@ -3,6 +3,7 @@ from ossaudiodev import control_labels
 import kivy
 #kivy.require('2.0.0') # replace with your current kivy version !
 import rospy
+import copy
 # ROS Image message
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64
@@ -36,8 +37,9 @@ from playsound import playsound
 from kivy.uix.widget import Widget
 
 _DEFAULT_BACKGROUND_ACTIVE = (255/255, 245/255, 231/255, 0.0)
+_BLACK = (0/255, 0/255, 0/255, 0.8)
 _DEFAULT_BACKGROUND_NONACTIVE = (255/255, 245/255, 231/255, 1.0)
-_DEFAULT_WIDGET_ACTIVE = (1, 1, 1, 0.2)
+_DEFAULT_WIDGET_ACTIVE = (1, 1, 1, 0.7)
 _DEFAULT_WIDGET_NONACTIVE = (1, 1, 1, 0)
 _OBJECT_BLUE = (0.110, 0.427, 0.815, 0.1)
 _GREEN_LIGHT = (0.180, 0.690, 0.525, 0.9)
@@ -51,15 +53,17 @@ Window.clearcolor = (255/255, 245/255, 231/255, 0)
 Window.size = (1400, 800)
 
 class DataRecorder(object):
-    def __init__(self, name_topic):
+    def __init__(self, name_topic_error, name_data):
         super(DataRecorder, self).__init__()
         #rospy.init_node('DataRecorder')   
         self.bridge = CvBridge()
         self.cv2_img = None
+        self.name_data = name_data
         self.current_field = np.zeros((100,100))
         self.dim_field = [0,0]
         self.init_size = True
         self.size = 10
+        self.peaks = []
         self.list_peaks = []
         self.list_tmp_peaks = []
         self.list_lp = []
@@ -68,7 +72,7 @@ class DataRecorder(object):
         self.objects = []
         self.id_defined = False
         self.data_folder = rospy.get_param("data_folder")
-        self.sub = rospy.Subscriber(name_topic, Image, self.field_callback)
+        self.sub = rospy.Subscriber(name_topic_error, Image, self.field_callback)
         self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Goal, self.callbackOG)
         self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
         self.sub_time = rospy.Subscriber("/data_recorder/time", Float64, self.callback_time)
@@ -78,15 +82,17 @@ class DataRecorder(object):
         try:
             # Convert your ROS Image message to OpenCV2
             #print("got field")
-            self.cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
-            self.current_field = np.asarray(self.cv2_img)
+            cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
+            self.current_field = np.asarray(cv2_img)
         except CvBridgeError as e:
             print(e)
 
     def callbackOG(self,msg):
         p = [int(msg.x),int(msg.y),0.0]
         if not self.isInlist(p):
+            self.list_lp.append(p)
             self.list_peaks.append(p)
+            
         #print(self.list_peaks)
 
     def callback_object(self,msg):
@@ -99,44 +105,27 @@ class DataRecorder(object):
 
     def callback_time(self,msg):
         self.getValuePeaks()
-        self.getValueLPPeaks()
-        self.writeDatasError(msg.data)
-        self.writeDatasLP(msg.data)
+        self.writeDatas(msg.data)
 
 
     def getValuePeaks(self):
         for i in range(0,len(self.list_peaks)):
             val = self.current_field[self.list_peaks[i][1],self.list_peaks[i][0]]
             self.list_peaks[i][2] = val
-        #self.removeResidualPeaks()
+        #print("error ",self.list_peaks)
 
-        return self.list_peaks
-
-    def getValueLPPeaks(self):
-        self.list_lp = []
-        for i in range(0,len(self.list_tmp_peaks)):
-            val = self.current_field[self.list_tmp_peaks[i][1],self.list_tmp_peaks[i][0]]
-            t = [self.list_tmp_peaks[i][0],self.list_tmp_peaks[i][1],val]
-            self.list_lp.append(t)
-
-        return self.list_lp
+    
+    def get_errors(self):
+        #print("error ",self.list_peaks)
+        return copy.deepcopy(self.list_peaks)
 
     def isInlist(self,peak):
         inList = False
         for i in range(0,len(self.list_peaks)):
-            if self.list_peaks[i][0] <= peak[0] + 5 and self.list_peaks[i][0] >= peak[0] - 5:
-                if self.list_peaks[i][1] <= peak[1] + 5 and self.list_peaks[i][1] >= peak[1] - 5:
+            if self.list_peaks[i][0] <= peak[0] + 2 and self.list_peaks[i][0] >= peak[0] - 2:
+                if self.list_peaks[i][1] <= peak[1] + 2 and self.list_peaks[i][1] >= peak[1] - 2:
                     inList = True
 
-        return inList
-
-    def isInTMPlist(self,peak):
-        inList = False
-        for i in range(0,len(self.list_tmp_peaks)):
-            if self.list_tmp_peaks[i][0] <= peak[0] + 5 and self.list_tmp_peaks[i][0] >= peak[0] - 5:
-                if self.list_tmp_peaks[i][1] <= peak[1] + 5 and self.list_tmp_peaks[i][1] >= peak[1] - 5:
-                    inList = True
-                    
         return inList
 
     def setList(self, list_p):
@@ -149,53 +138,29 @@ class DataRecorder(object):
     def resetCurrentField(self):
         self.current_field = np.zeros((100,100))
 
-    def writeDatasError(self,time):
+    def writeDatas(self,time):
         name = self.data_folder + str(self.id) + "/"
         if self.id_defined:
-            #print("writing datas...")
             for i in range(0,len(self.list_peaks)):
-                n = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_ERROR.csv"
+                n = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_" + self.name_data + ".csv"
                 with open(n, 'a', newline='') as f_object:
                     writer_object = writer(f_object)
                     row = [time,self.list_peaks[i][2]]
                     writer_object.writerow(row)
                     f_object.close()
 
-    def writeDatasLP(self,time):
-        name = self.data_folder + str(self.id) + "/"
-        if self.id_defined:
-            for i in range(0,len(self.list_peaks)):
-                n = name + str(self.list_peaks[i][0])+"_"+str(self.list_peaks[i][1])+"_LP.csv"
-                with open(n, 'a', newline='') as f_object:
-                    writer_object = writer(f_object)
-                    row = [time,self.list_peaks[i][2]]
-                    writer_object.writerow(row)
-                    f_object.close()
-
-    def savePeaks(self,name_peaks):
+    def save_values(self,name_peaks):
         p = exists(name_peaks)
         if p:
             os.remove(name_peaks)
         filehandler = open(name_peaks, 'wb')
         pickle.dump(self.list_peaks, filehandler)
 
-    def loadPeaks(self,name_peaks):
+    def load_values(self,name_peaks):
         print("loading Peaks")
         filehandler = open(name_peaks, 'rb') 
         self.list_peaks = pickle.load(filehandler)
         print(self.list_peaks)
-
-class DmpListener(object):
-    def __init__(self):
-        super(DmpListener, self).__init__()
-        self.sub = rospy.Subscriber("/motion_panda/dmp_object_goal", Pose, self.callback_dmp)
-        self.goal = 0
-
-    def callback_dmp(self,msg):
-        self.goal = int(msg.position.y)
-
-    def getDmp(self):
-        return self.goal
 
 class ControlArch(object):
     def __init__(self):
@@ -296,8 +261,9 @@ class VisualDatas(App):
         self.steps = 0
         rospy.init_node('DataRecorder')
         rate = rospy.Rate(50)
-        self.dr_error_fwd = DataRecorder("/data_recorder/nnga")
-        self.dr_lp = DataRecorder("/data_recorder/lp")
+        self.data_folder = rospy.get_param("data_folder")
+        self.error = DataRecorder("/cog_learning/mt_error","ERROR")
+        self.lp = DataRecorder("/cog_learning/mt_lp","LP")
         self.node_rnd_explore = DataNodeRecorder("/data_recorder/node_rnd_explore","rnd_exploration")
         self.node_direct_explore = DataNodeRecorder("/data_recorder/node_direct_explore","direct_exploration")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
@@ -311,8 +277,8 @@ class VisualDatas(App):
         self.first = True
         self.n_exploit = True
         self.launch = True
-        self.name_time = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/time.pkl"
-        self.name_peaks = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/peaks.pkl"
+        self.name_time = self.data_folder + "time.pkl"
+        self.name_peaks = self.data_folder + "peaks.pkl"
         self.working_dir = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/"
         self.dmp_dir = "/home/altair/PhD/Codes/catkin_noetic/rosbags/experiment/dmp/"
         self.mode_record = "Start"
@@ -331,18 +297,18 @@ class VisualDatas(App):
         self.cv2_lp = None
         self.cv2_inhib = None
         self.bridge = CvBridge()
-        rospy.Subscriber("/data_recorder/nnga", Image, self.nnga_callback)
-        rospy.Subscriber("/data_recorder/vae", Image, self.vae_callback)
-        rospy.Subscriber("/data_recorder/lp", Image, self.lp_callback)
-        rospy.Subscriber("/data_recorder/inhib", Image, self.inhib_callback)
+        rospy.Subscriber("/cog_learning/mt_error", Image, self.error_callback)
+        rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)
+        rospy.Subscriber("/cog_learning/mt_lp", Image, self.lp_callback)
+        rospy.Subscriber("/habituation/action/mt", Image, self.vae_act_callback)
 
         self.count_img = 0
 
-    def nnga_callback(self,msg):
+    def error_callback(self,msg):
         upscale = (200, 200)
         if self.count_img > 10:
             try:
-                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg"
+                name = self.data_folder + "error.jpg"
                 self.cv2_img = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_img, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
@@ -356,7 +322,7 @@ class VisualDatas(App):
         upscale = (200, 200)
         if self.count_img > 10:
             try:
-                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg"
+                name = self.data_folder + "vae_out.jpg"
                 self.cv2_mt = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_mt, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
@@ -368,7 +334,7 @@ class VisualDatas(App):
         upscale = (200, 200)
         if self.count_img > 10:
             try:
-                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/lp.jpg"
+                name = self.data_folder + "lp.jpg"
                 self.cv2_lp = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_lp, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
@@ -376,11 +342,11 @@ class VisualDatas(App):
             except CvBridgeError as e:
                 print(e)
 
-    def inhib_callback(self,msg):
+    def vae_act_callback(self,msg):
         upscale = (200, 200)
         if self.count_img > 10:
             try:
-                name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/inhib.jpg"
+                name = self.data_folder + "vae_act.jpg"
                 self.cv2_inhib = self.bridge.imgmsg_to_cv2(msg, "32FC1")
                 resized_up = cv2.resize(self.cv2_inhib, upscale, interpolation= cv2.INTER_LINEAR)
                 img = resized_up.astype("float32")*255
@@ -423,12 +389,6 @@ class VisualDatas(App):
         for i in dmptr:
             file = self.dmp_dir + i
             os.remove(file)
-
-    def checkNumberSkills(self):
-        l_error = self.dr_error_fwd.getValuePeaks()
-        size_l = len(l_error)
-        if self.name_object == "cylinder" and size_l > 5:
-            self.too_many = True
 
     def startExploration(self):
         self.control_arch.publishExpl(True)
@@ -474,24 +434,24 @@ class VisualDatas(App):
             r.data = True
             self.pub_pause.publish(r)
             self.saveTime()
-            self.dr_error_fwd.savePeaks(self.name_peaks)
-            self.dr_lp.savePeaks(self.name_peaks)
+            self.error.save_values(self.name_peaks)
+            self.lp.save_values()
             self.record = False
 
     def load_datas(self):
         self.loadTime()
-        self.dr_error_fwd.loadPeaks(self.name_peaks)
-        self.dr_lp.loadPeaks(self.name_peaks)
+        self.error.load_values(self.name_peaks)
+        self.lp.load_values(self.name_peaks)
 
     def update_image(self,dt):
-        self.mt_error = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/nnga.jpg"
-        self.mt_lp = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/lp.jpg"
-        self.mt_vae = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/vae.jpg"
-        self.mt_inhib = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/inhib.jpg"
-        self.root.children[1].children[2].children[0].reload() #nnga
+        self.mt_error = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/error.jpg"
+        self.mt_lp = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/lp.jpg"
+        self.mt_vae = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/vae_out.jpg"
+        self.mt_inhib = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/vae_act.jpg"
+        self.root.children[1].children[2].children[0].reload() #error
         self.root.children[1].children[1].children[0].reload() #lp
-        self.root.children[1].children[3].children[0].reload() #vae
-        self.root.children[1].children[4].children[0].reload() #inhib
+        self.root.children[1].children[3].children[0].reload() #vae_out
+        self.root.children[1].children[4].children[0].reload() #vae_act
         #print(self.root.children[1].children[4].children[0].source)
 
     def update_events(self, dt):
@@ -517,7 +477,7 @@ class VisualDatas(App):
             self.keep_exploit = True
             """if self.n_exploit == True:
                 self.saveTime()
-                self.dr_error_fwd.savePeaks(self.name_peaks)
+                self.error.save_values(self.name_peaks)
                 self.copy_datas_explore(self.name_object,self.experiment,self.index)
                 self.n_exploit = False"""
         else:
@@ -538,10 +498,10 @@ class VisualDatas(App):
         #if tmp_dmp > 0 and tmp_dmp != self.current_dmp:
             #self.update_image(int(tmp_dmp))
             #self.current_dmp = tmp_dmp
-        list_error_fwd = self.dr_error_fwd.getValuePeaks()
-        #print(list_error_fwd)
-        list_lp = self.dr_lp.getValuePeaks()
+        list_error_fwd = self.error.get_errors()
+        list_lp = self.lp.get_errors()
         size_l = len(list_error_fwd)
+
         if self.record == True:
             if self.first == True:
                 self.time = 0
@@ -550,7 +510,7 @@ class VisualDatas(App):
                 t = Float64()
                 t.data = self.time
                 self.pub_time.publish(t)
-                #self.dr_error_fwd.writeDatasError(int(self.time))
+                #self.error.writeDatasError(int(self.time))
                 #self.dr_lp.writeDatasLP(int(self.time))
                 #self.goal_r.writeCurrentGoal(int(self.time))
                 #self.node_explore.writeValue(int(self.time))
@@ -566,8 +526,8 @@ class VisualDatas(App):
                 lp = 1.0
             self.root.children[0].children[i].value_normalized_error = err
             self.root.children[0].children[i].value_normalized = lp
-            self.root.children[0].children[i].value_error_string = str(err*100)
-            self.root.children[0].children[i].value_lp = str(lp*100)
+            self.root.children[0].children[i].value_error_string = str(round(err*100))
+            self.root.children[0].children[i].value_lp = str(round(lp*100))
             self.root.children[0].children[i].value_normalized_goal = str(int(list_error_fwd[i][1]))
             if list_error_fwd[i][0] < 30:
                 self.root.children[0].children[i].value_object = 0
@@ -903,3 +863,4 @@ if __name__ == '__main__':
     #rospy.init_node('DataRecorder')
     #rate = rospy.Rate(50)
     VisualDatas().run()
+    

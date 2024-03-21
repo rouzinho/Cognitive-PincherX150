@@ -31,7 +31,7 @@ _DEFAULT_BACKGROUND_COLOUR = (0.26, 0.26, 0.26, 0.3)
 _DEFAULT_MAX_PROGRESS = 100
 _DEFAULT_MIN_PROGRESS = 0
 _DEFAULT_WIDGET_SIZE = 200
-_DEFAULT_TEXT_LABEL = Label(text="{}%", font_size=40)
+_DEFAULT_TEXT_LABEL = Label(text="{}%", font_size=40, color=(1,0,0,0.7))
 
 # Declare the defaults for the normalisation function, these are used in the textual representation (multiplied by 100)
 _NORMALISED_MAX = 1

@@ -121,8 +121,7 @@ class Motion(object):
     rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
     rospy.Subscriber('/motion_pincher/dmp_direct_exploration', Dmp, self.callback_dmp_direct_exploration)
     rospy.Subscriber('/motion_pincher/retrieve_dmp', Dmp, self.callback_dmp)
-    rospy.Subscriber('/cluster_msg/signal', Bool, self.callback_ready)
-    rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
+    rospy.Subscriber('/cluster_msg/signal', Float64, self.callback_ready)
     rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
     rospy.Subscriber("/motion_pincher/activate_actions", ActionDmpDnf, self.callback_actions)
 
@@ -160,6 +159,7 @@ class Motion(object):
     if self.direct_explore and len(self.poses) == 0:
       self.poses.append(tmp)
       self.ready = True
+    print(self.exploit)
     if self.exploit and len(self.poses) == 0:
       self.poses.append(tmp)
       self.ready = True
@@ -222,23 +222,16 @@ class Motion(object):
       self.exploit = False
 
   def callback_ready(self,msg):
-    self.ready = msg.data
+    if msg.data > 0.5:
+      self.ready = True
+    else:
+      self.ready = False
 
   def get_ready(self):
     return self.ready
   
   def set_seady(self,val):
     self.ready = val
-
-  def callback_id(self,msg):
-    self.id_object = msg.data
-    if self.prev_id_object != self.id_object:
-      path = os.path.join(self.dmp_folder, str(self.id_object))
-      access = 0o755
-      if not os.path.isdir(path):
-        os.makedirs(path,access)
-      self.current_folder = self.dmp_folder + str(self.id_object) + "/"
-      self.prev_id_object = self.id_object
 
   def callback_dmp_direct_exploration(self,msg):
     self.dmp_direct_explore.v_x = msg.v_x
@@ -256,7 +249,7 @@ class Motion(object):
     self.possible_dnf = []
     for i in msg.list_action:
       tmp_a = [i.v_x,i.v_y,i.v_pitch,i.roll,i.grasp]
-      tmp_dnf = [i.dnx_x,i.dnf_y]
+      tmp_dnf = [i.dnf_x,i.dnf_y]
       self.possible_action.append(tmp_a)
       self.possible_dnf.append(tmp_dnf)
   
@@ -336,10 +329,10 @@ class Motion(object):
     self.ready = False
     self.send_state(True)
     print("RANDOM EXPLORATION")
-    r = random.choice(self.possible_roll)
-    g = random.choice(self.possible_grasp)
-    #r = 0
-    #g = 1
+    #r = random.choice(self.possible_roll)
+    #g = random.choice(self.possible_grasp)
+    r = 0
+    g = 1
     self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
     self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
     self.dmp_explore.v_pitch = self.poses[1].pitch - self.poses[0].pitch
@@ -443,6 +436,7 @@ class Motion(object):
     s = len(self.possible_action)
     choice = random.randint(0,s-1)
     dmp_choice = self.possible_action[choice]
+    print("choosing action : ",dmp_choice)
     dmp_exploit = Dmp()
     dmp_exploit.v_x = dmp_choice[0]
     dmp_exploit.v_y = dmp_choice[1]
@@ -452,8 +446,10 @@ class Motion(object):
     dmp_exploit.fpos_x = self.poses[0].x
     dmp_exploit.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(dmp_exploit)
+    print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()
     dnf_choice = self.possible_dnf[choice]
+    print("DNF : ",dnf_choice)
     lat_action.latent_x = dnf_choice[0]
     lat_action.latent_y = dnf_choice[1]
     self.pub_dnf_action.publish(lat_action)
@@ -572,7 +568,7 @@ if __name__ == '__main__':
       motion_pincher.execute_direct_exploration()
       #motion_pincher.send_signal_action()
     if motion_pincher.get_exploit() and motion_pincher.get_number_pose() == 1 and motion_pincher.get_ready():
-      motion_pincher.execute_dmp()
+      motion_pincher.execute_exploitation()
   #if first:
   #  motion_pincher.test_interface()
     #motion_pincher.run_possibilities()
