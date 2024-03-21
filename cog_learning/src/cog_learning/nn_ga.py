@@ -37,7 +37,7 @@ class NNGoalAction(object):
         self.mt_error = np.zeros((100,100,1), np.float32)
         self.mt_lp = np.zeros((100,100,1), np.float32)
         self.mt_action = np.zeros((100,100,1), np.float32)
-        torch.manual_seed(3407)
+        torch.manual_seed(3402)
         self.encoder_outcome = MultiLayerEncoder(4,2)#9,6,4,2
         self.encoder_outcome.to(device)
         self.decoder_outcome = MultiLayerDecoder(2,4,6,4)
@@ -67,10 +67,10 @@ class NNGoalAction(object):
         self.max_y = 0.32
         self.min_pitch = 0
         self.max_pitch = 1.5
-        self.min_vx = -0.15
-        self.max_vx = 0.15
-        self.min_vy = -0.15
-        self.max_vy = 0.15
+        self.min_vx = -0.12
+        self.max_vx = 0.12
+        self.min_vy = -0.12
+        self.max_vy = 0.12
         self.min_vpitch = -1.2
         self.max_vpitch = 1.2
         self.min_roll = -1.5
@@ -79,8 +79,8 @@ class NNGoalAction(object):
         self.max_grasp = 1
         self.min_angle = -180
         self.max_angle = 180
-        self.min_scale = -1.3
-        self.max_scale = 1.3
+        self.min_scale = -1.7
+        self.max_scale = 1.7
         
     def update_learning_progress(self, data, error):
         update_lp = Goal()

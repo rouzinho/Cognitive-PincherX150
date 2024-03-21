@@ -134,34 +134,31 @@ if __name__ == "__main__":
    actions = []
    states = []
    dnf = []
-   outcome1 = [0.1,0.1,40.0,0.0]
-   dmp1 = [0.1,0.1,1.0,0.5,0.0,0.1,0.1]
-   action1 = [0.2,0.2,1.0]
-   state1 = [0.2,0.2,20.0]
-   outcome2 = [0.1,0.0,10.0,0.0]
-   dmp2 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
-   action2 = [0.2,0.2,1.2]
-   state2 = [0.3,0.1,60.0]
-   #outcome2 = [-0.1,-0.1,10.0,0.0]
-   #dmp2 = [-0.1,-0.1,0.2,0.1,0.0]
-   #action2 = [0.2,0.2,1.2]
-   #state2 = [0.3,0.1,60.0]
-   #outcome3 = [0.1,0.0,100.0,0.0]
-   #dmp3 = [0.1,0.0,0.3,-0.5,0.0]
-   #action3 = [0.19,0.1,0.5]
-   #state3 = [0.3,-0.1,100.0]
-   outcome3 = [0.0,0.0,45.0,0.0]
-   dmp3 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
-   action3 = [0.19,0.1,0.5]
-   state3 = [0.3,-0.1,100.0]
-   outcome4 = [0.1,0.1,40.0,0.0]
-   dmp4 = [0.1,0.2,0.6,0.0,1.0,0.2,0.3]
-   action4 = [0.5,-0.1,1.2]
-   state4 = [0.3,-0.2,80.0]
-   outcome5 = [0.1,0.0,10.0,0.0]
-   dmp5 = [0.1,0.0,0.2,0.1,0.0,0.15,0.0]
-   action5 = [0.35,-0.1,1.0]
-   state5 = [0.2,0.3,110.0]
+   #up
+   outcome1 = [0.07,0.0,-22.0,0.0]
+   dmp1 = [0.08,0.0,0.0,1.5,0.0,0.1,0.1]
+   action1 = [0.34,0.0,1.0]
+   state1 = [0.29,0.0,94.9]
+   #down
+   outcome2 = [-0.06,0.02,42.0,0.0]
+   dmp2 = [-0.08,0.0,0.0,1.5,0.0,0.15,0.0]
+   action2 = [0.26,0.0,1.2]
+   state2 = [0.29,0.0,99.4]
+   #left
+   outcome3 = [0.0,0.06,4.0,0.0]
+   dmp3 = [-0.01,0.09,0.0,0.0,0.0,0.15,0.0]
+   action3 = [0.29,0.05,1.0]
+   state3 = [0.3,0.0,95.5]
+   #right
+   outcome4 = [0.02,-0.08,-11.4,0.0]
+   dmp4 = [-0.02,-0.1,0.0,0.0,0.0,0.2,0.3]
+   action4 = [0.29,-0.05,1.0]
+   state4 = [0.29,0.0,95.5]
+   #grasp
+   outcome5 = [0.0,0.0,0.0,1.0]
+   dmp5 = [0.02,0.0,0.0,0.0,1.0,0.15,0.0]
+   action5 = [0.3,0.0,0.5]
+   state5 = [0.29,0.0,95.7]
    
    outcome6 = [0.0,0.0,0.0,1.0]
    dmp6 = [0,-0.1,0.0,0.0,0.0,1.0,0.19,0.23]
@@ -236,7 +233,7 @@ if __name__ == "__main__":
    dnf.append([41,41])
    dnf.append([76,44])
    i = rospy.get_param("i")
-   #i = 0
+   i = 0
    seconds = 0
    explore = True
    first = True
@@ -244,7 +241,7 @@ if __name__ == "__main__":
       test.pub_exploration()
       #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and first):
+         if(test.get_ready() and i < 5):
             print(i)
             #if i == 2:
             #   print("change object")
@@ -259,8 +256,8 @@ if __name__ == "__main__":
             test.publish_outcome(data[i][0])
             test.set_ready(False)
             first = False
-            #i += 1
-            #rospy.sleep(4.5)
+            i += 1
+            rospy.sleep(4.5)
       else:
          #test.pub_exploitation()
          test.send_id(0)

@@ -629,10 +629,10 @@ class Habituation(object):
       self.habit = []
       self.vae_action = []
       self.max_pitch = 1.5
-      self.min_vx = -0.15
-      self.max_vx = 0.15
-      self.min_vy = -0.15
-      self.max_vy = 0.15
+      self.min_vx = -0.12
+      self.max_vx = 0.12
+      self.min_vy = -0.12
+      self.max_vy = 0.12
       self.min_vpitch = -1.2
       self.max_vpitch = 1.2
       self.min_roll = -1.5
