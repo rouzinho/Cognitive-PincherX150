@@ -31,7 +31,7 @@ _DEFAULT_BACKGROUND_COLOUR = (0.26, 0.26, 0.26, 0.3)
 _DEFAULT_MAX_PROGRESS = 100
 _DEFAULT_MIN_PROGRESS = 0
 _DEFAULT_WIDGET_SIZE = 200
-_DEFAULT_TEXT_LABEL = Label(text="{}%", font_size=40, color=(1,0,0,0.7))
+_DEFAULT_TEXT_LABEL = Label(text="{}%", font_size=40, color=(0,0,0,0.7))
 
 # Declare the defaults for the normalisation function, these are used in the textual representation (multiplied by 100)
 _NORMALISED_MAX = 1
@@ -688,7 +688,7 @@ class CircularProgressBar(Widget):
                  width=self._thickness, cap=self._cap_style, cap_precision=self._cap_precision)
 
             # Center and draw the progress text
-            Color(0.933,0.902,0.807,1)
+            Color(0.8,0.0,0.0,1)
             Rectangle(texture=self._text_error_string.texture, size=self._error_size_string,
                       pos=(self._widget_size / 2 - self._error_size_string[0] / 2 + self.pos[0],
                            self._widget_size / 0.6 - self._error_size_string[1] / 2 + self.pos[1]))
@@ -705,7 +705,7 @@ class CircularProgressBar(Widget):
                  width=self._thickness, cap=self._cap_style, cap_precision=self._cap_precision)
 
             # Center and draw the progress text
-            Color(0.933,0.902,0.807,1)
+            Color(0.0,0.4,0.2,1)
             Rectangle(texture=self._text_lp.texture, size=self._lp_size,
                       pos=(self._widget_size / 2 - self._lp_size[0] / 2 + self.pos[0],
                            self._widget_size / 1 - self._lp_size[1] / 2 + self.pos[1]))
@@ -717,17 +717,17 @@ class CircularProgressBar(Widget):
                            self._widget_size / 3 - self._goal_size[1] / 3 + self.pos[1]))
 
             if self.value_object == 0:
-                Color(0,0.0,9,0.7)
+                Color(0,1.0,0,0.7)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))
             if self.value_object == 1:
-                Color(0.9,0.9,0.0,0.9)
+                Color(0.0,1.0,0.0,0.9)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))
             if self.value_object == 2:
-                Color(0.9,0.0,0.0,0.9)
+                Color(0.0,1.0,0.0,0.9)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))

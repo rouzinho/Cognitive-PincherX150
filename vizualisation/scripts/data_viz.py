@@ -244,8 +244,8 @@ class VisualDatas(App):
     explore_rnd = ListProperty([0.26, 0.26, 0.26, 0.3])
     explore_direct = ListProperty([0.26, 0.26, 0.26, 0.3])
     exploit = ListProperty([0.26, 0.26, 0.26, 0.3])
-    learning_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
-    retrieve_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
+    #learning_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
+    #retrieve_dmp = ListProperty([0.26, 0.26, 0.26, 0.3])
     start_record = ListProperty([48/255,84/255,150/255,1])
     stop_record = ListProperty([0.26, 0.26, 0.26, 0.3])
     name_record = StringProperty('Start')
@@ -652,9 +652,9 @@ BoxLayout:
         BoxLayout:
             orientation: 'horizontal'
             size: 400, 55
-            pos: 0, 400
+            pos: 0, 500
             size_hint: (None,None)
-            padding: 10
+            padding: 30
             spacing: 15
             Label:
                 text_size: self.size
@@ -662,14 +662,8 @@ BoxLayout:
                 halign: 'center'
                 valign: 'middle'
                 font_size: 18
-                text: "Learning DMP"
-                canvas.before:
-                    Color:
-                        rgba: app.learning_dmp
-                    RoundedRectangle:
-                        size: self.size
-                        pos: self.pos
-                        radius: [15]
+                text: "VAE outcome"
+                color: 0, 0, 0, 0.8
             Label:
                 text_size: self.size
                 size: self.texture_size
@@ -677,14 +671,8 @@ BoxLayout:
                 valign: 'middle'
                 #pos: 0, -100
                 font_size: 18
-                text: "Retrieve DMP"
-                canvas.before:
-                    Color:
-                        rgba: app.retrieve_dmp
-                    RoundedRectangle:
-                        size: self.size
-                        pos: self.pos
-                        radius: [15]    
+                text: "VAE action"
+                color: 0, 0, 0, 0.8   
         FloatLayout:
             pos: 100,100
             Image:
