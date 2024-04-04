@@ -232,13 +232,13 @@ if __name__ == "__main__":
    dnf.append([21,10])
    dnf.append([41,41])
    dnf.append([76,44])
-   i = rospy.get_param("i")
+   #i = rospy.get_param("i")
    i = 0
    seconds = 0
    explore = True
    first = True
    while not rospy.is_shutdown():
-      test.pub_exploration()
+      #test.pub_exploration()
       #test.pub_exploitation()
       if explore:
          if(test.get_ready() and i < 5):

@@ -435,7 +435,7 @@ class VisualDatas(App):
             self.pub_pause.publish(r)
             self.saveTime()
             self.error.save_values(self.name_peaks)
-            self.lp.save_values()
+            self.lp.save_values(self.name_peaks)
             self.record = False
 
     def load_datas(self):
@@ -662,7 +662,7 @@ BoxLayout:
                 halign: 'center'
                 valign: 'middle'
                 font_size: 18
-                text: "VAE outcome"
+                text: "VAE action"
                 color: 0, 0, 0, 0.8
             Label:
                 text_size: self.size
@@ -671,7 +671,7 @@ BoxLayout:
                 valign: 'middle'
                 #pos: 0, -100
                 font_size: 18
-                text: "VAE action"
+                text: "VAE outcome"
                 color: 0, 0, 0, 0.8   
         FloatLayout:
             pos: 100,100
