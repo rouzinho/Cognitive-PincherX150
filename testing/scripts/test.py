@@ -237,6 +237,7 @@ if __name__ == "__main__":
    seconds = 0
    explore = True
    first = True
+   #[67, 79, 0.9], [38, 72, 0.9], [42, 85, 0.9], [67, 51, 0.9], [56, 73, 0.9] order of skills
    while not rospy.is_shutdown():
       #test.pub_exploration()
       #test.pub_exploitation()
