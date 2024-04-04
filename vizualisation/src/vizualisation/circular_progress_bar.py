@@ -717,17 +717,17 @@ class CircularProgressBar(Widget):
                            self._widget_size / 3 - self._goal_size[1] / 3 + self.pos[1]))
 
             if self.value_object == 0:
-                Color(0,1.0,0,0.7)
+                Color(0,0.4,0,0.9)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))
             if self.value_object == 1:
-                Color(0.0,1.0,0.0,0.9)
+                Color(0.0,0.4,0.0,0.9)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))
             if self.value_object == 2:
-                Color(0.0,1.0,0.0,0.9)
+                Color(0.0,0.4,0.0,0.9)
                 Ellipse(pos=(self._widget_size  - self._goal_size[0] + self.pos[0] -15,
                            self._widget_size / 10 - self._goal_size[1] / 10 + self.pos[1]), 
                            size=(25, 25))

@@ -297,6 +297,8 @@ class VisualDatas(App):
         self.cv2_lp = None
         self.cv2_inhib = None
         self.bridge = CvBridge()
+        self.coded_skills = [[67, 79], [38, 72], [42, 85], [67, 51], [56, 73]] 
+        self.explicit_skills = ["up","down","left","right","grasp"]
         rospy.Subscriber("/cog_learning/mt_error", Image, self.error_callback)
         rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)
         rospy.Subscriber("/cog_learning/mt_lp", Image, self.lp_callback)
@@ -528,7 +530,8 @@ class VisualDatas(App):
             self.root.children[0].children[i].value_normalized = lp
             self.root.children[0].children[i].value_error_string = str(round(err*100))
             self.root.children[0].children[i].value_lp = str(round(lp*100))
-            self.root.children[0].children[i].value_normalized_goal = str(int(list_error_fwd[i][1]))
+            #self.root.children[0].children[i].value_normalized_goal = str(int(list_error_fwd[i][0])) + "_" + str(int(list_error_fwd[i][1]))
+            self.root.children[0].children[i].value_normalized_goal = self.explicit_skills[i]
             if list_error_fwd[i][0] < 30:
                 self.root.children[0].children[i].value_object = 0
             if list_error_fwd[i][0] > 30 and list_error_fwd[i][0] < 60:
