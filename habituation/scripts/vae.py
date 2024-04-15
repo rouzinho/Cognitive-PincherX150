@@ -565,7 +565,7 @@ class VariationalAE(object):
             os.remove(n_latent_bounds)
             os.remove(n_latent_max_bounds)
             os.remove(n_mtlatent)
-         print("write MT")
+         #print("write MT")
          np.save(n_mtlatent,self.mt_field)
          filehandler = open(n_mem, 'wb')
          pickle.dump(self.memory, filehandler)

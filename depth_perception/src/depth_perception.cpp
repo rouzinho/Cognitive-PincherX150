@@ -178,7 +178,7 @@ class DepthImage
       count = 0;
       threshold = 5;
       start = true;
-      threshold_change = 45;
+      threshold_change = 38;
       out_boundary = false;
       init_values = false;
       first_gen = true;

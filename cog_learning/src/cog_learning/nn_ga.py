@@ -156,7 +156,7 @@ class NNGoalAction(object):
         self.pub_latent_space_display_out.publish(msg_latent)
     
     def save_memory(self):
-        print("save datas...")
+        #print("save datas...")
         n_mem = self.folder_nnga + str(self.id_nnga) + "/memory_samples.pkl"
         n_latent = self.folder_nnga + str(self.id_nnga) + "/latent_space.pkl"
         n_latent_scaled = self.folder_nnga + str(self.id_nnga) + "/latent_space_scaled.pkl"
