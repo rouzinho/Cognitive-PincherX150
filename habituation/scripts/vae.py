@@ -148,7 +148,8 @@ class VariationalAE(object):
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.scale_factor = 40
+      self.scale_factor = rospy.get_param("scale_factor")
+      #self.scale_factor = 40
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
@@ -912,7 +913,7 @@ class Habituation(object):
          self.send_eval_outcome(lat_one)
          #for actions
          lat_one_act, lat_minus_act, dis_one_act, dis_minus_act = self.vae_action[self.index_vae].get_latent_dnf_split(tensor_action)
-         print("eval action : ",lat_one_act)
+         #print("eval action : ",lat_one_act)
          self.send_latent_space_action_minus(lat_minus_act)
          self.send_eval_action(lat_one_act)
          #for display
