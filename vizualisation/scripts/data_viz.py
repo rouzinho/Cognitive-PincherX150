@@ -54,12 +54,13 @@ Window.clearcolor = (255/255, 245/255, 231/255, 0)
 Window.size = (1400, 800)
 
 class DataRecorder(object):
-    def __init__(self, name_topic_error, name_data):
+    def __init__(self, name_topic_error, name_data, rec_inv):
         super(DataRecorder, self).__init__()
         #rospy.init_node('DataRecorder')   
         self.bridge = CvBridge()
         self.cv2_img = None
         self.name_data = name_data
+        self.rec_inv = rec_inv
         self.current_field = np.zeros((100,100))
         self.dim_field = [0,0]
         self.init_size = True
@@ -67,6 +68,7 @@ class DataRecorder(object):
         self.peaks = []
         self.list_peaks = []
         self.list_tmp_peaks = []
+        self.list_inv = []
         self.list_lp = []
         self.prev_id = -1 
         self.id = -1
@@ -75,6 +77,7 @@ class DataRecorder(object):
         self.data_folder = rospy.get_param("data_folder")
         self.sub = rospy.Subscriber(name_topic_error, Image, self.field_callback)
         self.sub_og = rospy.Subscriber("/intrinsic/new_goal", Goal, self.callbackOG)
+        self.sub_og = rospy.Subscriber("/intrinsic/inverse_error", Goal, self.callback_inv)
         self.sub_id = rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_object)
         self.sub_time = rospy.Subscriber("/data_recorder/time", Float64, self.callback_time)
 
@@ -95,6 +98,12 @@ class DataRecorder(object):
             self.list_peaks.append(p)
             
         #print(self.list_peaks)
+            
+    def callback_inv(self,msg):
+        if self.rec_inv:
+            p = [int(msg.x),int(msg.y),msg.value]
+            if not self.isIn_inv_list(p):
+                self.list_inv.append(p)
 
     def callback_object(self,msg):
         self.id = msg.data
@@ -107,7 +116,8 @@ class DataRecorder(object):
     def callback_time(self,msg):
         self.getValuePeaks()
         self.writeDatas(msg.data)
-
+        if self.rec_inv:
+            self.write_inverse_datas(msg.data)
 
     def getValuePeaks(self):
         for i in range(0,len(self.list_peaks)):
@@ -125,6 +135,15 @@ class DataRecorder(object):
         for i in range(0,len(self.list_peaks)):
             if self.list_peaks[i][0] <= peak[0] + 2 and self.list_peaks[i][0] >= peak[0] - 2:
                 if self.list_peaks[i][1] <= peak[1] + 2 and self.list_peaks[i][1] >= peak[1] - 2:
+                    inList = True
+
+        return inList
+    
+    def isIn_inv_list(self,peak):
+        inList = False
+        for i in range(0,len(self.list_inv)):
+            if self.list_inv[i][0] <= peak[0] + 2 and self.list_inv[i][0] >= peak[0] - 2:
+                if self.list_inv[i][1] <= peak[1] + 2 and self.list_inv[i][1] >= peak[1] - 2:
                     inList = True
 
         return inList
@@ -150,6 +169,17 @@ class DataRecorder(object):
                     writer_object.writerow(row)
                     f_object.close()
 
+    def write_inverse_datas(self,time):
+        name = self.data_folder + str(self.id) + "/"
+        if self.id_defined:
+            for i in range(0,len(self.list_inv)):
+                n = name + str(self.list_inv[i][0])+"_"+str(self.list_inv[i][1])+"_INV.csv"
+                with open(n, 'a', newline='') as f_object:
+                    writer_object = writer(f_object)
+                    row = [time,self.list_inv[i][2]]
+                    writer_object.writerow(row)
+                    f_object.close()
+
     def save_values(self,name_peaks):
         p = exists(name_peaks)
         if p:
@@ -157,11 +187,24 @@ class DataRecorder(object):
         filehandler = open(name_peaks, 'wb')
         pickle.dump(self.list_peaks, filehandler)
 
+    def save_inverse_values(self,name_peaks):
+        p = exists(name_peaks)
+        if p:
+            os.remove(name_peaks)
+        filehandler = open(name_peaks, 'wb')
+        pickle.dump(self.list_inv, filehandler)
+
     def load_values(self,name_peaks):
         print("loading Peaks")
         filehandler = open(name_peaks, 'rb') 
         self.list_peaks = pickle.load(filehandler)
         print(self.list_peaks)
+
+    def load_inverse_values(self,name_peaks):
+        print("loading Peaks")
+        filehandler = open(name_peaks, 'rb') 
+        self.list_inv = pickle.load(filehandler)
+        #print(self.list_peaks)
 
 class ControlArch(object):
     def __init__(self):
@@ -268,8 +311,8 @@ class VisualDatas(App):
         rospy.init_node('DataRecorder')
         rate = rospy.Rate(50)
         self.data_folder = rospy.get_param("data_folder")
-        self.error = DataRecorder("/cog_learning/mt_error","ERROR")
-        self.lp = DataRecorder("/cog_learning/mt_lp","LP")
+        self.error = DataRecorder("/cog_learning/mt_error","ERROR",True)
+        self.lp = DataRecorder("/cog_learning/mt_lp","LP",False)
         self.node_rnd_explore = DataNodeRecorder("/data_recorder/node_rnd_explore","rnd_exploration")
         self.node_direct_explore = DataNodeRecorder("/data_recorder/node_direct_explore","direct_exploration")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
@@ -285,6 +328,7 @@ class VisualDatas(App):
         self.launch = True
         self.name_time = self.data_folder + "time.pkl"
         self.name_peaks = self.data_folder + "peaks.pkl"
+        self.name_inv_peaks = self.data_folder + "inv_peaks.pkl"
         self.working_dir = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/"
         self.dmp_dir = "/home/altair/PhD/Codes/catkin_noetic/rosbags/experiment/dmp/"
         self.mode_record = "Start"
@@ -452,12 +496,14 @@ class VisualDatas(App):
             self.pub_pause.publish(r)
             self.saveTime()
             self.error.save_values(self.name_peaks)
+            self.error.save_inverse_values(self.name_inv_peaks)
             self.lp.save_values(self.name_peaks)
             self.record = False
 
     def load_datas(self):
         self.loadTime()
         self.error.load_values(self.name_peaks)
+        self.error.load_inverse_values(self.name_inv_peaks)
         self.lp.load_values(self.name_peaks)
 
     def update_image(self,dt):

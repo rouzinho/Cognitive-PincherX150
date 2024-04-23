@@ -13,6 +13,7 @@ import random
 import math
 from os import path
 import os
+import shutil
 from os import listdir
 from os.path import isfile, join
 from torch.distributions.normal import Normal
@@ -701,6 +702,8 @@ class Habituation(object):
       self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
+      else:
+         self.rm_samples()
 
    def field_callback(self,msg):
       try:
@@ -752,6 +755,25 @@ class Habituation(object):
          self.exploitation = True
          if not self.change:
             self.change = True
+
+   def rm_samples(self):
+      n_rec = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/"
+      n_hab = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/habituation/0/"
+      n_nnga = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/nn_ga/0/"
+      if os.path.isfile(n_rec+"peaks.pkl"):
+         os.remove(n_rec+"peaks.pkl")
+      if os.path.isfile(n_rec+"time.pkl"):
+         os.remove(n_rec+"time.pkl")
+      if os.path.isfile(n_rec+"inv_peaks.pkl"):
+         os.remove(n_rec+"inv_peaks.pkl")
+      if os.path.isdir(n_rec+"-1/"):
+         shutil.rmtree(n_rec+"-1/")
+      if os.path.isdir(n_rec+"0/"):
+         shutil.rmtree(n_rec+"0/")
+      if os.path.isdir(n_hab):
+         shutil.rmtree(n_hab)
+      if os.path.isdir(n_nnga):
+         shutil.rmtree(n_nnga)
 
    #scale inputs from real values to [-1,1]
    def scale_data(self, data, min_, max_):

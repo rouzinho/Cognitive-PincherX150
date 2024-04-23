@@ -23,6 +23,7 @@ import random
 class NNGoalAction(object):
     def __init__(self, id_obj):
         self.pub_update_lp = rospy.Publisher('/intrinsic/goal_error', Goal, latch=True, queue_size=1)
+        self.pub_update_inverse = rospy.Publisher('/intrinsic/inverse_error', Goal, latch=True, queue_size=1)
         self.pub_new_goal = rospy.Publisher('/intrinsic/new_goal', Goal, latch=True, queue_size=1)
         self.pub_timer = rospy.Publisher('/intrinsic/updating_lp', Float64, latch=True, queue_size=1)
         self.pub_end = rospy.Publisher('/intrinsic/end_action', Bool, queue_size=10)
@@ -88,6 +89,13 @@ class NNGoalAction(object):
         update_lp.y = data[1]
         update_lp.value = error
         self.pub_update_lp.publish(update_lp)
+
+    def update_inverse_error(self, data, error):
+        update_lp = Goal()
+        update_lp.x = data[0]
+        update_lp.y = data[1]
+        update_lp.value = error
+        self.pub_update_inverse.publish(update_lp)
         
     def send_new_goal(self, data):
         new_goal = Goal()
@@ -474,6 +482,7 @@ class NNGoalAction(object):
         print("ERROR Inverse : ",error_inv)
         #publish new goal and fwd error
         self.update_learning_progress(inputs,error_fwd)
+        self.update_inverse_error(inputs,error_inv)
         #self.send_new_goal(inputs)
         self.pub_timing(1.0)
         #rospy.sleep(10)
@@ -522,8 +531,13 @@ class NNGoalAction(object):
             a1 = self.scale_inp_out(action_dnf[1],0,100,-1,1)
             sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
             self.skills[ind_skill].add_to_memory(sample)
+            err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
+            err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
+            error_fwd = err_fwd.item()
+            error_inv = err_inv.item()
             self.skills[ind_skill].set_name(outcome_dnf)
-            self.update_learning_progress(outcome_dnf,0.9)
+            self.update_learning_progress(outcome_dnf,error_fwd)
+            self.update_inverse_error(outcome_dnf,error_inv)
             self.send_new_goal(outcome_dnf)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
@@ -557,7 +571,12 @@ class NNGoalAction(object):
             sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
             self.skills[ind_skill].add_to_memory(sample)
             self.skills[ind_skill].set_name(outcome_dnf)
-            self.update_learning_progress(outcome_dnf,0.9)
+            err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
+            err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
+            error_fwd = err_fwd.item()
+            error_inv = err_inv.item()
+            self.update_learning_progress(outcome_dnf,error_fwd)
+            self.update_inverse_error(outcome_dnf,error_inv)
             self.send_new_goal(outcome_dnf)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
@@ -591,9 +610,11 @@ class NNGoalAction(object):
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
+            error_inv = err_inv.item()
             print("name skill ",self.skills[self.index_skill].get_name())
             print("Error fwd : ",error_fwd)
             self.update_learning_progress(out_dnf,error_fwd)
+            self.update_inverse_error(outcome_dnf,error_inv)
             #self.send_new_goal(1.0)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
@@ -622,9 +643,11 @@ class NNGoalAction(object):
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
+            error_inv = err_inv.item()
             print("name skill ",self.skills[self.index_skill].get_name())
             print("Error fwd : ",error_fwd)
             self.update_learning_progress(outcome_dnf,error_fwd)
+            self.update_inverse_error(outcome_dnf,error_inv)
             #self.send_new_goal(1.0)
             self.pub_timing(1.0)
             rospy.sleep(1.0)
