@@ -546,21 +546,10 @@ class VisualDatas(App):
         else:
             self.exploit = _GRAY_LIGHT
             self.learning_dmp = _GRAY_LIGHT
-        #if self.node_learning_dmp.getNode() > 0.5 and self.node_learning_dmp.getNode() < 1.5:
-        #    self.learning_dmp = _YELLOW_LIGHT
-        #else:
-        #    self.learning_dmp = _GRAY_LIGHT
 
 
     # Update the progress with datas coming from neural fields
     def update_gauges(self, dt):
-        #self.checkNumberSkills()
-        #self.checkSimulation()
-        #self.checkStuck()
-        #tmp_dmp =  self.dmp.getDmp()
-        #if tmp_dmp > 0 and tmp_dmp != self.current_dmp:
-            #self.update_image(int(tmp_dmp))
-            #self.current_dmp = tmp_dmp
         list_error_fwd = self.error.get_errors()
         list_lp = self.lp.get_errors()
         size_l = len(list_error_fwd)
@@ -573,11 +562,6 @@ class VisualDatas(App):
                 t = Float64()
                 t.data = self.time
                 self.pub_time.publish(t)
-                #self.error.writeDatasError(int(self.time))
-                #self.dr_lp.writeDatasLP(int(self.time))
-                #self.goal_r.writeCurrentGoal(int(self.time))
-                #self.node_explore.writeValue(int(self.time))
-                #self.node_exploit.writeValue(int(self.time))
                 self.steps = 0
             self.steps += 1
         for i in range(0,size_l):

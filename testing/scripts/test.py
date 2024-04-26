@@ -235,8 +235,9 @@ if __name__ == "__main__":
    #i = rospy.get_param("i")
    i = 0
    seconds = 0
-   explore = True
+   explore = False
    first = True
+   skills = ["up","down","left","right","grasp"]
    #[67, 79, 0.9], [38, 72, 0.9], [42, 85, 0.9], [67, 51, 0.9], [56, 73, 0.9] order of skills
    while not rospy.is_shutdown():
       #test.pub_exploration()
@@ -263,7 +264,9 @@ if __name__ == "__main__":
          #test.pub_exploitation()
          test.send_id(0)
          rospy.sleep(0.5)
-         if(test.get_ready() and i < 1):
+         if(test.get_ready() and i < 5):
+            print("sending...",skills[i])
+            rospy.sleep(1.5)
             test.send_new_state()
             test.publish_state(states[i])
             test.publish_dnf_action(dnf[i])
