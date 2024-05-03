@@ -443,6 +443,12 @@ class ClusterMessage
       if(exploit > 0.5 && retry)
       {
          retry = false;
+         ready_nn = false;
+         outcome_b = false;
+         dmp_dnf_b = false;
+         state_b = false;
+         sample_b = false;
+         new_state = false;
          std_msgs::Float64 f;
          f.data = 1.0;
          pub_signal.publish(f);
