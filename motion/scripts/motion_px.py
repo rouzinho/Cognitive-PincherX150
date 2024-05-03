@@ -432,7 +432,7 @@ class Motion(object):
   def execute_exploitation(self):
     self.ready = False
     self.send_state(True)
-    print("DIRECT EXPLORATION")
+    print("DIRECT EXPLOITATION")
     s = len(self.possible_action)
     choice = random.randint(0,s-1)
     dmp_choice = self.possible_action[choice]

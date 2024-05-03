@@ -275,5 +275,7 @@ if __name__ == "__main__":
             test.publish_outcome(data[i][0])
             test.set_ready(False)
             i += 1
+      if i == 4:
+         i = 0
 
    rospy.spin()

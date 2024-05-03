@@ -175,6 +175,7 @@ class DepthImage
       cv::Mat m = cv::imread("/home/altair/interbotix_ws/src/depth_perception/mask/new_mask.jpg");
       cv::cvtColor(m,tmp_mask,cv::COLOR_RGB2GRAY);
       cv::resize(tmp_mask, mask, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
+      rmStates();
       count = 0;
       threshold = 5;
       start = true;
