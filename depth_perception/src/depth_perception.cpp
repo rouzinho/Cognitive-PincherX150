@@ -7,6 +7,7 @@
 #include <tf2/convert.h>
 #include <tf2_eigen/tf2_eigen.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/Point.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -73,6 +74,7 @@ class DepthImage
     ros::Publisher pub_success;
     ros::Publisher pub_ready;
     ros::Publisher pub_grasping;
+    ros::Publisher pub_center;
     bool tf_in;
     tf2_ros::TransformListener tfListener;
     tf2_ros::Buffer tfBuffer;
@@ -144,6 +146,7 @@ class DepthImage
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/depth_perception/ready",1);
       pub_grasping = nh_.advertise<std_msgs::Bool>("/outcome_detector/grasping",1);
+      pub_center = nh_.advertise<geometry_msgs::Point>("/depth_perception/center",1);
       tf_in = false;
       size_neural_field = 100;
       threshold_depth = 0.05;
@@ -177,7 +180,7 @@ class DepthImage
       cv::resize(tmp_mask, mask, cv::Size(s_reduce_w, s_reduce_h), cv::INTER_LANCZOS4);
       rmStates();
       count = 0;
-      threshold = 5;
+      threshold = 15;
       start = true;
       threshold_change = 38;
       out_boundary = false;
@@ -526,6 +529,9 @@ class DepthImage
             cv::medianBlur(res_b,fil_b,(3,3)); //9 9
             fil = enhanceDepth(fil,0.01);
             fil_b = enhanceDepth(fil_b,0.01);
+            cv::Mat tmp = fil.clone();
+            findCenter(tmp);
+            //cv::circle(fil, p, 5, cv::Scalar(0,0,255), -1);
 
             //get filtered image
             //for dnf
@@ -659,6 +665,25 @@ class DepthImage
       }
       //cv::imshow(OPENCV_WINDOW,fil);
       //cv::waitKey(1);
+    }
+
+    void findCenter(cv::Mat img)
+    {
+      cv::Mat thr; 
+      cv::Mat gray;
+      // convert image to grayscale
+      cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY );
+      // convert grayscale to binary image
+      cv::threshold(gray, thr, 100,255, cv::THRESH_BINARY);
+      // find moments of the image
+      cv::Moments m = cv::moments(thr,true);
+      cv::Point p(m.m10/m.m00, m.m01/m.m00);
+      // publish center
+      geometry_msgs::Point c;
+      c.x = static_cast<double>(p.x);
+      c.y = static_cast<double>(p.y);
+      pub_center.publish(c);
+      
     }
 
     cv::Mat enhanceDepth(cv::Mat img, float thr)

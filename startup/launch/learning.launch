@@ -1,4 +1,5 @@
 <launch>
+   <include file="$(find vizualisation)/launch/recording.launch" /> 
    <include file="$(find cluster_message)/launch/cluster.launch" />
    <include file="$(find som)/launch/pose.launch" />
    <include file="$(find cog_learning)/launch/start_learning.launch" />
