@@ -96,6 +96,8 @@ class Motion(object):
     self.prev_id_object = -1
     self.id_object = 0
     self.count_touch = 0
+    self.change_action = True
+    self.choice = 0
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
@@ -124,6 +126,7 @@ class Motion(object):
     rospy.Subscriber('/cluster_msg/signal', Float64, self.callback_ready)
     rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
     rospy.Subscriber("/motion_pincher/activate_actions", ActionDmpDnf, self.callback_actions)
+    rospy.Subscriber("/motion_pincher/change_action", Bool, self.callback_change)
 
   def transform_dmp_cam_rob(self, dmp_):
     rospy.wait_for_service('transform_dmp_cam_rob')
@@ -226,6 +229,10 @@ class Motion(object):
       self.ready = True
     else:
       self.ready = False
+
+  def callback_change(self,msg):
+    if msg.data == True:
+      self.change_action = True
 
   def get_ready(self):
     return self.ready
@@ -433,9 +440,11 @@ class Motion(object):
     self.ready = False
     self.send_state(True)
     print("DIRECT EXPLOITATION")
-    s = len(self.possible_action)
-    choice = random.randint(0,s-1)
-    dmp_choice = self.possible_action[choice]
+    if self.change_action:
+      s = len(self.possible_action)
+      self.choice = random.randint(0,s-1)
+      self.change_action = False
+    dmp_choice = self.possible_action[self.choice]
     print("choosing action : ",dmp_choice)
     dmp_exploit = Dmp()
     dmp_exploit.v_x = dmp_choice[0]
@@ -448,7 +457,7 @@ class Motion(object):
     msg = self.transform_dmp_rob_cam(dmp_exploit)
     print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()
-    dnf_choice = self.possible_dnf[choice]
+    dnf_choice = self.possible_dnf[self.choice]
     print("DNF : ",dnf_choice)
     lat_action.latent_x = dnf_choice[0]
     lat_action.latent_y = dnf_choice[1]
