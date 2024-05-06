@@ -56,7 +56,6 @@ class ClusterMessage
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_new_state;
-   ros::Publisher pub_retry;
    ros::Publisher pub_signal;
    ros::Publisher pub_outcome;
    ros::Publisher pub_pause;
@@ -122,7 +121,6 @@ class ClusterMessage
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
-      pub_retry = nh_.advertise<std_msgs::Bool>("/cluster_msg/retry",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
