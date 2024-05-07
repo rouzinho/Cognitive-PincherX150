@@ -109,6 +109,7 @@ class Motion(object):
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
+    self.pub_display_action = rospy.Publisher("/display/dmp", Dmp, queue_size=1, latch=True)
     self.pub_dnf_action = rospy.Publisher("/motion_pincher/dmp_dnf", LatentGoalDnf, queue_size=1, latch=True)
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
     self.pub_inhib = rospy.Publisher("/motion_pincher/inhibition", Float64, queue_size=1, latch=True)
@@ -348,6 +349,8 @@ class Motion(object):
     self.dmp_explore.fpos_x = self.poses[0].x
     self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
+    #display on interface
+    self.pub_display_action.publish(msg)
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
@@ -395,6 +398,8 @@ class Motion(object):
     print("DIRECT EXPLORATION")
     self.dmp_direct_explore.fpos_x = self.poses[0].x
     self.dmp_direct_explore.fpos_y = self.poses[0].y
+    #display on interface
+    self.pub_display_action.publish(self.dmp_direct_explore)
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     #print(msg)
     self.pub_dmp_action.publish(msg)
@@ -454,6 +459,8 @@ class Motion(object):
     dmp_exploit.grasp = dmp_choice[4]
     dmp_exploit.fpos_x = self.poses[0].x
     dmp_exploit.fpos_y = self.poses[0].y
+    #display on the interface
+    self.pub_display_action.publish(dmp_exploit)
     msg = self.transform_dmp_rob_cam(dmp_exploit)
     print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()

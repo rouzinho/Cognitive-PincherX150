@@ -497,6 +497,7 @@ class NNGoalAction(object):
         #self.skills[self.index_skill].save_memory(pwd)
         #self.skills[self.index_skill].save_fwd_nn(pwd)
         #self.skills[self.index_skill].save_inv_nn(pwd)
+        rospy.sleep(1.0)
         self.send_ready(True)
 
     def bootstrap_learning(self, out_b, act_b, sample):

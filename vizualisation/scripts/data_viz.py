@@ -10,6 +10,7 @@ from std_msgs.msg import Float64
 from std_msgs.msg import Bool
 from std_msgs.msg import Int16
 from motion.msg import Dmp
+from detector.msg import Outcome
 import geometry_msgs.msg
 # ROS Image message -> OpenCV2 image converter
 from cv_bridge import CvBridge, CvBridgeError
@@ -298,6 +299,10 @@ class VisualDatas(App):
     v_pitch = StringProperty('0')
     roll = StringProperty('0')
     grasp = StringProperty('0')
+    out_x = StringProperty('0')
+    out_y = StringProperty('0')
+    out_angle = StringProperty('0')
+    out_touch = StringProperty('0')
     mt_error = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
     mt_vae = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
     mt_lp = StringProperty('/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/datas/blank.jpg')
@@ -353,7 +358,8 @@ class VisualDatas(App):
         rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)
         rospy.Subscriber("/cog_learning/mt_lp", Image, self.lp_callback)
         rospy.Subscriber("/habituation/action/mt", Image, self.vae_act_callback)
-        rospy.Subscriber("/motion_pincher/dmp", Dmp, self.action_callback)
+        rospy.Subscriber("/display/dmp", Dmp, self.action_callback)
+        rospy.Subscriber("/outcome_detector/outcome", Outcome, self.outcome_callback)
         self.action_text = ""
         self.count_img = 0
 
@@ -408,12 +414,19 @@ class VisualDatas(App):
                 print(e)
 
     def action_callback(self,msg):
-        print("KIVY got action !")
-        self.v_x = str(round(msg.v_x,2))
-        self.v_y = str(round(msg.v_y,2))
-        self.v_pitch = str(msg.v_pitch)
-        self.roll = str(msg.roll)
-        self.grasp = str(msg.grasp)
+        #print("KIVY got action !")
+        self.v_x = "v_x : " + str(round(msg.v_x,2))
+        self.v_y = "v_y : " + str(round(msg.v_y,2))
+        self.v_pitch = "v_pitch : " + str(msg.v_pitch)
+        self.roll = "roll : " + str(msg.roll)
+        self.grasp = "grasp : " + str(msg.grasp)
+
+    def outcome_callback(self,msg):
+        print("got KIVY outcome")
+        self.out_x = "out_x : " + str(round(msg.x,2))
+        self.out_y = "out_y : " + str(round(msg.y,2))
+        self.out_angle = "out_angle : " + str(round(msg.angle,2))
+        self.out_touch = "out_touch : " + str(round(msg.touch,1))
 
     def saveTime(self):
         p = exists(self.name_time)
@@ -711,23 +724,24 @@ BoxLayout:
                 padding: 0
                 spacing: 0
                 Label:
-                    text_size: self.size
-                    size: self.texture_size
-                    halign: 'right'
-                    valign: 'middle'
-                    font_size: 18
-                    text: "vx : "
-                    color: 0, 0, 0, 0.8
-                Label:
                     bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'left'
+                    halign: 'center'
                     valign: 'middle'
-                    #pos: 0, -100
                     font_size: 18
                     text: app.v_x
                     color: 0, 0, 0, 0.8
+                Label:
+                    bold: True
+                    text_size: self.size
+                    size: self.texture_size
+                    halign: 'center'
+                    valign: 'middle'
+                    #pos: 0, -100
+                    font_size: 18
+                    text: app.out_x
+                    color: 0, 0, 0, 0.8
             BoxLayout:
                 orientation: 'horizontal'
                 size: 410, 25
@@ -736,23 +750,24 @@ BoxLayout:
                 padding: 0
                 spacing: 0
                 Label:
-                    text_size: self.size
-                    size: self.texture_size
-                    halign: 'right'
-                    valign: 'middle'
-                    font_size: 18
-                    text: "vy : "
-                    color: 0, 0, 0, 0.8
-                Label:
                     bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'left'
+                    halign: 'center'
                     valign: 'middle'
-                    #pos: 0, -100
                     font_size: 18
                     text: app.v_y
                     color: 0, 0, 0, 0.8
+                Label:
+                    bold: True
+                    text_size: self.size
+                    size: self.texture_size
+                    halign: 'center'
+                    valign: 'middle'
+                    #pos: 0, -100
+                    font_size: 18
+                    text: app.out_y
+                    color: 0, 0, 0, 0.8
             BoxLayout:
                 orientation: 'horizontal'
                 size: 410, 25
@@ -761,23 +776,24 @@ BoxLayout:
                 padding: 0
                 spacing: 0
                 Label:
-                    text_size: self.size
-                    size: self.texture_size
-                    halign: 'right'
-                    valign: 'middle'
-                    font_size: 18
-                    text: "v_pitch : "
-                    color: 0, 0, 0, 0.8
-                Label:
                     bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'left'
+                    halign: 'center'
                     valign: 'middle'
-                    #pos: 0, -100
                     font_size: 18
                     text: app.v_pitch
                     color: 0, 0, 0, 0.8
+                Label:
+                    bold: True
+                    text_size: self.size
+                    size: self.texture_size
+                    halign: 'center'
+                    valign: 'middle'
+                    #pos: 0, -100
+                    font_size: 18
+                    text: app.out_angle
+                    color: 0, 0, 0, 0.8
             BoxLayout:
                 orientation: 'horizontal'
                 size: 410, 25
@@ -786,23 +802,24 @@ BoxLayout:
                 padding: 0
                 spacing: 0
                 Label:
-                    text_size: self.size
-                    size: self.texture_size
-                    halign: 'right'
-                    valign: 'middle'
-                    font_size: 18
-                    text: "roll : "
-                    color: 0, 0, 0, 0.8
-                Label:
                     bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'left'
+                    halign: 'center'
                     valign: 'middle'
-                    #pos: 0, -100
                     font_size: 18
                     text: app.roll
                     color: 0, 0, 0, 0.8
+                Label:
+                    bold: True
+                    text_size: self.size
+                    size: self.texture_size
+                    halign: 'center'
+                    valign: 'middle'
+                    #pos: 0, -100
+                    font_size: 18
+                    text: app.out_touch
+                    color: 0, 0, 0, 0.8
             BoxLayout:
                 orientation: 'horizontal'
                 size: 410, 25
@@ -811,22 +828,23 @@ BoxLayout:
                 padding: 0
                 spacing: 0
                 Label:
+                    bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'right'
+                    halign: 'center'
                     valign: 'middle'
                     font_size: 18
-                    text: "grasp : "
+                    text: app.grasp
                     color: 0, 0, 0, 0.8
                 Label:
                     bold: True
                     text_size: self.size
                     size: self.texture_size
-                    halign: 'left'
+                    halign: 'center'
                     valign: 'middle'
                     #pos: 0, -100
                     font_size: 18
-                    text: app.grasp
+                    text: ""
                     color: 0, 0, 0, 0.8                           
             BoxLayout:
                 orientation: 'horizontal'

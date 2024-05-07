@@ -269,6 +269,7 @@ if __name__ == "__main__":
             rospy.sleep(1.5)
             test.send_new_state()
             test.publish_state(states[i])
+            test.publish_dmp(data[i][1])
             test.publish_dnf_action(dnf[i])
             test.publish_action(actions[i])
             rospy.sleep(0.5)
