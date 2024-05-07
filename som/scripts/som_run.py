@@ -3,6 +3,7 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import Point
 from geometry_msgs.msg import Pose
+from std_msgs.msg import Float64
 import random
 import math
 import time
@@ -141,6 +142,7 @@ class Som(object):
         #rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
+        rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -154,6 +156,7 @@ class Som(object):
         self.influence = 0
         self.current_time = 0
         self.mode = mode
+        self.exploit = False
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
@@ -173,6 +176,12 @@ class Som(object):
         self.map = np.random.random((s, s, num_features))
         self.im = plt.imshow(self.map,interpolation='none')
         self.cluster_map = np.zeros((self.size,self.size,1))
+
+    def callback_exploitation(self,msg):
+        if msg.data > 0.5:
+            self.exploit = True
+        else:
+            self.exploit = False
 
     def callback_bmu(self,msg):
         data = [msg.x,msg.y,msg.pitch]
@@ -225,8 +234,9 @@ class Som(object):
             for i in range(0,self.size):
                 for j in range(0,self.size):
                     val = self.network[i][j].getWeights()
-                    #print(val)
+                    #print("val ",val)
                     if abs(val[0,0] - sample.x) < 0.005 and abs(val[0,1] - sample.y) < 0.005:
+                        #print("val ",val[0,2])
                         coords = [i,j]
                         list_coords.append(coords)
         

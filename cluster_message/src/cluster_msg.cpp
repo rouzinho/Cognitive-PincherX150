@@ -430,16 +430,17 @@ class ClusterMessage
          b.data = true;
          pub_new_state.publish(b);
          std_msgs::Float64 f;
+         init_valid = false;
+         pub_ready.publish(b);
          f.data = 1.0;
          pub_signal.publish(f);
          ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_signal.publish(f);
-         init_valid = false;
-         pub_ready.publish(b);
       }
       if(exploit > 0.5 && retry)
       {
+         std::cout<<"Cluster_msg : Exploitation Retry\n";
          retry = false;
          ready_nn = false;
          outcome_b = false;

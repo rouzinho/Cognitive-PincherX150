@@ -13,6 +13,7 @@ from math import pi
 import math
 from std_msgs.msg import Bool
 from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Point
 import glob
 import os.path
 import random
@@ -34,6 +35,7 @@ from motion.msg import Dmp
 from motion.msg import Action
 from som.msg import ListPose
 from som.srv import *
+from som.msg import ListPeaks
 import os
 import os.path
 from os import path
@@ -98,6 +100,7 @@ class Motion(object):
     self.count_touch = 0
     self.change_action = True
     self.choice = 0
+    self.list_peaks = []
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
@@ -128,6 +131,7 @@ class Motion(object):
     rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
     rospy.Subscriber("/motion_pincher/activate_actions", ActionDmpDnf, self.callback_actions)
     rospy.Subscriber("/motion_pincher/change_action", Bool, self.callback_change)
+    rospy.Subscriber("/som_pose/som/input_list_peaks", ListPeaks, self.callback_list_peaks)
 
   def transform_dmp_cam_rob(self, dmp_):
     rospy.wait_for_service('transform_dmp_cam_rob')
@@ -167,7 +171,7 @@ class Motion(object):
     if self.exploit and len(self.poses) == 0:
       self.poses.append(tmp)
       self.ready = True
-    print("poses cb : ",len(self.poses))
+    print("poses cb : ",self.poses)
 
   def callback_joint_states(self,msg):
     self.js = msg
@@ -176,7 +180,7 @@ class Motion(object):
     if self.gripper_state < self.threshold_touch_max and self.gripper_state > self.threshold_touch_min:
       self.count_touch = self.count_touch +1
       #print(self.gripper_state)
-      print("touch : ",self.count_touch)
+      #print("touch : ",self.count_touch)
     else:
       self.count_touch = 0
     if(self.count_touch > 450):
@@ -260,6 +264,12 @@ class Motion(object):
       tmp_dnf = [i.dnf_x,i.dnf_y]
       self.possible_action.append(tmp_a)
       self.possible_dnf.append(tmp_dnf)
+      print("callback : ",self.possible_action)
+
+  def callback_list_peaks(self,msg):
+    self.list_peaks = []
+    for i in msg.list_peaks:
+      self.list_peaks.append(i)
   
   def get_number_pose(self):
     return len(self.poses)

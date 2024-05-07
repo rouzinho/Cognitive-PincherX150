@@ -9,7 +9,7 @@ class Skill(object):
         self.inverse_model = MultiLayerP(7,6,5)
         self.inverse_model.to(device)
         #6 4
-        #I: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
+        #F: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(8,6,4)
         self.forward_model.to(device)
         self.memory_size = 30
