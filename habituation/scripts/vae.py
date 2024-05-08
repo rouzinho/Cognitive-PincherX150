@@ -670,6 +670,8 @@ class Habituation(object):
       self.first = True
       self.lock = False
       self.change = False
+      self.goal_perception = Goal()
+      self.new_perception = Goal()
       self.pub_latent_space_display_out = rospy.Publisher("/display/latent_space_out", LatentPos, queue_size=1, latch=True)
       self.pub_latent_space_display_act = rospy.Publisher("/display/latent_space_act", LatentPos, queue_size=1, latch=True)
       self.pub_ready = rospy.Publisher("/habituation/ready", Bool, queue_size=1, latch=True)
@@ -1014,6 +1016,7 @@ class Habituation(object):
       #print("DMP : ",dmp)
       #print("Outcome : ",outcome)
 
+   #send the expected goal perception
    def callback_eval(self,msg):
       x = self.scale_data(msg.x, self.min_vx, self.max_vx)
       y = self.scale_data(msg.y, self.min_vy, self.max_vy)
@@ -1027,9 +1030,12 @@ class Habituation(object):
       peak = self.habit[self.index_vae].search_dnf_value(tensor_sample)
       #print("peak found ",peak)
       #print("peak reconstructed : ",rec)
+      self.goal_perception.x = peak[0]
+      self.goal_perception.y = peak[1]
       msg = self.habit[self.index_vae].get_eval(peak)
       self.send_eval_perception(msg)
 
+   #send the fresh perception
    def callback_perception(self, msg):
       x = self.scale_data(msg.x, self.min_vx, self.max_vx)
       y = self.scale_data(msg.y, self.min_vy, self.max_vy)
@@ -1040,12 +1046,18 @@ class Habituation(object):
       z = self.habit[self.index_vae].forward_encoder_outcome(tensor_sample)
       p = self.habit[self.index_vae].get_value_dnf(z,self.exploration_mode)
       peak = [round(p[0]),round(p[1])]
+      self.new_perception.x = peak[0]
+      self.new_perception.y = peak[1]
       msg = self.habit[self.index_vae].get_eval(peak)
       self.send_perception(msg)
       rospy.sleep(2.0)
       l = LatentNNDNF()
       self.send_perception(l)
       
+   def get_distance(self):
+      dist = math.sqrt(pow((self.goal_perception.x/100) - (self.new_perception.x/100),2) + pow((self.goal_perception.y/100) - (self.new_perception.y/100),2))
+      
+      return dist
 
    def callback_id(self, msg):
       if self.prev_id_object != self.id_object and msg.data != -1:

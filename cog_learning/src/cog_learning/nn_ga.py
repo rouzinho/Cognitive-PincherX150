@@ -388,6 +388,15 @@ class NNGoalAction(object):
         sample.append(t_inp_inv)
 
         return sample
+    
+    def create_pred_sample(self, state, ind_action, reward):
+        sample_inp = [state.state_x,state.state_y,state.state_angle,ind_action[0],ind_action[1]]
+        sample_out = [reward]
+        s = []
+        s.append(sample_inp)
+        s.append(sample_out)
+
+        return s
 
     def scale_samples_skill(self, sample):
         #scale sample betwen [-1,1] for learning
@@ -531,7 +540,9 @@ class NNGoalAction(object):
             a0 = self.scale_inp_out(action_dnf[0],0,100,-1,1)
             a1 = self.scale_inp_out(action_dnf[1],0,100,-1,1)
             sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            s_pred = self.create_pred_sample(state,[a0,a1],1.0)
             self.skills[ind_skill].add_to_memory(sample)
+            self.skills[ind_skill].add_to_pred_memory(s_pred)
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
@@ -554,6 +565,7 @@ class NNGoalAction(object):
             self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
+            self.skills[ind_skill].train_predictor()
             self.reset_models()
             self.train_decoder_action()
             self.train_decoder_outcome()
@@ -570,7 +582,9 @@ class NNGoalAction(object):
             a0 = self.scale_inp_out(act_dnf[0],0,100,-1,1)
             a1 = self.scale_inp_out(act_dnf[1],0,100,-1,1)
             sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            s_pred = self.create_pred_sample(state,[a0,a1],1.0)
             self.skills[ind_skill].add_to_memory(sample)
+            self.skills[ind_skill].add_to_pred_memory(s_pred)
             self.skills[ind_skill].set_name(outcome_dnf)
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
@@ -593,6 +607,7 @@ class NNGoalAction(object):
             self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
+            self.skills[ind_skill].train_predictor()
             self.reset_models()
             self.train_decoder_outcome()
         if not out_b and act_b:
@@ -607,7 +622,9 @@ class NNGoalAction(object):
             a0 = self.scale_inp_out(action_dnf[0],0,100,-1,1)
             a1 = self.scale_inp_out(action_dnf[1],0,100,-1,1)
             sample = self.create_skill_sample(state,outcome,sample_action,[a0,a1])
+            s_pred = self.create_pred_sample(state,[a0,a1],1.0)
             self.skills[ind_skill].add_to_memory(sample)
+            self.skills[ind_skill].add_to_pred_memory(s_pred)
             err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
             err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
             error_fwd = err_fwd.item()
@@ -628,6 +645,7 @@ class NNGoalAction(object):
             self.hebbian.hebbianLearningAction(out_dnf,action_dnf)
             self.skills[ind_skill].train_forward_model()
             self.skills[ind_skill].train_inverse_model()
+            self.skills[ind_skill].train_predictor()
             self.reset_models()
             self.train_decoder_action()
         if not out_b and not act_b:
@@ -927,3 +945,6 @@ class NNGoalAction(object):
         self.current_goal.latent_y = out_dnf[1]
         self.index_skill = self.hebbian.hebbianActivation(out_dnf)
         print("index models : ",self.index_skill)
+
+    def predict_reward(self, sample):
+        pass
