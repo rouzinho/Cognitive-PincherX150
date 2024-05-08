@@ -12,8 +12,11 @@ class Skill(object):
         #F: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(8,6,4)
         self.forward_model.to(device)
+        self.r_predictor = MultiLayerPredictor(5,4,1)
+        self.r_predictor.to(device)
         self.memory_size = 30
         self.memory = []
+        self.memory_pred = []
         self.name_skill = ""
         torch.manual_seed(58)
 
@@ -31,10 +34,23 @@ class Skill(object):
         filehandler = open(n, 'wb')
         pickle.dump(self.memory, filehandler)
 
+    def save_memory_pred(self, pwd):
+        n = pwd + self.name_skill + "_memory_pred.pkl"
+        exist = path.exists(n)
+        if exist:
+            os.remove(n)
+        filehandler = open(n, 'wb')
+        pickle.dump(self.memory_pred, filehandler)
+
     def load_memory(self, pwd):
         filehandler_l = open(pwd, 'rb') 
         nl = pickle.load(filehandler_l)
         self.memory = nl
+
+    def load_memory_pred(self, pwd):
+        filehandler_l = open(pwd, 'rb') 
+        nl = pickle.load(filehandler_l)
+        self.memory_pred = nl
 
     def save_fwd_nn(self,pwd):
         n = pwd + self.name_skill + "_forward.pt"
@@ -50,6 +66,13 @@ class Skill(object):
             os.remove(n)
         torch.save({'inverse': self.inverse_model.state_dict()}, n)
 
+    def save_pred_nn(self,pwd):
+        n = pwd + self.name_skill + "_predictor.pt"
+        exist = path.exists(n)
+        if exist:
+            os.remove(n)
+        torch.save({'predictor': self.inverse_model.state_dict()}, n)
+
     def load_fwd_nn(self,pwd):
         checkpoint = torch.load(pwd)
         self.forward_model.load_state_dict(checkpoint['forward'])
@@ -58,11 +81,18 @@ class Skill(object):
         checkpoint = torch.load(pwd)
         self.inverse_model.load_state_dict(checkpoint['inverse'])
 
+    def load_pred_nn(self,pwd):
+        checkpoint = torch.load(pwd)
+        self.r_predictor.load_state_dict(checkpoint['predictor'])
+
     def add_to_memory(self,sample):
         self.memory.append(sample)
         s = len(self.memory)
         if s > self.memory_size:
             self.memory.pop(0)
+
+    def add_to_pred_memory(self,sample):
+        self.memory_pred.append(sample)
 
     def get_memory(self):
         return self.memory
@@ -166,7 +196,53 @@ class Skill(object):
             #last_cost = current_cost
             #current_cost = 0
             
-    
+    #takes object state and action (ind x,y from nnga) and predict reward
+    def train_predictor(self):
+        current_cost = 0
+        last_cost = 15
+        learning_rate = 5e-3
+        epochs = 2
+        data_input = []
+        self.forward_model.to(device)
+        criterion = torch.nn.BCELoss()
+        optimizer = torch.optim.Adam(self.forward_model.parameters(),lr=learning_rate)
+        current_cost = 0
+        for i in range(0,1):
+            self.forward_model.train()
+            optimizer.zero_grad()
+            sample = self.memory[-1]
+            inputs = sample[2]
+            targets = sample[0]
+            #print("input forward : ",inputs)
+            #print("output forward : ",targets)
+            inputs = inputs.to(device)
+            targets = targets.to(device)
+            outputs = self.forward_model(inputs)
+            cost = criterion(outputs,targets)
+            cost.backward()
+            optimizer.step()
+            #current_cost = current_cost + cost.item()
+        for i in range(0,epochs):
+            #print("Forward model")
+            for j in range(0,len(self.memory)):
+                self.forward_model.train()
+                optimizer.zero_grad()
+                sample = self.memory[j]
+                inputs = sample[2]
+                targets = sample[0]
+                inputs = inputs.to(device)
+                targets = targets.to(device)
+                outputs = self.forward_model(inputs)
+                cost = criterion(outputs,targets)
+                cost.backward()
+                optimizer.step()
+                current_cost = current_cost + cost.item()
+            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            current_cost = 0
+            #if current_cost > last_cost:
+            #    break
+            #last_cost = current_cost
+            #current_cost = 0
     
     #compute the error between the prediction and the actual data
     def getErrorPrediction(self,prediction,actual):

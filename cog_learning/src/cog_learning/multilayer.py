@@ -71,3 +71,18 @@ class MultiLayerP(nn.Module):
         
     def forward(self, x):
         return self.layers(x)
+    
+class MultiLayerPredictor(nn.Module):
+    def __init__(self,input_layer,middle_layer,output_layer):
+        super().__init__()
+        self.layers = nn.Sequential(
+            nn.Linear(input_layer, middle_layer),
+            nn.Sigmoid(),
+            nn.Linear(middle_layer, middle_layer),
+            nn.Sigmoid(),
+            nn.Linear(middle_layer, output_layer),
+            nn.Sigmoid()
+        )
+        
+    def forward(self, x):
+        return self.layers(x)
