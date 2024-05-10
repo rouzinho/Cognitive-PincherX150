@@ -235,7 +235,7 @@ if __name__ == "__main__":
    #i = rospy.get_param("i")
    i = 0
    seconds = 0
-   explore = False
+   explore = True
    first = True
    skills = ["up","down","left","right","grasp"]
    #[67, 79, 0.9], [38, 72, 0.9], [42, 85, 0.9], [67, 51, 0.9], [56, 73, 0.9] order of skills
@@ -276,7 +276,7 @@ if __name__ == "__main__":
             test.publish_outcome(data[i][0])
             test.set_ready(False)
             i += 1
-      if i == 4:
-         i = 0
+      #if i == 4:
+      #   i = 0
 
    rospy.spin()

@@ -17,6 +17,7 @@ from som.msg import VectorAction
 from som.msg import ListPeaks
 from som.msg import ListPose
 from som.srv import *
+from motion.msg import Dmp
 from sklearn.preprocessing import MinMaxScaler
 
 
@@ -143,6 +144,7 @@ class Som(object):
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
+        rospy.Subscriber('/som/dmp', Dmp, self.callback_dmp)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -157,6 +159,7 @@ class Som(object):
         self.current_time = 0
         self.mode = mode
         self.exploit = False
+        self.list_coords = []
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
@@ -228,8 +231,12 @@ class Som(object):
         #print(l.list_peaks)
         self.pub_peaks.publish(l)
 
+
+    def callback_dmp(self,msg):
+        pass
+
     def list_peaks(self,data):
-        list_coords = []
+        self.list_coords = []
         for sample in data.list_peaks:
             for i in range(0,self.size):
                 for j in range(0,self.size):
@@ -238,9 +245,9 @@ class Som(object):
                     if abs(val[0,0] - sample.x) < 0.005 and abs(val[0,1] - sample.y) < 0.005:
                         #print("val ",val[0,2])
                         coords = [i,j]
-                        list_coords.append(coords)
+                        self.list_coords.append(coords)
         
-        return list_coords
+        return self.list_coords
     
     def bmu_server(self,req):
         data = [req.sample.x,req.sample.y,req.sample.pitch]
