@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from cog_learning.multilayer import *
-
+import random
+import copy
 
 class Skill(object):
     def __init__(self):
@@ -12,7 +13,7 @@ class Skill(object):
         #F: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(8,6,4)
         self.forward_model.to(device)
-        self.r_predictor = MultiLayerPredictor(5,4,1)
+        self.r_predictor = MultiLayerPredictor(5,7,1)
         self.r_predictor.to(device)
         self.memory_size = 30
         self.memory = []
@@ -71,7 +72,7 @@ class Skill(object):
         exist = path.exists(n)
         if exist:
             os.remove(n)
-        torch.save({'predictor': self.inverse_model.state_dict()}, n)
+        torch.save({'predictor': self.r_predictor.state_dict()}, n)
 
     def load_fwd_nn(self,pwd):
         checkpoint = torch.load(pwd)
@@ -102,6 +103,7 @@ class Skill(object):
         print("memory skills : ",self.memory)
 
     def train_inverse_model(self):
+        print("train inverse...")
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
@@ -147,9 +149,11 @@ class Skill(object):
             #    break
             #last_cost = current_cost
             #current_cost = 0
+        print("end training inverse")
 
     #takes object location and motor command as input and produces the expected future object location as output
     def train_forward_model(self):
+        print("train forward...")
         current_cost = 0
         last_cost = 15
         learning_rate = 5e-3
@@ -191,6 +195,7 @@ class Skill(object):
                 current_cost = current_cost + cost.item()
             #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
             current_cost = 0
+        print("end training forward")
             #if current_cost > last_cost:
             #    break
             #last_cost = current_cost
@@ -198,51 +203,40 @@ class Skill(object):
             
     #takes object state and action (ind x,y from nnga) and predict reward
     def train_predictor(self):
+        print("train predictor...")
         current_cost = 0
         last_cost = 15
-        learning_rate = 5e-3
-        epochs = 2
+        learning_rate = 1e-3
+        epochs = 10000
         data_input = []
-        self.forward_model.to(device)
+        stop = False
+        self.r_predictor.to(device)
         criterion = torch.nn.BCELoss()
-        optimizer = torch.optim.Adam(self.forward_model.parameters(),lr=learning_rate)
+        optimizer = torch.optim.Adam(self.r_predictor.parameters(),lr=learning_rate)
         current_cost = 0
-        for i in range(0,1):
-            self.forward_model.train()
-            optimizer.zero_grad()
-            sample = self.memory[-1]
-            inputs = sample[2]
-            targets = sample[0]
-            #print("input forward : ",inputs)
-            #print("output forward : ",targets)
-            inputs = inputs.to(device)
-            targets = targets.to(device)
-            outputs = self.forward_model(inputs)
-            cost = criterion(outputs,targets)
-            cost.backward()
-            optimizer.step()
-            #current_cost = current_cost + cost.item()
-        for i in range(0,epochs):
-            #print("Forward model")
-            for j in range(0,len(self.memory)):
-                self.forward_model.train()
+        mem = copy.deepcopy(self.memory_pred)
+        i = 0
+        while not stop:
+            random.shuffle(mem)
+            for j in range(0,len(mem)):
+                self.r_predictor.train()
                 optimizer.zero_grad()
-                sample = self.memory[j]
-                inputs = sample[2]
-                targets = sample[0]
+                sample = mem[j]
+                inputs = sample[0]
+                targets = sample[1]
                 inputs = inputs.to(device)
                 targets = targets.to(device)
-                outputs = self.forward_model(inputs)
+                outputs = self.r_predictor(inputs)
                 cost = criterion(outputs,targets)
                 cost.backward()
                 optimizer.step()
                 current_cost = current_cost + cost.item()
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+            #print("Epoch: {}/{}...".format(i, epochs),"BCE : ",current_cost)
+            i+=1
+            if current_cost < 0.01:
+                stop = True
             current_cost = 0
-            #if current_cost > last_cost:
-            #    break
-            #last_cost = current_cost
-            #current_cost = 0
+        print("end training predictor")
     
     #compute the error between the prediction and the actual data
     def getErrorPrediction(self,prediction,actual):
@@ -268,13 +262,6 @@ class Skill(object):
 
         return error
 
-    def predictIVModel(self,inputs):
-        self.inverse_model.eval()
-        inputs = inputs.to(device)
-        out = self.inverse_model(inputs)
-
-        return out
-
     def predictForwardModel(self,inputs,targets):
         self.forward_model.eval()
         inputs = inputs.to(device)
@@ -285,3 +272,23 @@ class Skill(object):
         #error = self.getErrorPrediction(out,targets)
 
         return error
+    
+    def forward_r_predictor(self,inputs):
+        self.r_predictor.eval()
+        inputs = inputs.to(device)
+        out = self.r_predictor(inputs)
+        res = out.detach().numpy()
+
+        return res
+    
+if __name__ == "__main__":
+    s = Skill()
+    inp = [-0.2143,0.0448,0.5272,0.0,0.48]
+    out = [1.0]
+    t_in = torch.tensor(inp,dtype=torch.float)
+    t_out = torch.tensor(out,dtype=torch.float)
+    samp = []
+    samp.append(t_in)
+    samp.append(t_out)
+    s.add_to_pred_memory(samp)
+    s.train_predictor()

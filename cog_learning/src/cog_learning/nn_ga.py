@@ -272,9 +272,11 @@ class NNGoalAction(object):
             n_mem = name + n + "_memory.pkl"
             n_fwd = name + n + "_forward.pt"
             n_inv = name + n + "_inverse.pt"
+            n_pred = name + n + "_predictor.pt"
             self.skills[i].load_memory(n_mem)
             self.skills[i].load_fwd_nn(n_fwd)
             self.skills[i].load_inv_nn(n_inv)
+            self.skills[i].load_pred_nn(n_pred)
 
 
     def scale_latent_to_expend(self, data):
@@ -392,9 +394,11 @@ class NNGoalAction(object):
     def create_pred_sample(self, state, ind_action, reward):
         sample_inp = [state.state_x,state.state_y,state.state_angle,ind_action[0],ind_action[1]]
         sample_out = [reward]
+        t_inp = torch.tensor(sample_inp,dtype=torch.float)
+        t_out = torch.tensor(sample_out,dtype=torch.float)
         s = []
-        s.append(sample_inp)
-        s.append(sample_out)
+        s.append(t_inp)
+        s.append(t_out)
 
         return s
 
@@ -504,8 +508,10 @@ class NNGoalAction(object):
         self.skills[self.index_skill].train_inverse_model()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         #self.skills[self.index_skill].save_memory(pwd)
+        #self.skills[self.index_skill].save_memory_pred(pwd)
         #self.skills[self.index_skill].save_fwd_nn(pwd)
         #self.skills[self.index_skill].save_inv_nn(pwd)
+        #self.skills[self.index_skill].save_pred_nn(pwd)
         rospy.sleep(1.0)
         self.send_ready(True)
 
@@ -685,8 +691,10 @@ class NNGoalAction(object):
         self.save_memory()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         self.skills[ind_skill].save_memory(pwd)
+        self.skills[ind_skill].save_memory_pred(pwd)
         self.skills[ind_skill].save_fwd_nn(pwd)
         self.skills[ind_skill].save_inv_nn(pwd)
+        self.skills[ind_skill].save_pred_nn(pwd)
         self.send_ready(True)
 
     def train_decoder_outcome(self):

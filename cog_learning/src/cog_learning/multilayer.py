@@ -18,7 +18,7 @@ except ModuleNotFoundError:
 
 is_cuda = torch.cuda.is_available()
 #device = torch.device("cpu")
-#torch.manual_seed(32)
+torch.manual_seed(3407)
 
 if not is_cuda:
     device = torch.device("cuda")
@@ -77,9 +77,7 @@ class MultiLayerPredictor(nn.Module):
         super().__init__()
         self.layers = nn.Sequential(
             nn.Linear(input_layer, middle_layer),
-            nn.Sigmoid(),
-            nn.Linear(middle_layer, middle_layer),
-            nn.Sigmoid(),
+            nn.Tanh(),
             nn.Linear(middle_layer, output_layer),
             nn.Sigmoid()
         )
