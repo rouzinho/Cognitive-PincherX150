@@ -144,7 +144,7 @@ class Som(object):
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
-        rospy.Service('get_poses', GetPoses, self.callback_list)
+        self.pub_list_pose = rospy.Publisher('/cluster_msg/list_candidates', ListPose, queue_size=1,latch=True)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -231,26 +231,9 @@ class Som(object):
         #print(l.list_peaks)
         self.pub_peaks.publish(l)
 
-
-    def callback_list(self,req):
-        resp = GetPosesResponse()
-        for pts in req.list_pose:
-            for i in range(0,self.size):
-                for j in range(0,self.size):
-                    val = self.network[i][j].getWeights()
-                    #print("val ",val)
-                    dist = math.sqrt(pow(val[0,0] - pts.x,2)+pow(val[0,1] - pts.y,2))
-                    if dist < 0.01:
-                        #print("val ",val[0,2])
-                        g = GripperOrientation()
-                        g.x = val[0,0]
-                        g.y = val[0,1]
-                        g.pitch = val[0,2]
-                        resp.pose_p.append(g)
-        return resp
-
     def list_peaks(self,data):
         self.list_coords = []
+        lp = ListPose()
         for sample in data.list_peaks:
             for i in range(0,self.size):
                 for j in range(0,self.size):
@@ -261,6 +244,12 @@ class Som(object):
                         #print("val ",val[0,2])
                         coords = [i,j]
                         self.list_coords.append(coords)
+                        go = GripperOrientation()
+                        go.x = val[0,0]
+                        go.y = val[0,1]
+                        go.pitch = val[0,2]
+                        lp.list_pose.append(go)
+        self.pub_list_pose.publish(lp)
         
         return self.list_coords
     
