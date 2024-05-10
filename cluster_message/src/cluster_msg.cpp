@@ -26,6 +26,9 @@
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <tf2_eigen/tf2_eigen.h>
+#include "som/GetPoses.h"
+#include "som/ListPeaks.h"
+#include "som/GripperOrientation.h"
 
 class ClusterMessage
 {
@@ -53,6 +56,8 @@ class ClusterMessage
    ros::Subscriber sub_busy_act;
    ros::Subscriber sub_busy_nn_out;
    ros::Subscriber sub_busy_nn_act;
+   ros::Subscriber sub_dmp_candidate;
+   ros::Subscriber sub_l_peaks;
    ros::Publisher pub_datas_explore;
    ros::Publisher pub_datas_exploit;
    ros::Publisher pub_new_state;
@@ -62,12 +67,16 @@ class ClusterMessage
    ros::Publisher pub_ready;
    ros::ServiceServer service;
    ros::ServiceServer service_;
+   ros::ServiceClient client_som;
+   som::GetPoses srv_som;
    detector::Outcome outcome;
    detector::State state;
    motion::Action sample;
    motion::Dmp dmp;
    motion::Dmp dmp_eval;
+   motion::Dmp dmp_candidate;
    cog_learning::LatentGoalDnf latent_action;
+   som::ListPeaks list_p;
    bool dmp_b;
    bool dmp_dnf_b;
    bool outcome_b;
@@ -117,6 +126,8 @@ class ClusterMessage
       sub_busy_act = nh_.subscribe("/cluster_msg/vae/busy_act", 1, &ClusterMessage::CallbackBusyVAEact,this);
       sub_busy_nn_out = nh_.subscribe("/cluster_msg/nnga/busy_out", 1, &ClusterMessage::CallbackBusyNNout,this);
       sub_busy_nn_act = nh_.subscribe("/cluster_msg/nnga/busy_act", 1, &ClusterMessage::CallbackBusyNNact,this);
+      sub_dmp_candidate = nh_.subscribe("/cluster_msg/dmp_candidate", 1, &ClusterMessage::CallbackCandidate,this);
+      sub_l_peaks = nh_.subscribe("/som_pose/som/input_list_peaks", 1, &ClusterMessage::CallbackListPeak,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
@@ -126,6 +137,8 @@ class ClusterMessage
       pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
+      client_som = nh_.serviceClient<som::GetPoses>("get_poses");
+      list_p.list_peaks.resize(0);
       rnd_explore = 0.0;
       direct_explore = 0.0;
       exploit = 0.0;
@@ -200,6 +213,27 @@ class ClusterMessage
       res.dmp_cam.roll = req.dmp_robot.roll;
       
       return true;
+   }
+
+   //get the ensemble of pose with pitch, check which ones fit the chosen action and send them to SOm for re-display
+   void CallbackCandidate(const motion::Dmp::ConstPtr& msg)
+   {
+      srv_som.request.list_pose.resize(0);
+      for(int i = 0; i < list_p.list_peaks.size(); i++)
+      {
+         som::GripperOrientation go;
+         go.x = list_p.list_peaks[i].x;
+         go.y = list_p.list_peaks[i].y;
+         srv_som.request.list_pose.push_back(go);
+         if (client_som.call(srv_som))
+         {
+            
+         }
+         else
+         {
+            ROS_ERROR("Failed to call SOM service");
+         }
+      }
    }
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
@@ -546,6 +580,19 @@ class ClusterMessage
    void CallbackBusyNNact(const std_msgs::Bool::ConstPtr& msg)
    {
       busy_nn_act = msg->data;
+   }
+
+   void CallbackListPeak(const som::ListPeaks::ConstPtr& msg)
+   {
+      list_p.list_peaks.resize(0);
+      for(int i = 0; i < msg->list_peaks.size(); i++)
+      {
+         geometry_msgs::Point p;
+         p.x = msg->list_peaks[i].x;
+         p.y = msg->list_peaks[i].y;
+         p.z = msg->list_peaks[i].z;
+         list_p.list_peaks.push_back(p);
+      }
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)

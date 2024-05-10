@@ -144,7 +144,7 @@ class Som(object):
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
-        rospy.Subscriber('/som/dmp', Dmp, self.callback_dmp)
+        rospy.Service('get_poses', GetPoses, self.callback_list)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -232,8 +232,22 @@ class Som(object):
         self.pub_peaks.publish(l)
 
 
-    def callback_dmp(self,msg):
-        pass
+    def callback_list(self,req):
+        resp = GetPosesResponse()
+        for pts in req.list_pose:
+            for i in range(0,self.size):
+                for j in range(0,self.size):
+                    val = self.network[i][j].getWeights()
+                    #print("val ",val)
+                    dist = math.sqrt(pow(val[0,0] - pts.x,2)+pow(val[0,1] - pts.y,2))
+                    if dist < 0.01:
+                        #print("val ",val[0,2])
+                        g = GripperOrientation()
+                        g.x = val[0,0]
+                        g.y = val[0,1]
+                        g.pitch = val[0,2]
+                        resp.pose_p.append(g)
+        return resp
 
     def list_peaks(self,data):
         self.list_coords = []
@@ -242,7 +256,8 @@ class Som(object):
                 for j in range(0,self.size):
                     val = self.network[i][j].getWeights()
                     #print("val ",val)
-                    if abs(val[0,0] - sample.x) < 0.005 and abs(val[0,1] - sample.y) < 0.005:
+                    dist = math.sqrt(pow(val[0,0] - sample.x,2)+pow(val[0,1] - sample.y,2))
+                    if dist < 0.01:
                         #print("val ",val[0,2])
                         coords = [i,j]
                         self.list_coords.append(coords)
@@ -260,22 +275,6 @@ class Som(object):
         go.bmu.y = dat_bmu[0,1]
         go.bmu.pitch = dat_bmu[0,2]
         return go
-    
-    def optimal_path(self,req):
-        resp = GetPathResponse()
-        for i in req.sample.list_pose:
-            data = [i.x,i.y,i.pitch]
-            n = Node(self.num_features)
-            n.setWeights(data)
-            bmu = self.get_bmu(n)
-            dat_bmu = bmu.getWeights()
-            go = GripperOrientation()
-            go.x = dat_bmu[0,0]
-            go.y = dat_bmu[0,1]
-            go.z = i.z
-            go.pitch = dat_bmu[0,2]
-            resp.path.list_pose.append(go)
-        return resp
 
     def init_network(self):
         for i in range(self.size):

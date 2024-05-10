@@ -118,7 +118,7 @@ class Motion(object):
     self.pub_display_lpose = rospy.Publisher("/display/last_pose", GripperOrientation, queue_size=1, latch=True)
     self.pub_action_sample = rospy.Publisher("/motion_pincher/action_sample", Action, queue_size=1, latch=True)
     self.pub_dmp_action = rospy.Publisher("/motion_pincher/dmp", Dmp, queue_size=1, latch=True)
-    self.pub_dmp_som = rospy.Publisher("/som/dmp", Dmp, queue_size=1, latch=True)
+    self.pub_dmp_candidate = rospy.Publisher("/cluster_msg/dmp_candidate", Dmp, queue_size=1, latch=True)
     self.pub_display_action = rospy.Publisher("/display/dmp", Dmp, queue_size=1, latch=True)
     self.pub_dnf_action = rospy.Publisher("/motion_pincher/dmp_dnf", LatentGoalDnf, queue_size=1, latch=True)
     self.pub_trigger_state = rospy.Publisher("/outcome_detector/trigger_state", Bool, queue_size=1, latch=True)
@@ -490,8 +490,14 @@ class Motion(object):
       s = len(self.possible_action)
       self.choice = random.randint(0,s-1)
       self.change_action = False
-    print("find candidates...")
-    self.find_candidates()
+    dmp_choice = self.possible_action[self.choice]
+    dmp_exploit = Dmp()
+    dmp_exploit.v_x = dmp_choice[0]
+    dmp_exploit.v_y = dmp_choice[1]
+    dmp_exploit.v_pitch = dmp_choice[2]
+    dmp_exploit.roll = dmp_choice[3]
+    dmp_exploit.grasp = dmp_choice[4]
+
     #self.send_init(1.0)
 
   def find_candidates(self):
