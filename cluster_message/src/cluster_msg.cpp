@@ -211,10 +211,67 @@ class ClusterMessage
       return true;
    }
 
+   motion::Dmp tfRobtoCam(motion::Dmp dmp_robot)
+   {
+      motion::Dmp dmp_cam;
+      tf2::Quaternion q_orig(0,0,0,1);
+      tf2::Quaternion q_rot;
+      tf2::Quaternion q_vector;
+      geometry_msgs::Point new_vec;
+      geometry_msgs::Point vec_ori;
+      geometry_msgs::Point result;
+      geometry_msgs::PoseStamped first_pose;
+      first_pose.pose.position.x = dmp_robot.fpos_x;
+      first_pose.pose.position.y = dmp_robot.fpos_y;
+      vec_ori.x = dmp_robot.fpos_x;
+      vec_ori.y = dmp_robot.fpos_y;
+      vec_ori.x = dmp_robot.fpos_x + vec_ori.x;
+      vec_ori.y = dmp_robot.fpos_y + vec_ori.y;
+      float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
+      float det = (vec_ori.x*0) + (vec_ori.y*0.1);
+      float ang = atan2(det,dot_prod);
+      q_rot.setRPY(0,0,ang);
+      q_vector = q_rot*q_orig;
+      q_vector.normalize();
+      result = findVectorTransformCam(first_pose,dmp_robot.v_x,dmp_robot.v_y,q_vector);
+      dmp_cam.v_x = result.x;
+      dmp_cam.v_y = result.y;
+      dmp_cam.v_pitch = dmp_robot.v_pitch;
+      dmp_cam.grasp = dmp_robot.grasp;
+      dmp_cam.roll = dmp_robot.roll;
+
+      return dmp_cam;
+   }
+
    //check which poses fit the chosen action and send them to SOm for re-display
    void CallbackCandidate(const motion::Dmp::ConstPtr& msg)
    {
-      
+      motion::Dmp current_dmp;
+      current_dmp.v_x = msg->v_x;
+      current_dmp.v_y = msg->v_y;
+      current_dmp.v_pitch = msg->v_pitch;
+      current_dmp.roll = msg->roll;
+      current_dmp.grasp = msg->grasp;
+      for(int i = 0; i < list_p.list_pose.size(); i++)
+      {
+         current_dmp.fpos_x = list_p.list_pose[i].x;
+         current_dmp.fpos_y = list_p.list_pose[i].y;
+         motion::Dmp candidate = tfRobtoCam(current_dmp);
+         float x_a = list_p.list_pose[i].x + candidate.v_x;
+         float y_a = list_p.list_pose[i].y + candidate.v_y;
+         float tol_pitch = candidate.v_pitch;
+         float pitch_a = list_p.list_pose[i].pitch;
+         for(int j = 0; j < list_p.list_pose.size(); j++)
+         {
+            float x_b = list_p.list_pose[j].x;
+            float y_b = list_p.list_pose[j].y;
+            float pitch_b = list_p.list_pose[j].pitch;
+            float dist = sqrt(pow(x_b-x_a,2) + pow(y_b-y_a,2));
+            float res_tol = sqrt(pow(pitch_b-pitch_a,2));
+            if(dist < 0.01 && res_tol )
+
+         }
+      }
    }
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
