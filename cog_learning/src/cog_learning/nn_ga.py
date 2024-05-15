@@ -72,8 +72,8 @@ class NNGoalAction(object):
         self.max_vx = 0.12
         self.min_vy = -0.12
         self.max_vy = 0.12
-        self.min_vpitch = -1.2
-        self.max_vpitch = 1.2
+        self.min_vpitch = -0.4
+        self.max_vpitch = 0.4
         self.min_roll = -1.5
         self.max_roll = 1.5
         self.min_grasp = 0
@@ -401,6 +401,19 @@ class NNGoalAction(object):
         s.append(t_out)
 
         return s
+    
+    def sample_pred(self, sample):
+        new_state = State()
+        new_state.state_x = self.scale_data(sample.state_x, self.min_x, self.max_x)
+        new_state.state_y = self.scale_data(sample.state_y, self.min_y, self.max_y)
+        new_state.state_angle = self.scale_data(sample.state_angle, self.min_angle, self.max_angle)
+        a0 = self.scale_inp_out(sample.dnf_x,0,100,-1,1)
+        a1 = self.scale_inp_out(sample.dnf_y,0,100,-1,1)
+        s = [new_state.state_x,new_state.state_y,new_state.state_angle,a0,a1]
+        t = torch.tensor(s,dtype=torch.float)
+
+        return t
+
 
     def scale_samples_skill(self, sample):
         #scale sample betwen [-1,1] for learning
@@ -956,4 +969,7 @@ class NNGoalAction(object):
         print("index models : ",self.index_skill)
 
     def predict_reward(self, sample):
-        pass
+        t_sample = self.sample_pred(sample)
+        out = self.skills[self.index_skill].forward_r_predictor(t_sample)
+
+        return out

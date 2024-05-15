@@ -47,6 +47,9 @@ from cluster_message.srv import *
 from cog_learning.msg import DmpDnf
 from cog_learning.msg import ActionDmpDnf
 from cog_learning.msg import LatentGoalDnf
+from cog_learning.srv import *
+from detector.srv import *
+from detector.msg import State
 
 class Motion(object):
   def __init__(self):
@@ -107,6 +110,8 @@ class Motion(object):
     self.go = False
     self.count_end = 0
     self.b_end = False
+    self.state_object = State()
+    self.new_state = False
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
@@ -140,6 +145,7 @@ class Motion(object):
     rospy.Subscriber("/motion_pincher/change_action", Bool, self.callback_change)
     rospy.Subscriber("/som_pose/som/input_list_peaks", ListPeaks, self.callback_list_peaks)
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
+    rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
 
   def transform_dmp_cam_rob(self, dmp_):
     rospy.wait_for_service('transform_dmp_cam_rob')
@@ -156,6 +162,24 @@ class Motion(object):
         transform_dmp = rospy.ServiceProxy('transform_dmp_rob_cam', tfRobCam)
         resp1 = transform_dmp(dmp_)
         return resp1.dmp_cam
+    except rospy.ServiceException as e:
+        print("Service call failed: %s"%e)
+
+  def get_object_state(self):
+    rospy.wait_for_service('get_object_state')
+    try:
+        action_predictions = rospy.ServiceProxy('get_object_state', GetState)
+        resp1 = action_predictions()
+        return resp1.state
+    except rospy.ServiceException as e:
+        print("Service call failed: %s"%e)
+
+  def get_action_prediction(self, act):
+    rospy.wait_for_service('predict_action')
+    try:
+        action_predictions = rospy.ServiceProxy('predict_action', PredAction)
+        resp1 = action_predictions(act)
+        return resp1.outputs
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
@@ -266,6 +290,12 @@ class Motion(object):
   def callback_change(self,msg):
     if msg.data == True:
       self.change_action = True
+
+  def callback_state(self,msg):
+    self.state_object.state_x = msg.state_x
+    self.state_object.state_y = msg.state_y
+    self.state_object.state_angle = msg.state_angle
+    self.new_state = True
 
   def get_ready(self):
     return self.ready
@@ -381,9 +411,10 @@ class Motion(object):
     #r = random.choice(self.possible_roll)
     #g = random.choice(self.possible_grasp)
     r = 0
-    g = 1
+    g = 0
+    z_ = 0.06
     print(self.poses)
-    """self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
+    self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
     self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
     self.dmp_explore.v_pitch = self.poses[1].pitch - self.poses[0].pitch
     self.dmp_explore.roll = r
@@ -391,6 +422,7 @@ class Motion(object):
     self.dmp_explore.fpos_x = self.poses[0].x
     self.dmp_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_cam_rob(self.dmp_explore)
+    print("DMP : ",msg)
     #display on interface
     self.pub_display_action.publish(msg)
     self.pub_dmp_action.publish(msg)
@@ -400,13 +432,14 @@ class Motion(object):
     if g > 0.5:
       self.bot.gripper.open()
       print("OPEN GRIPPER")
+      z_ = 0.05
     else:
       self.bot.gripper.close()
       print("CLOSE GRIPPER")
     rospy.sleep(2.0)
     print("nb pose : ",len(self.poses))
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=r, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=0.06, roll=r, pitch=self.poses[1].pitch)
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=r, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=z_, roll=r, pitch=self.poses[1].pitch)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(3.0)
@@ -431,15 +464,14 @@ class Motion(object):
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
-    self.bot.gripper.open()"""
-    self.poses.pop()
+    self.bot.gripper.open()
 
   def execute_direct_exploration(self):
     self.go = False
     self.send_state(True)
     print("DIRECT EXPLORATION")
     print(self.poses)
-    """self.dmp_direct_explore.fpos_x = self.poses[0].x
+    self.dmp_direct_explore.fpos_x = self.poses[0].x
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     #display on interface
     self.pub_display_action.publish(self.dmp_direct_explore)
@@ -447,17 +479,19 @@ class Motion(object):
     #print(msg)
     self.pub_dmp_action.publish(msg)
     self.bot.gripper.set_pressure(1.0)
+    z_ = 0.06
     #rospy.sleep(3.0)
     self.init_position()     
     if self.dmp_direct_explore.grasp > 0.5:
       self.bot.gripper.open()
+      z_ = 0.05
     else:
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
     lpos_p = self.poses[0].pitch + self.dmp_direct_explore.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_direct_explore.roll, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(2.0)
@@ -481,12 +515,14 @@ class Motion(object):
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
-    self.bot.gripper.open()"""
-    self.poses.pop()
+    self.bot.gripper.open()
 
   #send action to SOM that will restrict the position space
   def init_exploitation(self):
-    if self.change_action:
+    s = self.get_object_state()
+    print("State : ",s)
+    
+    """if self.change_action:
       s = len(self.possible_action)
       self.choice = random.randint(0,s-1)
       self.change_action = False
@@ -499,13 +535,13 @@ class Motion(object):
     dmp_exploit.grasp = dmp_choice[4]
     print("choosing DMP : ",dmp_exploit)
     self.pub_dmp_candidate.publish(dmp_exploit)
-    #self.send_init(1.0)
+    #self.send_init(1.0)"""
 
   def execute_exploitation(self):
     self.go = False
     self.send_state(True)
     print("DIRECT EXPLOITATION")
-    """dmp_choice = self.possible_action[self.choice]
+    dmp_choice = self.possible_action[self.choice]
     print("choosing action : ",dmp_choice)
     dmp_exploit = Dmp()
     dmp_exploit.v_x = dmp_choice[0]
@@ -527,16 +563,18 @@ class Motion(object):
     self.pub_dnf_action.publish(lat_action)
     self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
+    z_ = 0.06
     self.init_position()     
     if dmp_exploit.grasp > 0.5:
       self.bot.gripper.open()
+      z_ = 0.05
     else:
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
     lpos_p = self.poses[0].pitch + dmp_exploit.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=0.06, roll=dmp_exploit.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=0.06, roll=dmp_exploit.roll, pitch=lpos_p)
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=dmp_exploit.roll, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=dmp_exploit.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(2.0)
@@ -560,8 +598,7 @@ class Motion(object):
     b = Bool()
     b.data = True
     self.pub_activate_perception.publish(b)
-    self.bot.gripper.open()"""
-    self.poses.pop()
+    self.bot.gripper.open()
 
   def run_possibilities(self):
     name_dataset = "/home/altair/interbotix_ws/src/motion/dataset/home_positions.txt"

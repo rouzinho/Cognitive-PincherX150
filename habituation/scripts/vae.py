@@ -687,6 +687,7 @@ class Habituation(object):
       self.pub_direct = rospy.Publisher("/motion_pincher/dmp_direct_exploration",Dmp, queue_size=1, latch=True)
       self.pub_busy_out = rospy.Publisher("/cluster_msg/vae/busy_out",Bool, queue_size=1, latch=True)
       self.pub_busy_act = rospy.Publisher("/cluster_msg/vae/busy_act",Bool, queue_size=1, latch=True)
+      self.pub_reward = rospy.Publisher("/cog_learning/action_reward",Float64, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
       rospy.Subscriber("/habituation/outcome/mt", Image, self.field_callback)
@@ -1049,15 +1050,17 @@ class Habituation(object):
       self.new_perception.x = peak[0]
       self.new_perception.y = peak[1]
       msg = self.habit[self.index_vae].get_eval(peak)
+      self.send_distance()
       self.send_perception(msg)
       rospy.sleep(2.0)
       l = LatentNNDNF()
       self.send_perception(l)
       
-   def get_distance(self):
+   def send_distance(self):
       dist = math.sqrt(pow((self.goal_perception.x/100) - (self.new_perception.x/100),2) + pow((self.goal_perception.y/100) - (self.new_perception.y/100),2))
+      r = 1 - dist
       
-      return dist
+      return r 
 
    def callback_id(self, msg):
       if self.prev_id_object != self.id_object and msg.data != -1:

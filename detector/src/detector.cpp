@@ -47,6 +47,7 @@
 #include <depth_interface/InterfacePOI.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <visualization_msgs/Marker.h>
+#include "detector/GetState.h"
 
 using namespace message_filters;
 using namespace std;
@@ -74,6 +75,7 @@ class Detector
         ros::Subscriber sub_first_time;
         ros::Subscriber sub_grasping;
         ros::Subscriber sub_monitored;
+        ros::ServiceServer service;
         open3d::geometry::PointCloud cloud_origin;
         open3d::geometry::PointCloud cloud_backup;
         open3d::geometry::PointCloud cloud_final;
@@ -132,6 +134,7 @@ class Detector
         //sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
         sub_monitored = nh_.subscribe("/outcome_detector/monitored_object", 1, &Detector::intCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
+        service = nh_.advertiseService("get_object_state",&Detector::getState,this);
         pub_tf = nh_.advertise<sensor_msgs::PointCloud2>("/outcome_detector/cloud_icp",1);
         pub_outcome = nh_.advertise<detector::Outcome>("/outcome_detector/outcome",1);
         pub_aruco = nh_.advertise<depth_interface::InterfacePOI>("/outcome_detector/aruco_corners",1);
@@ -168,6 +171,15 @@ class Detector
     virtual ~Detector()
     {
         cv::destroyWindow(OPENCV_WINDOW);
+    }
+
+    bool getState(detector::GetState::Request &req, detector::GetState::Response &res)
+    {
+        res.state.state_x = pose_object.pose.position.x;
+        res.state.state_y = pose_object.pose.position.y;
+        res.state.state_angle = object_state_angle;
+        
+        return true;
     }
 
     void callbackPointCloud(const sensor_msgs::PointCloud2ConstPtr& cloud_ori)

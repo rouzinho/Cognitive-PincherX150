@@ -59,8 +59,6 @@ add_message_files(
   ListObject.msg
   DmpDnf.msg
   ActionDmpDnf.msg
-  ListOutput.msg
-  ListSamplePred.msg
   SamplePred.msg
 )
 
