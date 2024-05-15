@@ -144,6 +144,7 @@ class Som(object):
         n_sub = name + "node_coord"
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
+        rospy.Subscriber("/som/winners", ListPose, self.callback_list_winners)
         self.pub_list_pose = rospy.Publisher('/cluster_msg/list_candidates', ListPose, queue_size=1,latch=True)
         self.num_features = num_features
         self.size = s
@@ -159,7 +160,6 @@ class Som(object):
         self.current_time = 0
         self.mode = mode
         self.exploit = False
-        self.list_coords = []
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
@@ -231,8 +231,22 @@ class Som(object):
         #print(l.list_peaks)
         self.pub_peaks.publish(l)
 
+    def callback_list_winners(self,msg):
+        #print(msg)
+        l_peaks = self.list_winner(msg)
+        #print("list peaks ")
+        #print(l_peaks)
+        l = ListPeaks()
+        for i in l_peaks:
+            p = Point()
+            p.x = i[0]
+            p.y = i[1] 
+            l.list_peaks.append(p)
+        #print(l.list_peaks)
+        self.pub_peaks.publish(l)
+
     def list_peaks(self,data):
-        self.list_coords = []
+        list_coords = []
         lp = ListPose()
         for sample in data.list_peaks:
             for i in range(0,self.size):
@@ -243,7 +257,7 @@ class Som(object):
                     if dist < 0.01:
                         #print("val ",val[0,2])
                         coords = [i,j]
-                        self.list_coords.append(coords)
+                        list_coords.append(coords)
                         go = GripperOrientation()
                         go.x = val[0,0]
                         go.y = val[0,1]
@@ -251,7 +265,22 @@ class Som(object):
                         lp.list_pose.append(go)
         self.pub_list_pose.publish(lp)
         
-        return self.list_coords
+        return list_coords
+    
+    def list_winner(self,data):
+        list_coords = []
+        for sample in data.list_pose:
+            for i in range(0,self.size):
+                for j in range(0,self.size):
+                    val = self.network[i][j].getWeights()
+                    #print("val ",val)
+                    #dist = math.sqrt(pow(val[0,0] - sample.x,2)+pow(val[0,1] - sample.y,2))
+                    if (val[0,0] < sample.x + 0.005 and val[0,0] > sample.x - 0.005) and (val[0,1] < sample.y + 0.005 and val[0,1] > sample.y - 0.005) and (val[0,2] < sample.pitch + 0.005 and val[0,2] > sample.pitch - 0.005):
+                        #print("val ",val[0,2])
+                        coords = [i,j]
+                        list_coords.append(coords)
+        
+        return list_coords
     
     def bmu_server(self,req):
         data = [req.sample.x,req.sample.y,req.sample.pitch]

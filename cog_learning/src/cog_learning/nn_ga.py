@@ -522,7 +522,7 @@ class NNGoalAction(object):
         #ouput of decoders
         tmp_sample_outcome = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         tmp_sample_action = [dmp.v_x,dmp.v_y,dmp.v_pitch,dmp.roll,dmp.grasp]
-        #print("scaled dmp : ",tmp_sample)
+        #print("scaled dmp : ",tmp_sample_action)
         tensor_sample_outcome = torch.tensor(tmp_sample_outcome,dtype=torch.float)
         tensor_sample_action = torch.tensor(tmp_sample_action,dtype=torch.float)
         t_act = self.forward_encoder_action(tensor_sample_action)
@@ -911,7 +911,7 @@ class NNGoalAction(object):
         outcome.touch = round(touch)
         tmp = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         #print("output sample : ",out)
-        #print("output sample reconstructed: ",tmp)
+        print("reconstructed outcome: ",tmp)
         self.pub_habituation.publish(outcome)
     
     def activate_dmp_actions(self, goal):
@@ -933,7 +933,7 @@ class NNGoalAction(object):
             v_y = self.reconstruct_latent(n_out[1],self.min_vy,self.max_vy)
             v_pitch = self.reconstruct_latent(n_out[2],self.min_vpitch,self.max_vpitch)
             roll = self.reconstruct_latent(n_out[3],self.min_roll,self.max_roll)
-            grasp = self.reconstruct_latent(n_out[4],self.min_grasp,self.max_vx)
+            grasp = self.reconstruct_latent(n_out[4],self.min_grasp,self.max_grasp)
             dmpdnf.v_x = round(v_x,2)
             dmpdnf.v_y = round(v_y,2)
             dmpdnf.v_pitch = round(v_pitch,1)
@@ -942,6 +942,7 @@ class NNGoalAction(object):
             dmpdnf.dnf_x = i[0]
             dmpdnf.dnf_y = i[1]
             l_action.list_action.append(dmpdnf)
+        print("reconstructed actions : ",l_action)
         self.pub_dmp.publish(l_action)
 
     def activate_hebbian(self, goal):

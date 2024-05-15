@@ -298,7 +298,7 @@ class Motion(object):
       tmp_dnf = [i.dnf_x,i.dnf_y]
       self.possible_action.append(tmp_a)
       self.possible_dnf.append(tmp_dnf)
-      print("callback : ",self.possible_action)
+      #print("callback : ",self.possible_action)
 
   def callback_list_peaks(self,msg):
     self.list_peaks = []
@@ -497,31 +497,9 @@ class Motion(object):
     dmp_exploit.v_pitch = dmp_choice[2]
     dmp_exploit.roll = dmp_choice[3]
     dmp_exploit.grasp = dmp_choice[4]
-
+    print("choosing DMP : ",dmp_exploit)
+    self.pub_dmp_candidate.publish(dmp_exploit)
     #self.send_init(1.0)
-
-  def find_candidates(self):
-    dmp_choice = self.possible_action[self.choice]
-    dmp_exploit = Dmp()
-    dmp_exploit.v_x = dmp_choice[0]
-    dmp_exploit.v_y = dmp_choice[1]
-    dmp_exploit.v_pitch = dmp_choice[2]
-    dmp_exploit.roll = dmp_choice[3]
-    dmp_exploit.grasp = dmp_choice[4]
-    for i in self.list_peaks:
-      dmp_exploit.fpos_x = i.x
-      dmp_exploit.fpos_y = i.y
-      msg = self.transform_dmp_rob_cam(dmp_exploit)
-      for j in self.list_peaks:
-        x_a = i.x + msg.v_x
-        y_a = i.y + msg.v_y
-        dist = math.sqrt(pow(j.x-x_a,2)+pow(j.y-y_a,2))
-        if dist < 0.01:
-          print("candidate : ",i)
-          print("dmp : ",msg)
-          print("end-pose : ",j)
-
-
 
   def execute_exploitation(self):
     self.go = False

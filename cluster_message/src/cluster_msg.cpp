@@ -64,6 +64,7 @@ class ClusterMessage
    ros::Publisher pub_outcome;
    ros::Publisher pub_pause;
    ros::Publisher pub_ready;
+   ros::Publisher pub_winners_pose;
    ros::ServiceServer service;
    ros::ServiceServer service_;
    detector::Outcome outcome;
@@ -132,6 +133,7 @@ class ClusterMessage
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
       pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
+      pub_winners_pose = nh_.advertise<som::ListPose>("/som/winners",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
       list_p.list_pose.resize(0);
@@ -243,15 +245,21 @@ class ClusterMessage
       return dmp_cam;
    }
 
-   //check which poses fit the chosen action and send them to SOm for re-display
+   //check which poses fit the chosen action and send them to SOM for re-display
    void CallbackCandidate(const motion::Dmp::ConstPtr& msg)
    {
+      bool got_pose = false;
+      int nb_win = 0;
+      float tol_pitch = 0.1;
+      som::ListPose good_list;
+      good_list.list_pose.resize(0);
       motion::Dmp current_dmp;
       current_dmp.v_x = msg->v_x;
       current_dmp.v_y = msg->v_y;
       current_dmp.v_pitch = msg->v_pitch;
       current_dmp.roll = msg->roll;
       current_dmp.grasp = msg->grasp;
+      std::cout<<"candidates : "<<list_p.list_pose.size()<<"\n";  
       for(int i = 0; i < list_p.list_pose.size(); i++)
       {
          current_dmp.fpos_x = list_p.list_pose[i].x;
@@ -259,19 +267,39 @@ class ClusterMessage
          motion::Dmp candidate = tfRobtoCam(current_dmp);
          float x_a = list_p.list_pose[i].x + candidate.v_x;
          float y_a = list_p.list_pose[i].y + candidate.v_y;
-         float tol_pitch = candidate.v_pitch;
+         float goal_pitch = candidate.v_pitch;
          float pitch_a = list_p.list_pose[i].pitch;
-         for(int j = 0; j < list_p.list_pose.size(); j++)
+         while(!got_pose)
          {
-            float x_b = list_p.list_pose[j].x;
-            float y_b = list_p.list_pose[j].y;
-            float pitch_b = list_p.list_pose[j].pitch;
-            float dist = sqrt(pow(x_b-x_a,2) + pow(y_b-y_a,2));
-            float res_tol = sqrt(pow(pitch_b-pitch_a,2));
-            if(dist < 0.01 && res_tol )
-
+            for(int j = 0; j < list_p.list_pose.size(); j++)
+            {
+               float x_b = list_p.list_pose[j].x;
+               float y_b = list_p.list_pose[j].y;
+               float pitch_b = list_p.list_pose[j].pitch;
+               float dist = sqrt(pow(x_b-x_a,2) + pow(y_b-y_a,2));
+               float res_tol = pitch_b - pitch_a;
+               if(dist < 0.001)
+               {
+                  if(res_tol <= goal_pitch + tol_pitch and res_tol >= goal_pitch - tol_pitch)
+                  {
+                     if(!containValue(good_list,list_p.list_pose[i]))
+                     {
+                        som::GripperOrientation winner;
+                        winner.x = list_p.list_pose[i].x;
+                        winner.y = list_p.list_pose[i].y;
+                        winner.z = list_p.list_pose[i].z;
+                        winner.pitch = list_p.list_pose[i].pitch;
+                        good_list.list_pose.push_back(winner);
+                        got_pose = true;
+                     }
+                  }
+               }
+            }
+            tol_pitch = tol_pitch + 0.1;
          }
       }
+      std::cout<<"Winners : "<<good_list.list_pose.size()<<"\n";
+      pub_winners_pose.publish(good_list);
    }
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
@@ -631,6 +659,20 @@ class ClusterMessage
          p.pitch = msg->list_pose[i].pitch;
          list_p.list_pose.push_back(p);
       }
+   }
+
+   bool containValue(som::ListPose lp, som::GripperOrientation value)
+   {
+      bool inside = false;
+      for(som::GripperOrientation go : lp.list_pose)
+      {
+         if(go.x == value.x && go.y == value.y && go.pitch == value.pitch)
+         {
+            inside = true;
+         }
+      }
+
+      return inside;
    }
 
    geometry_msgs::Point findVectorTransform(geometry_msgs::PoseStamped first_pose, float tx, float ty, tf2::Quaternion q_vector)
