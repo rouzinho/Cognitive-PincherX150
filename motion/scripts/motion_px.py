@@ -47,6 +47,7 @@ from cluster_message.srv import *
 from cog_learning.msg import DmpDnf
 from cog_learning.msg import ActionDmpDnf
 from cog_learning.msg import LatentGoalDnf
+from cog_learning.msg import SamplePred
 from cog_learning.srv import *
 from detector.srv import *
 from detector.msg import State
@@ -69,7 +70,6 @@ class Motion(object):
     self.possible_grasp = [0.0,1.0]
     self.possible_roll = [-1.5,-0.7,0,0,0.7,1.5]
     self.possible_action = []
-    self.possible_dnf = []
     self.move = False
     self.name_state = ""
     self.path = []
@@ -157,7 +157,7 @@ class Motion(object):
         print("Service call failed: %s"%e)
 
   def transform_dmp_rob_cam(self, dmp_):
-    rospy.wait_for_service('transform_dmp_cam_rob')
+    rospy.wait_for_service('transform_dmp_rob_cam')
     try:
         transform_dmp = rospy.ServiceProxy('transform_dmp_rob_cam', tfRobCam)
         resp1 = transform_dmp(dmp_)
@@ -322,12 +322,9 @@ class Motion(object):
 
   def callback_actions(self,msg):
     self.possible_action = []
-    self.possible_dnf = []
     for i in msg.list_action:
-      tmp_a = [i.v_x,i.v_y,i.v_pitch,i.roll,i.grasp]
-      tmp_dnf = [i.dnf_x,i.dnf_y]
+      tmp_a = [i.v_x,i.v_y,i.v_pitch,i.roll,i.grasp,i.dnf_x,i.dnf_y]
       self.possible_action.append(tmp_a)
-      self.possible_dnf.append(tmp_dnf)
       #print("callback : ",self.possible_action)
 
   def callback_list_peaks(self,msg):
@@ -519,13 +516,28 @@ class Motion(object):
 
   #send action to SOM that will restrict the position space
   def init_exploitation(self):
-    s = self.get_object_state()
-    print("State : ",s)
-    
-    """if self.change_action:
+    st = self.get_object_state()
+    if self.change_action:
       s = len(self.possible_action)
-      self.choice = random.randint(0,s-1)
-      self.change_action = False
+      if s > 1:
+        l_pred = []
+        for i in range(0,s):
+          sample = SamplePred()
+          sample.state_x = st.state_x
+          sample.state_y = st.state_y
+          sample.state_angle = st.state_angle
+          sample.dnf_x = self.possible_action[i][5]
+          sample.dnf_y = self.possible_action[i][6]
+          l_pred.append(sample)
+        res_outputs = self.get_action_prediction(l_pred)
+        min_p = 0
+        ind = 0
+        for i in range(0,len(res_outputs)):
+          if res_outputs[i] > min_p:
+            ind = i
+            min_p = res_outputs[i]
+        self.choice = ind
+        self.change_action = False
     dmp_choice = self.possible_action[self.choice]
     dmp_exploit = Dmp()
     dmp_exploit.v_x = dmp_choice[0]
@@ -535,7 +547,9 @@ class Motion(object):
     dmp_exploit.grasp = dmp_choice[4]
     print("choosing DMP : ",dmp_exploit)
     self.pub_dmp_candidate.publish(dmp_exploit)
-    #self.send_init(1.0)"""
+    rospy.sleep(3.0)
+    print("Init ACTION !")
+    self.send_init(1.0)
 
   def execute_exploitation(self):
     self.go = False
@@ -552,14 +566,13 @@ class Motion(object):
     dmp_exploit.fpos_x = self.poses[0].x
     dmp_exploit.fpos_y = self.poses[0].y
     #display on the interface
-    self.pub_display_action.publish(dmp_exploit)
+    #self.pub_display_action.publish(dmp_exploit)
     msg = self.transform_dmp_rob_cam(dmp_exploit)
     print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()
-    dnf_choice = self.possible_dnf[self.choice]
-    print("DNF : ",dnf_choice)
-    lat_action.latent_x = dnf_choice[0]
-    lat_action.latent_y = dnf_choice[1]
+    lat_action.latent_x = self.possible_action[self.choice][5]
+    lat_action.latent_y = self.possible_action[self.choice][6]
+    print("DNF : ",lat_action)
     self.pub_dnf_action.publish(lat_action)
     self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
