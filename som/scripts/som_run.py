@@ -145,7 +145,7 @@ class Som(object):
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
         rospy.Subscriber("/som/winners", ListPose, self.callback_list_winners)
-        self.pub_list_pose = rospy.Publisher('/cluster_msg/list_candidates', ListPose, queue_size=1,latch=True)
+        self.pub_list_pose = rospy.Publisher('/motion_pincher/list_candidates', ListPose, queue_size=1,latch=True)
         self.num_features = num_features
         self.size = s
         self.epoch = ep

@@ -66,14 +66,14 @@ class NNGoalAction(object):
         self.max_x = 0.46
         self.min_y = -0.35
         self.max_y = 0.32
-        self.min_pitch = 0
+        self.min_pitch = 0.1
         self.max_pitch = 1.5
         self.min_vx = -0.12
         self.max_vx = 0.12
         self.min_vy = -0.12
         self.max_vy = 0.12
-        self.min_vpitch = -0.4
-        self.max_vpitch = 0.4
+        self.min_vpitch = 0.1
+        self.max_vpitch = 1.5
         self.min_roll = -1.5
         self.max_roll = 1.5
         self.min_grasp = 0
@@ -82,6 +82,7 @@ class NNGoalAction(object):
         self.max_angle = 180
         self.min_scale = -1.7
         self.max_scale = 1.7
+        self.reward_predictor = 0
         
     def update_learning_progress(self, data, error):
         update_lp = Goal()
@@ -493,7 +494,9 @@ class NNGoalAction(object):
         #print("CONTINUAL sample before scaling : ",data)
         state, outcome, sample_action, lat = self.scale_samples_existing_skill(data)
         sample = self.create_skill_sample(state,outcome,sample_action,[lat.latent_x,lat.latent_y])
+        s_pred = self.create_pred_sample(state,[data.dnf_x,data.dnf_y],1.0)
         self.skills[self.index_skill].add_to_memory(sample)
+        self.skills[self.index_skill].add_to_pred_memory(s_pred)
         #self.skills[self.index_skill].print_memory()
         err_fwd = self.skills[self.index_skill].predictForwardModel(sample[2],sample[0])
         err_inv = self.skills[self.index_skill].predictInverseModel(sample[3],sample[1])
@@ -519,6 +522,7 @@ class NNGoalAction(object):
         self.end_action(False)
         self.skills[self.index_skill].train_forward_model()
         self.skills[self.index_skill].train_inverse_model()
+        self.skills[self.index_skill].train_predictor()
         pwd = self.folder_nnga + str(self.id_nnga) + "/"
         #self.skills[self.index_skill].save_memory(pwd)
         #self.skills[self.index_skill].save_memory_pred(pwd)

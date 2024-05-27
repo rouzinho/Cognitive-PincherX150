@@ -143,7 +143,7 @@ class Motion(object):
     rospy.Subscriber("/cluster_msg/pause", Float64, self.callback_pause)
     rospy.Subscriber("/motion_pincher/activate_actions", ActionDmpDnf, self.callback_actions)
     rospy.Subscriber("/motion_pincher/change_action", Bool, self.callback_change)
-    rospy.Subscriber("/som_pose/som/input_list_peaks", ListPeaks, self.callback_list_peaks)
+    rospy.Subscriber("/motion_pincher/list_candidates", ListPose, self.callback_list_pose)
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
     rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
 
@@ -195,6 +195,7 @@ class Motion(object):
       if self.rnd_explore or self.direct_explore:
         self.send_init(1.0)
       if self.exploit:
+        print("LAUNCHING EXPLOITATION")
         self.init_exploitation()
 
   def callback_first_pose(self,msg):
@@ -327,7 +328,7 @@ class Motion(object):
       self.possible_action.append(tmp_a)
       #print("callback : ",self.possible_action)
 
-  def callback_list_peaks(self,msg):
+  def callback_list_pose(self,msg):
     self.list_peaks = []
     for i in msg.list_peaks:
       self.list_peaks.append(i)
@@ -399,6 +400,9 @@ class Motion(object):
     self.pub_gripper.publish(jsc)
     if self.touch_value:
       print("object grasped !")
+
+  def find_best_pose(self,lpx,lpy,lpp):
+    pass
       
   #execute the action
   def execute_rnd_exploration(self):
@@ -514,7 +518,7 @@ class Motion(object):
     self.pub_activate_perception.publish(b)
     self.bot.gripper.open()
 
-  #send action to SOM that will restrict the position space
+  #init 
   def init_exploitation(self):
     st = self.get_object_state()
     if self.change_action:
@@ -539,15 +543,15 @@ class Motion(object):
         self.choice = ind
         self.change_action = False
     dmp_choice = self.possible_action[self.choice]
-    dmp_exploit = Dmp()
-    dmp_exploit.v_x = dmp_choice[0]
-    dmp_exploit.v_y = dmp_choice[1]
-    dmp_exploit.v_pitch = dmp_choice[2]
-    dmp_exploit.roll = dmp_choice[3]
-    dmp_exploit.grasp = dmp_choice[4]
-    print("choosing DMP : ",dmp_exploit)
-    self.pub_dmp_candidate.publish(dmp_exploit)
-    rospy.sleep(3.0)
+    self.dmp_exploit = Dmp()
+    self.dmp_exploit.v_x = dmp_choice[0]
+    self.dmp_exploit.v_y = dmp_choice[1]
+    self.dmp_exploit.v_pitch = dmp_choice[2]
+    self.dmp_exploit.roll = dmp_choice[3]
+    self.dmp_exploit.grasp = dmp_choice[4]
+    #print("choosing DMP : ",dmp_exploit)
+    #self.pub_dmp_candidate.publish(dmp_exploit)
+    #rospy.sleep(3.0)
     print("Init ACTION !")
     self.send_init(1.0)
 
@@ -555,19 +559,9 @@ class Motion(object):
     self.go = False
     self.send_state(True)
     print("DIRECT EXPLOITATION")
-    dmp_choice = self.possible_action[self.choice]
-    print("choosing action : ",dmp_choice)
-    dmp_exploit = Dmp()
-    dmp_exploit.v_x = dmp_choice[0]
-    dmp_exploit.v_y = dmp_choice[1]
-    dmp_exploit.v_pitch = dmp_choice[2]
-    dmp_exploit.roll = dmp_choice[3]
-    dmp_exploit.grasp = dmp_choice[4]
-    dmp_exploit.fpos_x = self.poses[0].x
-    dmp_exploit.fpos_y = self.poses[0].y
     #display on the interface
     #self.pub_display_action.publish(dmp_exploit)
-    msg = self.transform_dmp_rob_cam(dmp_exploit)
+    msg = self.transform_dmp_rob_cam(self.dmp_exploit)
     print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()
     lat_action.latent_x = self.possible_action[self.choice][5]
@@ -578,16 +572,16 @@ class Motion(object):
     #rospy.sleep(3.0)
     z_ = 0.06
     self.init_position()     
-    if dmp_exploit.grasp > 0.5:
+    if self.dmp_exploit.grasp > 0.5:
       self.bot.gripper.open()
       z_ = 0.05
     else:
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
-    lpos_p = self.poses[0].pitch + dmp_exploit.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=dmp_exploit.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=dmp_exploit.roll, pitch=lpos_p)
+    lpos_p = self.poses[0].pitch + self.dmp_exploit.v_pitch
+    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=self.poses[0].pitch)
+    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(2.0)

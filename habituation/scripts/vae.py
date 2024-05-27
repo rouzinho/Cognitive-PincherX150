@@ -635,8 +635,8 @@ class Habituation(object):
       self.max_vx = 0.12
       self.min_vy = -0.12
       self.max_vy = 0.12
-      self.min_vpitch = -1.2
-      self.max_vpitch = 1.2
+      self.min_vpitch = 0.1
+      self.max_vpitch = 1.5
       self.min_roll = -1.5
       self.max_roll = 1.5
       self.min_grasp = 0
@@ -1059,8 +1059,9 @@ class Habituation(object):
    def send_distance(self):
       dist = math.sqrt(pow((self.goal_perception.x/100) - (self.new_perception.x/100),2) + pow((self.goal_perception.y/100) - (self.new_perception.y/100),2))
       r = 1 - dist
-      
-      return r 
+      f = Float64()
+      f.data = r
+      self.pub_reward.publish(f) 
 
    def callback_id(self, msg):
       if self.prev_id_object != self.id_object and msg.data != -1:

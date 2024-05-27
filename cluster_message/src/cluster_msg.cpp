@@ -63,8 +63,8 @@ class ClusterMessage
    ros::Publisher pub_signal;
    ros::Publisher pub_outcome;
    ros::Publisher pub_pause;
-   ros::Publisher pub_ready;
-   ros::Publisher pub_winners_pose;
+   ros::Publisher pub_init_action;
+   ros::Publisher pub_sim_ready;
    ros::ServiceServer service;
    ros::ServiceServer service_;
    detector::Outcome outcome;
@@ -124,16 +124,16 @@ class ClusterMessage
       sub_busy_act = nh_.subscribe("/cluster_msg/vae/busy_act", 1, &ClusterMessage::CallbackBusyVAEact,this);
       sub_busy_nn_out = nh_.subscribe("/cluster_msg/nnga/busy_out", 1, &ClusterMessage::CallbackBusyNNout,this);
       sub_busy_nn_act = nh_.subscribe("/cluster_msg/nnga/busy_act", 1, &ClusterMessage::CallbackBusyNNact,this);
-      sub_dmp_candidate = nh_.subscribe("/cluster_msg/dmp_candidate", 1, &ClusterMessage::CallbackCandidate,this);
-      sub_l_peaks = nh_.subscribe("/cluster_msg/list_candidates", 1, &ClusterMessage::CallbackListPeak,this);
+      //sub_dmp_candidate = nh_.subscribe("/cluster_msg/dmp_candidate", 1, &ClusterMessage::CallbackCandidate,this);
+      //sub_l_peaks = nh_.subscribe("/cluster_msg/list_candidates", 1, &ClusterMessage::CallbackListPeak,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
-      pub_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
-      pub_winners_pose = nh_.advertise<som::ListPose>("/som/winners",1);
+      pub_init_action = nh_.advertise<std_msgs::Float64>("/motion_pincher/ready_init",1);
+      pub_sim_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
       list_p.list_pose.resize(0);
@@ -299,7 +299,7 @@ class ClusterMessage
          }
       }
       std::cout<<"Winners : "<<good_list.list_pose.size()<<"\n";
-      pub_winners_pose.publish(good_list);
+      //pub_winners_pose.publish(good_list);
    }
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
@@ -391,7 +391,6 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         pub_ready.publish(b);
          
          if(!touch)
          {
@@ -402,6 +401,7 @@ class ClusterMessage
             f.data = 0.0;
             pub_signal.publish(f);
          } 
+         pub_sim_ready.publish(b);
       }
       if(rnd_explore > 0.5 && retry)
       {
@@ -531,12 +531,11 @@ class ClusterMessage
          pub_new_state.publish(b);
          std_msgs::Float64 f;
          init_valid = false;
-         pub_ready.publish(b);
          f.data = 1.0;
-         pub_signal.publish(f);
+         pub_init_action.publish(f);
          ros::Duration(1.0).sleep();
          f.data = 0.0;
-         pub_signal.publish(f);
+         pub_init_action.publish(f);
       }
       if(exploit > 0.5 && retry)
       {
@@ -550,10 +549,10 @@ class ClusterMessage
          new_state = false;
          std_msgs::Float64 f;
          f.data = 1.0;
-         pub_signal.publish(f);
+         pub_init_action.publish(f);
          ros::Duration(1.0).sleep();
          f.data = 0.0;
-         pub_signal.publish(f);
+         pub_init_action.publish(f);
       }
    }
 
