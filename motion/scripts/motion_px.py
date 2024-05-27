@@ -183,6 +183,15 @@ class Motion(object):
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
+  def get_correct_pose(self, pitch):
+    rospy.wait_for_service('set_pose')
+    try:
+        action_predictions = rospy.ServiceProxy('set_pose', GetPoses)
+        resp1 = action_predictions(pitch)
+        return resp1.success
+    except rospy.ServiceException as e:
+        print("Service call failed: %s"%e)
+
   def callback_ready_init(self,msg):
     if msg.data > 0.9:
       self.count_init += 1
@@ -400,9 +409,6 @@ class Motion(object):
     self.pub_gripper.publish(jsc)
     if self.touch_value:
       print("object grasped !")
-
-  def find_best_pose(self,lpx,lpy,lpp):
-    pass
       
   #execute the action
   def execute_rnd_exploration(self):
@@ -520,12 +526,12 @@ class Motion(object):
 
   #init 
   def init_exploitation(self):
-    st = self.get_object_state()
     if self.change_action:
       s = len(self.possible_action)
       if s > 1:
         l_pred = []
         for i in range(0,s):
+          st = self.get_object_state()
           sample = SamplePred()
           sample.state_x = st.state_x
           sample.state_y = st.state_y
@@ -543,6 +549,7 @@ class Motion(object):
         self.choice = ind
         self.change_action = False
     dmp_choice = self.possible_action[self.choice]
+    suc = self.get_correct_pose(dmp_choice[2])
     self.dmp_exploit = Dmp()
     self.dmp_exploit.v_x = dmp_choice[0]
     self.dmp_exploit.v_y = dmp_choice[1]

@@ -142,10 +142,9 @@ class Som(object):
         super(Som, self).__init__()
         #rospy.init_node("som", anonymous=True)
         n_sub = name + "node_coord"
+        rospy.Service('set_pose', GetPoses, self.setup_poses)
         rospy.Subscriber(n_sub, Point, self.callbackNode)
         rospy.Subscriber('/cog_learning/exploitation', Float64, self.callback_exploitation)
-        rospy.Subscriber("/som/winners", ListPose, self.callback_list_winners)
-        self.pub_list_pose = rospy.Publisher('/motion_pincher/list_candidates', ListPose, queue_size=1,latch=True)
         self.num_features = num_features
         self.size = s
         self.epoch = ep
@@ -160,6 +159,7 @@ class Som(object):
         self.current_time = 0
         self.mode = mode
         self.exploit = False
+        self.list_coords = []
         if self.mode == "motion":
             self.pub_node = rospy.Publisher('/motion_pincher/vector_action', VectorAction, queue_size=1)
         else:
@@ -179,6 +179,23 @@ class Som(object):
         self.map = np.random.random((s, s, num_features))
         self.im = plt.imshow(self.map,interpolation='none')
         self.cluster_map = np.zeros((self.size,self.size,1))
+
+    def setup_poses(self,req):
+        coords = self.get_list_peaks(req.pitch)
+        l = ListPeaks()
+        for i in coords:
+            p = Point()
+            p.x = i[0]
+            p.y = i[1] 
+            l.list_peaks.append(p)
+        self.pub_peaks.publish(l)
+        res = GetPosesResponse()
+        if len(coords) > 0:
+            res.success = True
+        else:
+            res.success = False
+        
+        return res
 
     def callback_exploitation(self,msg):
         if msg.data > 0.5:
@@ -231,22 +248,8 @@ class Som(object):
         #print(l.list_peaks)
         self.pub_peaks.publish(l)
 
-    def callback_list_winners(self,msg):
-        #print(msg)
-        l_peaks = self.list_winner(msg)
-        #print("list peaks ")
-        #print(l_peaks)
-        l = ListPeaks()
-        for i in l_peaks:
-            p = Point()
-            p.x = i[0]
-            p.y = i[1] 
-            l.list_peaks.append(p)
-        #print(l.list_peaks)
-        self.pub_peaks.publish(l)
-
     def list_peaks(self,data):
-        list_coords = []
+        self.list_coords = []
         lp = ListPose()
         for sample in data.list_peaks:
             for i in range(0,self.size):
@@ -257,42 +260,20 @@ class Som(object):
                     if dist < 0.01:
                         #print("val ",val[0,2])
                         coords = [i,j]
-                        list_coords.append(coords)
-                        go = GripperOrientation()
-                        go.x = val[0,0]
-                        go.y = val[0,1]
-                        go.pitch = val[0,2]
-                        lp.list_pose.append(go)
-        self.pub_list_pose.publish(lp)
+                        self.list_coords.append(coords)
         
-        return list_coords
+        return self.list_coords
     
-    def list_winner(self,data):
-        list_coords = []
-        for sample in data.list_pose:
-            for i in range(0,self.size):
-                for j in range(0,self.size):
-                    val = self.network[i][j].getWeights()
-                    #print("val ",val)
-                    #dist = math.sqrt(pow(val[0,0] - sample.x,2)+pow(val[0,1] - sample.y,2))
-                    if (val[0,0] < sample.x + 0.005 and val[0,0] > sample.x - 0.005) and (val[0,1] < sample.y + 0.005 and val[0,1] > sample.y - 0.005) and (val[0,2] < sample.pitch + 0.005 and val[0,2] > sample.pitch - 0.005):
-                        #print("val ",val[0,2])
-                        coords = [i,j]
-                        list_coords.append(coords)
-        
-        return list_coords
-    
-    def bmu_server(self,req):
-        data = [req.sample.x,req.sample.y,req.sample.pitch]
-        n = Node(self.num_features)
-        n.setWeights(data)
-        bmu = self.get_bmu(n)
-        dat_bmu = bmu.getWeights()
-        go = GetBMUResponse()
-        go.bmu.x = dat_bmu[0,0]
-        go.bmu.y = dat_bmu[0,1]
-        go.bmu.pitch = dat_bmu[0,2]
-        return go
+    def get_list_peaks(self,sample):
+        list_good_coords = []
+        for sample in self.list_coords:
+            val = self.network[sample[0]][sample[1]].getWeights()
+            dist = abs(val[0,2]-sample)
+            if dist < 0.3:
+                #print("val ",val[0,2])
+                list_good_coords.append(sample)
+                        
+        return list_good_coords
 
     def init_network(self):
         for i in range(self.size):
@@ -747,7 +728,7 @@ if __name__ == "__main__":
     if data_set == "outcome":
         name_dataset = "/home/altair/interbotix_ws/src/som/dataset/dataset_outcome.txt"
     som = Som(name_init,num_feat,size_map,ep,data_set)
-    srv_bmu = rospy.Service('get_bmu', GetBMU, som.bmu_server)
+    
     #srv_path = rospy.Service('get_path', GetPath, som.optimal_path)
     #som.load_som("simple_50_som.npy")
     if training == True and data_set == "motion":
