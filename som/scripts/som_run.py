@@ -182,6 +182,7 @@ class Som(object):
 
     def setup_poses(self,req):
         coords = self.get_list_peaks(req.pitch)
+        #print("coords : ",coords)
         l = ListPeaks()
         for i in coords:
             p = Point()
@@ -250,7 +251,6 @@ class Som(object):
 
     def list_peaks(self,data):
         self.list_coords = []
-        lp = ListPose()
         for sample in data.list_peaks:
             for i in range(0,self.size):
                 for j in range(0,self.size):
@@ -264,12 +264,13 @@ class Som(object):
         
         return self.list_coords
     
-    def get_list_peaks(self,sample):
+    def get_list_peaks(self,pitch):
         list_good_coords = []
+        #print("list peaks : ",self.list_coords)
         for sample in self.list_coords:
             val = self.network[sample[0]][sample[1]].getWeights()
-            dist = abs(val[0,2]-sample)
-            if dist < 0.3:
+            dist = abs(val[0,2]-pitch)
+            if dist <= 0.2:
                 #print("val ",val[0,2])
                 list_good_coords.append(sample)
                         

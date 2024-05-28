@@ -145,6 +145,7 @@ class Motion(object):
     rospy.Subscriber("/motion_pincher/change_action", Bool, self.callback_change)
     rospy.Subscriber("/motion_pincher/list_candidates", ListPose, self.callback_list_pose)
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
+    rospy.Subscriber("/motion_pincher/bool_init", Bool, self.callback_bool_init)
     rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
 
   def transform_dmp_cam_rob(self, dmp_):
@@ -184,7 +185,7 @@ class Motion(object):
         print("Service call failed: %s"%e)
 
   def get_correct_pose(self, pitch):
-    rospy.wait_for_service('set_pose')
+    rospy.wait_for_service('/som_pose/set_pose')
     try:
         action_predictions = rospy.ServiceProxy('set_pose', GetPoses)
         resp1 = action_predictions(pitch)
@@ -201,6 +202,14 @@ class Motion(object):
     if self.count_init > 10 and not self.b_init:
       self.b_init = True
       self.count_init = 0
+      if self.rnd_explore or self.direct_explore:
+        self.send_init(1.0)
+      if self.exploit:
+        #print("LAUNCHING EXPLOITATION")
+        self.init_exploitation()
+
+  def callback_bool_init(self,msg):
+    if msg.data == True:
       if self.rnd_explore or self.direct_explore:
         self.send_init(1.0)
       if self.exploit:

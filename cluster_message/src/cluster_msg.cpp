@@ -132,7 +132,7 @@ class ClusterMessage
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
       pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
       pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
-      pub_init_action = nh_.advertise<std_msgs::Float64>("/motion_pincher/ready_init",1);
+      pub_init_action = nh_.advertise<std_msgs::Bool>("/motion_pincher/bool_init",1);
       pub_sim_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
       service = nh_.advertiseService("transform_dmp_cam_rob",&ClusterMessage::transformCamRob,this);
       service_ = nh_.advertiseService("transform_dmp_rob_cam",&ClusterMessage::transformRobCam,this);
@@ -532,10 +532,10 @@ class ClusterMessage
          std_msgs::Float64 f;
          init_valid = false;
          f.data = 1.0;
-         pub_init_action.publish(f);
-         ros::Duration(1.0).sleep();
-         f.data = 0.0;
-         pub_init_action.publish(f);
+         pub_init_action.publish(b);
+         ros::Duration(0.4).sleep();
+         b.data = false;
+         pub_init_action.publish(b);
       }
       if(exploit > 0.5 && retry)
       {
@@ -547,12 +547,12 @@ class ClusterMessage
          state_b = false;
          sample_b = false;
          new_state = false;
-         std_msgs::Float64 f;
-         f.data = 1.0;
-         pub_init_action.publish(f);
-         ros::Duration(1.0).sleep();
-         f.data = 0.0;
-         pub_init_action.publish(f);
+         std_msgs::Bool b;
+         b.data = true;
+         pub_init_action.publish(b);
+         ros::Duration(0.4).sleep();
+         f.data = false;
+         pub_init_action.publish(b);
       }
    }
 
