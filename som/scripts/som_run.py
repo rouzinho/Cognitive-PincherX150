@@ -181,17 +181,17 @@ class Som(object):
         self.cluster_map = np.zeros((self.size,self.size,1))
 
     def setup_poses(self,req):
-        coords = self.get_list_peaks(req.pitch)
-        #print("coords : ",coords)
+        list_c = self.get_list_peaks(req.pitch)
+        #print("coords : ",list_c)
         l = ListPeaks()
-        for i in coords:
+        for i in list_c:
             p = Point()
             p.x = i[0]
             p.y = i[1] 
             l.list_peaks.append(p)
         self.pub_peaks.publish(l)
         res = GetPosesResponse()
-        if len(coords) > 0:
+        if len(list_c) > 0:
             res.success = True
         else:
             res.success = False
@@ -237,11 +237,11 @@ class Som(object):
 
     def callback_list_peaks(self,msg):
         #print(msg)
-        l_peaks = self.list_peaks(msg)
-        #print("list peaks ")
+        self.list_peaks(msg)
+        #print("list peaks : ",self.list_coords)
         #print(l_peaks)
         l = ListPeaks()
-        for i in l_peaks:
+        for i in self.list_coords:
             p = Point()
             p.x = i[0]
             p.y = i[1] 
@@ -260,9 +260,9 @@ class Som(object):
                     if dist < 0.01:
                         #print("val ",val[0,2])
                         coords = [i,j]
-                        self.list_coords.append(coords)
-        
-        return self.list_coords
+                        res = self.check_list(self.list_coords,coords)
+                        if not res:
+                            self.list_coords.append(coords)
     
     def get_list_peaks(self,pitch):
         list_good_coords = []
@@ -272,9 +272,21 @@ class Som(object):
             dist = abs(val[0,2]-pitch)
             if dist <= 0.2:
                 #print("val ",val[0,2])
-                list_good_coords.append(sample)
+                res = self.check_list(list_good_coords,sample)
+                if not res:
+                    list_good_coords.append(sample)
                         
         return list_good_coords
+    
+    def check_list(self,l,sample):
+        inside = False
+        for i in l:
+            if i[0] == sample[0] and i[1] == sample[1]:
+                inside = True
+                #print(inside)
+
+        return inside
+
 
     def init_network(self):
         for i in range(self.size):

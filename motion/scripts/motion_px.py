@@ -187,7 +187,7 @@ class Motion(object):
   def get_correct_pose(self, pitch):
     rospy.wait_for_service('/som_pose/set_pose')
     try:
-        action_predictions = rospy.ServiceProxy('set_pose', GetPoses)
+        action_predictions = rospy.ServiceProxy('/som_pose/set_pose', GetPoses)
         resp1 = action_predictions(pitch)
         return resp1.success
     except rospy.ServiceException as e:
@@ -418,6 +418,26 @@ class Motion(object):
     self.pub_gripper.publish(jsc)
     if self.touch_value:
       print("object grasped !")
+
+  def find_best_pose(self,x,y,z,r,p):
+    i = 0
+    pair = True
+    found = False
+    while not found:
+      if pair:
+        p_i = i
+      else:
+        p_i = -i
+      #print("trying pitch : ",p+p_i)
+      j, found = self.pose_to_joints(x,y,z,r,p+p_i)
+      if not pair:
+        pair = True
+        i += 0.01
+      else:
+        pair = False
+      
+
+    return p+p_i
       
   #execute the action
   def execute_rnd_exploration(self):
@@ -578,11 +598,11 @@ class Motion(object):
     #display on the interface
     #self.pub_display_action.publish(dmp_exploit)
     msg = self.transform_dmp_rob_cam(self.dmp_exploit)
-    print("action in cam space : ",msg)
+    #print("action in cam space : ",msg)
     lat_action = LatentGoalDnf()
     lat_action.latent_x = self.possible_action[self.choice][5]
     lat_action.latent_y = self.possible_action[self.choice][6]
-    print("DNF : ",lat_action)
+    #print("DNF : ",lat_action)
     self.pub_dnf_action.publish(lat_action)
     self.bot.gripper.set_pressure(1.0)
     #rospy.sleep(3.0)
@@ -595,9 +615,12 @@ class Motion(object):
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
-    lpos_p = self.poses[0].pitch + self.dmp_exploit.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=lpos_p)
+    p = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,self.poses[0].pitch)
+    lpos_p = p
+    message = f"Second pose : x {lpos_x}, y {lpos_y}, pitch {p}"
+    print(message)
+    #self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=self.poses[0].pitch)
+    #self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=lpos_p)
     self.record = False
     self.bot.gripper.close()
     #rospy.sleep(2.0)

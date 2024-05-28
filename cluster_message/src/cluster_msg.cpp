@@ -551,7 +551,7 @@ class ClusterMessage
          b.data = true;
          pub_init_action.publish(b);
          ros::Duration(0.4).sleep();
-         f.data = false;
+         b.data = false;
          pub_init_action.publish(b);
       }
    }
