@@ -275,6 +275,8 @@ class Som(object):
                 res = self.check_list(list_good_coords,sample)
                 if not res:
                     list_good_coords.append(sample)
+                    go = GripperOrientation()
+                    
                         
         return list_good_coords
     

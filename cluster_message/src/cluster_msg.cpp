@@ -532,10 +532,13 @@ class ClusterMessage
          std_msgs::Float64 f;
          init_valid = false;
          f.data = 1.0;
+         pub_signal.publish(f);
          pub_init_action.publish(b);
-         ros::Duration(0.4).sleep();
+         ros::Duration(1.0).sleep();
          b.data = false;
          pub_init_action.publish(b);
+         f.data = 0.0;
+         pub_signal.publish(f);
       }
       if(exploit > 0.5 && retry)
       {
