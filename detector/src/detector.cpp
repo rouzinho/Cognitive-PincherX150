@@ -131,7 +131,7 @@ class Detector
         sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &Detector::touchCallback,this);
         sub_angle = nh_.subscribe("/depth_interface/aruco_angle", 1, &Detector::AngleCallback,this);
         sub_first_time = nh_.subscribe("/outcome_detector/reset", 1, &Detector::ResetCallback,this);
-        //sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
+        sub_grasping = nh_.subscribe("/outcome_detector/grasping", 1, &Detector::GraspingCallback,this);
         sub_monitored = nh_.subscribe("/outcome_detector/monitored_object", 1, &Detector::intCallback,this);
         img_sub = it_.subscribe("/rgb/image_raw", 1,&Detector::RgbCallback, this);
         service = nh_.advertiseService("get_object_state",&Detector::getState,this);
@@ -225,44 +225,9 @@ class Detector
 
     void activateCallback(const std_msgs::BoolConstPtr& msg)
     {
-        //std::cout<<"activate detector : "<<msg->data<<"\n";
-        if(mode == true)
+        if(msg->data == true)
         {
-            if(msg->data == true && !touch)
-            {
-                count++;
-                activate = true;
-            }
-            if(msg->data == true && touch == true)
-            {
-                count = 0;
-                activate = false;
-                detector::Outcome res;
-                res.x = 0.0 - first_pose.pose.position.x;
-                res.y = 0.0 - first_pose.pose.position.y;
-                res.angle = 0.0;
-                res.touch = 1.0;
-                pub_outcome.publish(res);
-            }
-        }
-        else
-        {
-            if(msg->data == true && !touch)
-            {
-                activate_angle = true;
-            }
-            if(msg->data == true && touch == true)
-            {
-                activate_angle = false;
-                detector::Outcome res;
-                res.x = 0.0 ;//- first_pose.pose.position.x;
-                res.y = 0.0 ;//- first_pose.pose.position.y;
-                res.angle = 0.0;
-                res.touch = 1.0;
-                pub_outcome.publish(res);
-                touch = false;
-                first_time = true;
-            }
+            activate_angle = true;
         }
     }
 
@@ -434,6 +399,7 @@ class Detector
         tmp.angle = 0;
         tmp.touch = 1.0;
         pub_outcome.publish(tmp);
+        activate_angle = false;
     }
 
     void listenTransform()

@@ -360,6 +360,7 @@ class VisualDatas(App):
         rospy.Subscriber("/habituation/action/mt", Image, self.vae_act_callback)
         rospy.Subscriber("/display/dmp", Dmp, self.action_callback)
         rospy.Subscriber("/outcome_detector/outcome", Outcome, self.outcome_callback)
+        rospy.Subscriber("/cluster_msg/pause_experiment", Bool, self.pause_callback)
         self.action_text = ""
         self.count_img = 0
 
@@ -427,6 +428,26 @@ class VisualDatas(App):
         self.out_y = "out_y : " + str(round(msg.y,2))
         self.out_angle = "out_angle : " + str(round(msg.angle,2))
         self.out_touch = "out_touch : " + str(round(msg.touch,1))
+
+    def pause_callback(self,msg):
+        if msg.data == True:
+            self.name_record = "Resume"
+            self.mode_record = "Resume"
+            self.start_record = _GREEN_LIGHT
+            self.record = False
+            r = Bool()
+            r.data = True
+            self.pub_pause.publish(r)
+            self.saveTime()
+            self.error.save_values(self.name_peaks)
+            self.error.save_inverse_values(self.name_inv_peaks)
+            self.lp.save_values(self.name_peaks)
+            self.record = False
+        else:
+            self.name_record = "Pause"
+            self.mode_record = "Pause"
+            self.start_record = _RED_LIGHT
+            self.record = True
 
     def saveTime(self):
         p = exists(self.name_time)

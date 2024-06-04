@@ -65,6 +65,7 @@ class ClusterMessage
    ros::Publisher pub_pause;
    ros::Publisher pub_init_action;
    ros::Publisher pub_sim_ready;
+   ros::Publisher pub_end_action;
    ros::ServiceServer service;
    ros::ServiceServer service_;
    detector::Outcome outcome;
@@ -118,19 +119,18 @@ class ClusterMessage
       sub_retry = nh_.subscribe("/depth_perception/retry", 1, &ClusterMessage::CallbackRetry,this);
       sub_validate = nh_.subscribe("/habituation/valid_perception", 1, &ClusterMessage::CallbackValidate,this);
       sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 1, &ClusterMessage::CallbackInvalidate,this);
-      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &ClusterMessage::CallbackPause,this);
+      //sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &ClusterMessage::CallbackPause,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &ClusterMessage::CallbackTouch,this);
       sub_busy_out = nh_.subscribe("/cluster_msg/vae/busy_out", 1, &ClusterMessage::CallbackBusyVAEout,this);
       sub_busy_act = nh_.subscribe("/cluster_msg/vae/busy_act", 1, &ClusterMessage::CallbackBusyVAEact,this);
       sub_busy_nn_out = nh_.subscribe("/cluster_msg/nnga/busy_out", 1, &ClusterMessage::CallbackBusyNNout,this);
       sub_busy_nn_act = nh_.subscribe("/cluster_msg/nnga/busy_act", 1, &ClusterMessage::CallbackBusyNNact,this);
-      //sub_dmp_candidate = nh_.subscribe("/cluster_msg/dmp_candidate", 1, &ClusterMessage::CallbackCandidate,this);
-      //sub_l_peaks = nh_.subscribe("/cluster_msg/list_candidates", 1, &ClusterMessage::CallbackListPeak,this);
       pub_datas_explore = nh_.advertise<cluster_message::SampleExplore>("/cluster_msg/sample_explore",1);
       pub_datas_exploit = nh_.advertise<cluster_message::SampleExploit>("/cluster_msg/sample_exploit",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/cluster_msg/new_state",1);
       pub_signal = nh_.advertise<std_msgs::Float64>("/cluster_msg/signal",1);
-      pub_pause = nh_.advertise<std_msgs::Float64>("/cluster_msg/pause",1);
+      pub_pause = nh_.advertise<std_msgs::Bool>("/cluster_msg/pause_experiment",1);
+      pub_end_action = nh_.advertise<std_msgs::Float64>("/end_action",1);
       pub_outcome = nh_.advertise<detector::Outcome>("/habituation/new_perception",1);
       pub_init_action = nh_.advertise<std_msgs::Bool>("/motion_pincher/bool_init",1);
       pub_sim_ready = nh_.advertise<std_msgs::Bool>("/test/ready",1);
@@ -211,95 +211,6 @@ class ClusterMessage
       res.dmp_cam.roll = req.dmp_robot.roll;
       
       return true;
-   }
-
-   motion::Dmp tfRobtoCam(motion::Dmp dmp_robot)
-   {
-      motion::Dmp dmp_cam;
-      tf2::Quaternion q_orig(0,0,0,1);
-      tf2::Quaternion q_rot;
-      tf2::Quaternion q_vector;
-      geometry_msgs::Point new_vec;
-      geometry_msgs::Point vec_ori;
-      geometry_msgs::Point result;
-      geometry_msgs::PoseStamped first_pose;
-      first_pose.pose.position.x = dmp_robot.fpos_x;
-      first_pose.pose.position.y = dmp_robot.fpos_y;
-      vec_ori.x = dmp_robot.fpos_x;
-      vec_ori.y = dmp_robot.fpos_y;
-      vec_ori.x = dmp_robot.fpos_x + vec_ori.x;
-      vec_ori.y = dmp_robot.fpos_y + vec_ori.y;
-      float dot_prod = (vec_ori.x*0.1) + (vec_ori.y*0);
-      float det = (vec_ori.x*0) + (vec_ori.y*0.1);
-      float ang = atan2(det,dot_prod);
-      q_rot.setRPY(0,0,ang);
-      q_vector = q_rot*q_orig;
-      q_vector.normalize();
-      result = findVectorTransformCam(first_pose,dmp_robot.v_x,dmp_robot.v_y,q_vector);
-      dmp_cam.v_x = result.x;
-      dmp_cam.v_y = result.y;
-      dmp_cam.v_pitch = dmp_robot.v_pitch;
-      dmp_cam.grasp = dmp_robot.grasp;
-      dmp_cam.roll = dmp_robot.roll;
-
-      return dmp_cam;
-   }
-
-   //check which poses fit the chosen action and send them to SOM for re-display
-   void CallbackCandidate(const motion::Dmp::ConstPtr& msg)
-   {
-      bool got_pose = false;
-      int nb_win = 0;
-      float tol_pitch = 0.1;
-      som::ListPose good_list;
-      good_list.list_pose.resize(0);
-      motion::Dmp current_dmp;
-      current_dmp.v_x = msg->v_x;
-      current_dmp.v_y = msg->v_y;
-      current_dmp.v_pitch = msg->v_pitch;
-      current_dmp.roll = msg->roll;
-      current_dmp.grasp = msg->grasp;
-      std::cout<<"candidates : "<<list_p.list_pose.size()<<"\n";  
-      for(int i = 0; i < list_p.list_pose.size(); i++)
-      {
-         current_dmp.fpos_x = list_p.list_pose[i].x;
-         current_dmp.fpos_y = list_p.list_pose[i].y;
-         motion::Dmp candidate = tfRobtoCam(current_dmp);
-         float x_a = list_p.list_pose[i].x + candidate.v_x;
-         float y_a = list_p.list_pose[i].y + candidate.v_y;
-         float goal_pitch = candidate.v_pitch;
-         float pitch_a = list_p.list_pose[i].pitch;
-         while(!got_pose)
-         {
-            for(int j = 0; j < list_p.list_pose.size(); j++)
-            {
-               float x_b = list_p.list_pose[j].x;
-               float y_b = list_p.list_pose[j].y;
-               float pitch_b = list_p.list_pose[j].pitch;
-               float dist = sqrt(pow(x_b-x_a,2) + pow(y_b-y_a,2));
-               float res_tol = pitch_b - pitch_a;
-               if(dist < 0.001)
-               {
-                  if(res_tol <= goal_pitch + tol_pitch and res_tol >= goal_pitch - tol_pitch)
-                  {
-                     if(!containValue(good_list,list_p.list_pose[i]))
-                     {
-                        som::GripperOrientation winner;
-                        winner.x = list_p.list_pose[i].x;
-                        winner.y = list_p.list_pose[i].y;
-                        winner.z = list_p.list_pose[i].z;
-                        winner.pitch = list_p.list_pose[i].pitch;
-                        good_list.list_pose.push_back(winner);
-                        got_pose = true;
-                     }
-                  }
-               }
-            }
-            tol_pitch = tol_pitch + 0.1;
-         }
-      }
-      std::cout<<"Winners : "<<good_list.list_pose.size()<<"\n";
-      //pub_winners_pose.publish(good_list);
    }
 
    void CallbackDMP(const motion::Dmp::ConstPtr& msg)
@@ -532,13 +443,19 @@ class ClusterMessage
          std_msgs::Float64 f;
          init_valid = false;
          f.data = 1.0;
-         pub_signal.publish(f);
-         pub_init_action.publish(b);
-         ros::Duration(1.0).sleep();
-         b.data = false;
-         pub_init_action.publish(b);
-         f.data = 0.0;
-         pub_signal.publish(f);
+         if(touch)
+         {
+            triggerPause();
+         }
+         else
+         {
+            pub_init_action.publish(b);
+            ros::Duration(1.0).sleep();
+            f.data = 0.0;
+            //pub_end_action.publish(f);
+            b.data = false;
+            pub_init_action.publish(b);
+         }
       }
       if(exploit > 0.5 && retry)
       {
@@ -551,6 +468,12 @@ class ClusterMessage
          sample_b = false;
          new_state = false;
          std_msgs::Bool b;
+         std_msgs::Float64 f;
+         f.data = 1.0;
+         pub_end_action.publish(f);
+         ros::Duration(1.0).sleep();
+         f.data = 0.0;
+         pub_end_action.publish(f);
          b.data = true;
          pub_init_action.publish(b);
          ros::Duration(0.4).sleep();
@@ -613,16 +536,23 @@ class ClusterMessage
    {
       if(msg->data == true)
       {
-         std_msgs::Float64 tmp;
-         tmp.data = 1.0;
+         std_msgs::Bool tmp;
+         tmp.data = true;
          pub_pause.publish(tmp);
       }
       else
       {
-         std_msgs::Float64 tmp;
-         tmp.data = 0.0;
+         std_msgs::Bool tmp;
+         tmp.data = false;
          pub_pause.publish(tmp);
       }
+   }
+
+   void triggerPause()
+   {
+      std_msgs::Bool tmp;
+      tmp.data = true;
+      pub_pause.publish(tmp);
    }
 
    void CallbackTouch(const std_msgs::Bool::ConstPtr& msg)

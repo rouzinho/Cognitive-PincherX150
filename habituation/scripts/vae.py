@@ -1038,6 +1038,7 @@ class Habituation(object):
 
    #send the fresh perception
    def callback_perception(self, msg):
+      #print("got perception : ")
       x = self.scale_data(msg.x, self.min_vx, self.max_vx)
       y = self.scale_data(msg.y, self.min_vy, self.max_vy)
       angle = self.scale_data(msg.angle, self.min_angle, self.max_angle)
@@ -1050,6 +1051,7 @@ class Habituation(object):
       self.new_perception.x = peak[0]
       self.new_perception.y = peak[1]
       msg = self.habit[self.index_vae].get_eval(peak)
+      print("got perception : ",msg)
       self.send_distance()
       self.send_perception(msg)
       rospy.sleep(2.0)

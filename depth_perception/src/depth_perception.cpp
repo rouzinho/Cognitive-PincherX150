@@ -66,9 +66,10 @@ class DepthImage
     geometry_msgs::TransformStamped transformStamped;
     image_transport::Publisher pub_state;
     ros::Publisher pub_retry;
+    ros::Publisher pub_pause;
     ros::Publisher pub_new_state;
     ros::Publisher pub_activate_detector;
-    ros::Publisher pub_reset;
+    ros::Publisher pub_activate_depth;
     ros::Publisher pub_reset_detector;
     ros::Publisher pub_name_state;
     ros::Publisher pub_success;
@@ -125,6 +126,7 @@ class DepthImage
     bool pause;
     bool touch;
     bool grasping;
+    bool setup_grasping;
 
   public:
     DepthImage():
@@ -135,12 +137,13 @@ class DepthImage
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &DepthImage::callbackTouch,this);
-      sub_pause = nh_.subscribe("/cluster_msg/pause", 1, &DepthImage::activatePause,this);
+      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &DepthImage::activatePause,this);
+      pub_pause = nh_.advertise<std_msgs::Bool>("/cluster_msg/pause_experiment",1);
       pub_state = it_.advertise("/depth_perception/dnf_state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
       pub_activate_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/activate",1);
-      pub_reset = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
+      pub_activate_depth = nh_.advertise<std_msgs::Bool>("/depth_perception/activate",1);
       pub_reset_detector = nh_.advertise<std_msgs::Bool>("/outcome_detector/reset",1);
       pub_name_state = nh_.advertise<std_msgs::String>("/depth_perception/name_state",1);
       pub_success = nh_.advertise<std_msgs::Bool>("/depth_perception/sample_success",1);
@@ -190,6 +193,7 @@ class DepthImage
       lock_callback = false;
       count_lock = 0;
       grasping = false;
+      setup_grasping = false;
     }
     ~DepthImage()
     {
@@ -231,7 +235,7 @@ class DepthImage
         count_lock++;
         //std::cout<<"count lock: "<<count_lock<<"\n";
       }
-      if(count_lock > 30 && !lock_callback)
+      if(count_lock > 30 && !lock_callback && !pause)
       {
         resetDepth();
         lock_callback = true;
@@ -276,6 +280,7 @@ class DepthImage
     void activateCb(const std_msgs::BoolConstPtr& msg)
     {
       begin_count = true;
+      grasping = false;
       if(msg->data == true)
       {
         start = true;
@@ -297,37 +302,46 @@ class DepthImage
       touch = msg->data;
     }
 
-    void activatePause(const std_msgs::Float64ConstPtr& msg)
+    void activatePause(const std_msgs::BoolConstPtr& msg)
     {
-      if(msg->data > 0.5)
+      if(msg->data == true)
       {
         std::cout<<"Pause called, resetting states...\n";
+        setup_grasping = false;
+        grasping = true;
         pause = true;
         rmStates();
         pub_reset_detector.publish(msg);
       }
-      if(msg->data < 0.5 && pause)
+      if(msg->data == false)
       {
         std::cout<<"resuming experiment\n";
-        pub_reset.publish(msg);
+        std_msgs::Bool b;
+        b.data = true;
+        pub_new_state.publish(b);
+        pub_activate_depth.publish(b);
+        ros::Duration(0.5).sleep();
+        grasping = false;
+        pub_activate_detector.publish(b);
         pause = false;
       }
     }
 
     void resetDepth()
     {
-      std::cout<<"Grasping detected, waiting for object to be back\n";
-      grasping = true;
-      std_msgs::Bool msg;
-      msg.data = true;
-      pub_activate_detector.publish(msg);
-      start = false;
-      //ros::Duration(6.5).sleep();
-      rmStates();
-      first = true;
-      msg.data = true;
-      pub_new_state.publish(msg);
-      //pub_reset.publish(msg);
+      if(!setup_grasping && !grasping)
+      {
+        std::cout<<"Emergency Grasping detected, waiting for object to be back\n";
+        grasping = true;
+        std_msgs::Bool msg;
+        msg.data = true;
+        pub_grasping.publish(msg);
+        start = false;
+        rmStates();
+        ros::Duration(0.5).sleep();
+        pub_pause.publish(msg);
+      }
+      
     }
 
     void listenTransform()
@@ -584,11 +598,10 @@ class DepthImage
                     //pub_name_state.publish(msg_state);
                     std_msgs::Bool msg;
                     msg.data = true;
-                    pub_new_state.publish(msg);
-                    pub_activate_detector.publish(msg);
-                    //ros::Duration(10.5).sleep();
-                    //pub_reset_detector.publish(msg);
-                    //pub_reset.publish(msg);
+                    pub_grasping.publish(msg);
+                    setup_grasping = true;
+                    pub_pause.publish(msg);
+                    //pub_activate_depth.publish(msg);
                   }
                   else
                   {
@@ -605,6 +618,7 @@ class DepthImage
                     ros::Duration(0.5).sleep();
                     pub_reset_detector.publish(msg);
                     pub_activate_detector.publish(msg);
+                    grasping = true;
                     //pub_ready.publish(msg);
                   }
                 }
@@ -619,7 +633,7 @@ class DepthImage
                 //pub_success.publish(msg);
                 //pub_activate_detector.publish(msg);
                 pub_reset_detector.publish(msg);
-                pub_reset.publish(msg);
+                pub_activate_depth.publish(msg);
               }
               start = false;
             }
