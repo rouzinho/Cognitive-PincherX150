@@ -119,7 +119,6 @@ class ClusterMessage
       sub_retry = nh_.subscribe("/depth_perception/retry", 1, &ClusterMessage::CallbackRetry,this);
       sub_validate = nh_.subscribe("/habituation/valid_perception", 1, &ClusterMessage::CallbackValidate,this);
       sub_invalidate = nh_.subscribe("/habituation/invalid_perception", 1, &ClusterMessage::CallbackInvalidate,this);
-      //sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &ClusterMessage::CallbackPause,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &ClusterMessage::CallbackTouch,this);
       sub_busy_out = nh_.subscribe("/cluster_msg/vae/busy_out", 1, &ClusterMessage::CallbackBusyVAEout,this);
       sub_busy_act = nh_.subscribe("/cluster_msg/vae/busy_act", 1, &ClusterMessage::CallbackBusyVAEact,this);
@@ -443,11 +442,7 @@ class ClusterMessage
          std_msgs::Float64 f;
          init_valid = false;
          f.data = 1.0;
-         if(touch)
-         {
-            triggerPause();
-         }
-         else
+         if(!touch)
          {
             pub_init_action.publish(b);
             ros::Duration(1.0).sleep();
@@ -529,22 +524,6 @@ class ClusterMessage
       {
          invalid_perception = msg->data;
          init_invalid = true;
-      }
-   }
-
-   void CallbackPause(const std_msgs::Bool::ConstPtr& msg)
-   {
-      if(msg->data == true)
-      {
-         std_msgs::Bool tmp;
-         tmp.data = true;
-         pub_pause.publish(tmp);
-      }
-      else
-      {
-         std_msgs::Bool tmp;
-         tmp.data = false;
-         pub_pause.publish(tmp);
       }
    }
 

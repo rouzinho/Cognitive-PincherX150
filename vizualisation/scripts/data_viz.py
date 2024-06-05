@@ -323,7 +323,8 @@ class VisualDatas(App):
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
         #self.node_learning_dmp = DataNodeRecorder("/data_recorder/hebbian","hebbian")
         self.pub_time = rospy.Publisher("/data_recorder/time",Float64,queue_size=1)
-        self.pub_pause = rospy.Publisher("/cluster_msg/pause_experiment",Bool,queue_size=1)
+        self.pub_pause_dft = rospy.Publisher("/cluster_msg/pause_dft",Bool,queue_size=1)
+        self.pub_pause_perception = rospy.Publisher("/cluster_msg/pause_perception",Bool,queue_size=1)
         #self.pub_signal = rospy.Publisher("/data_recorder/signal",Bool,queue_size=1)
         #self.dmp = DmpListener()
         #self.control_arch = ControlArch()
@@ -430,24 +431,31 @@ class VisualDatas(App):
         self.out_touch = "out_touch : " + str(round(msg.touch,1))
 
     def pause_callback(self,msg):
-        if msg.data == True:
+        if msg.data == True and self.name_record != "Resume":
+            print("pause")
             self.name_record = "Resume"
             self.mode_record = "Resume"
             self.start_record = _GREEN_LIGHT
             self.record = False
             r = Bool()
             r.data = True
-            self.pub_pause.publish(r)
+            self.pub_pause_dft.publish(r)
+            self.pub_pause_perception.publish(r)
             self.saveTime()
             self.error.save_values(self.name_peaks)
             self.error.save_inverse_values(self.name_inv_peaks)
             self.lp.save_values(self.name_peaks)
             self.record = False
-        else:
+        if msg.data == False and self.name_record != "Pause":
+            print("resume")
             self.name_record = "Pause"
             self.mode_record = "Pause"
             self.start_record = _RED_LIGHT
             self.record = True
+            r = Bool()
+            r.data = False
+            self.pub_pause_dft.publish(r)
+            self.pub_pause_perception.publish(r)
 
     def saveTime(self):
         p = exists(self.name_time)
@@ -512,27 +520,41 @@ class VisualDatas(App):
             newPath = shutil.copy(src_dmp, dest_dmp)
 
     def set_record(self):
-        if self.mode_record == "Start" or self.mode_record == "Resume":
+        change = True
+        if self.mode_record == "Resume" and change:
             self.name_record = "Pause"
             self.mode_record = "Pause"
             self.start_record = _RED_LIGHT
             self.record = True
             r = Bool()
             r.data = False
-            self.pub_pause.publish(r)
             self.first = False
-        else:
+            self.pub_pause_dft.publish(r)
+            self.pub_pause_perception.publish(r)
+            change = False
+        if self.mode_record == "Pause" and change:
             self.name_record = "Resume"
             self.mode_record = "Resume"
             self.start_record = _GREEN_LIGHT
             r = Bool()
             r.data = True
-            self.pub_pause.publish(r)
+            self.pub_pause_dft.publish(r)
+            self.pub_pause_perception.publish(r)
             self.saveTime()
             self.error.save_values(self.name_peaks)
             self.error.save_inverse_values(self.name_inv_peaks)
             self.lp.save_values(self.name_peaks)
             self.record = False
+            change = False
+        if self.mode_record == "Start" and change:
+            print("start")
+            self.name_record = "Pause"
+            self.mode_record = "Pause"
+            self.start_record = _RED_LIGHT
+            self.record = True
+            self.first = False
+            change = False
+        
 
     def load_datas(self):
         self.loadTime()

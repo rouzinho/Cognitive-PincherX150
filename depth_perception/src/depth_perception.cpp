@@ -67,6 +67,8 @@ class DepthImage
     image_transport::Publisher pub_state;
     ros::Publisher pub_retry;
     ros::Publisher pub_pause;
+    ros::Publisher pub_pause_perception;
+    ros::Publisher pub_pause_dft;
     ros::Publisher pub_new_state;
     ros::Publisher pub_activate_detector;
     ros::Publisher pub_activate_depth;
@@ -137,8 +139,10 @@ class DepthImage
       sub_point_cloud_object = nh_.subscribe("/pc_filter/pointcloud/objects", 1, &DepthImage::pointCloudObjectCb,this);
       sub_activate = nh_.subscribe("/depth_perception/activate", 1, &DepthImage::activateCb,this);
       sub_touch = nh_.subscribe("/motion_pincher/touch", 1, &DepthImage::callbackTouch,this);
-      sub_pause = nh_.subscribe("/cluster_msg/pause_experiment", 1, &DepthImage::activatePause,this);
+      sub_pause = nh_.subscribe("/cluster_msg/pause_perception", 1, &DepthImage::activatePause,this);
       pub_pause = nh_.advertise<std_msgs::Bool>("/cluster_msg/pause_experiment",1);
+      pub_pause_dft = nh_.advertise<std_msgs::Bool>("/cluster_msg/pause_dft",1);
+      pub_pause_perception = nh_.advertise<std_msgs::Bool>("/cluster_msg/pause_perception",1);
       pub_state = it_.advertise("/depth_perception/dnf_state", 1);
       pub_retry = nh_.advertise<std_msgs::Bool>("/depth_perception/retry",1);
       pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
@@ -281,6 +285,8 @@ class DepthImage
     {
       begin_count = true;
       grasping = false;
+      first_gen = true;
+      first = true;
       if(msg->data == true)
       {
         start = true;
@@ -307,6 +313,8 @@ class DepthImage
       if(msg->data == true)
       {
         std::cout<<"Pause called, resetting states...\n";
+        pub_pause.publish(msg);
+        pub_pause_dft.publish(msg);
         setup_grasping = false;
         grasping = true;
         pause = true;
@@ -321,9 +329,11 @@ class DepthImage
         pub_new_state.publish(b);
         pub_activate_depth.publish(b);
         ros::Duration(0.5).sleep();
-        grasping = false;
         pub_activate_detector.publish(b);
+        b.data = false;
         pause = false;
+        pub_pause.publish(b);
+        pub_pause_dft.publish(b);
       }
     }
 
@@ -336,10 +346,9 @@ class DepthImage
         std_msgs::Bool msg;
         msg.data = true;
         pub_grasping.publish(msg);
+        pub_pause_perception.publish(msg);
         start = false;
         rmStates();
-        ros::Duration(0.5).sleep();
-        pub_pause.publish(msg);
       }
       
     }
@@ -601,6 +610,7 @@ class DepthImage
                     pub_grasping.publish(msg);
                     setup_grasping = true;
                     pub_pause.publish(msg);
+                    pub_pause_dft.publish(msg);
                     //pub_activate_depth.publish(msg);
                   }
                   else
