@@ -286,7 +286,6 @@ class DepthImage
       begin_count = true;
       grasping = false;
       first_gen = true;
-      first = true;
       if(msg->data == true)
       {
         start = true;
@@ -318,6 +317,7 @@ class DepthImage
         setup_grasping = false;
         grasping = true;
         pause = true;
+        first = true;
         rmStates();
         pub_reset_detector.publish(msg);
       }

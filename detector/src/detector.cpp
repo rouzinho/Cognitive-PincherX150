@@ -67,6 +67,7 @@ class Detector
         ros::Publisher pub_ready;
         ros::Publisher pub_state_object;
         ros::Publisher pub_id_object;
+        ros::Publisher pub_new_state;
         ros::Subscriber sub_activate;
         ros::Subscriber sub_trigger_state;
         ros::Subscriber sub_object;
@@ -141,6 +142,7 @@ class Detector
         pub_ready = nh_.advertise<std_msgs::Bool>("/outcome_detector/ready",1);
         pub_state_object = nh_.advertise<detector::State>("/outcome_detector/state",1);
         pub_id_object = nh_.advertise<cog_learning::ListObject>("/outcome_detector/id_object",1);
+        pub_new_state = nh_.advertise<std_msgs::Bool>("/depth_perception/new_state",1);
         pose_object.pose.position.x = 0.0;
         pose_object.pose.position.y = 0.0;
         pose_object.pose.position.z = 0.0;
@@ -400,6 +402,9 @@ class Detector
         tmp.touch = 1.0;
         pub_outcome.publish(tmp);
         activate_angle = false;
+        std_msgs::Bool b;
+        b.data = true;
+        pub_new_state.publish(b);
     }
 
     void listenTransform()

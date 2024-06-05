@@ -451,6 +451,7 @@ class ClusterMessage
             b.data = false;
             pub_init_action.publish(b);
          }
+         touch = false;
       }
       if(exploit > 0.5 && retry)
       {

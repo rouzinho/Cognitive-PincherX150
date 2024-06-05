@@ -428,7 +428,7 @@ class Motion(object):
         pose = True
       if not pair:
         pair = True
-        i += 0.01
+        i += 0.05
       else:
         pair = False
       if i > 1.6:
@@ -483,6 +483,7 @@ class Motion(object):
     #send touch value
     t = Bool()
     t.data = self.touch_value
+    print("touch value : ",self.touch_value)
     self.pub_touch.publish(t)
     print("ACTION DONE")
     self.last_time = rospy.get_time()
@@ -596,6 +597,9 @@ class Motion(object):
     print("DIRECT EXPLOITATION")
     #display on the interface
     self.pub_display_action.publish(self.dmp_exploit)
+    #include first pose
+    self.dmp_exploit.fpos_x = self.poses[0].x
+    self.dmp_exploit.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_exploit)
     lat_action = LatentGoalDnf()
     lat_action.latent_x = self.possible_action[self.choice][5]
@@ -616,11 +620,11 @@ class Motion(object):
     if found_1:
       p_last, found_2 = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,p_first)
     if found_1 and found_2:
-      m_first = f"first pose : x {self.poses[0].x}, y {self.poses[0].y}, pitch {p_first}"
+      m_first = f"first pose : x {self.poses[0].x}, y {self.poses[0].y}, pitch {p_first}, roll {self.dmp_exploit.roll}"
       message = f"Second pose : x {lpos_x}, y {lpos_y}, pitch {p_last}"
       print(m_first)
       print(message)
-      self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=self.poses[0].pitch)
+      self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=p_first)
       self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=p_last)
       self.record = False
       self.bot.gripper.close()
@@ -628,9 +632,8 @@ class Motion(object):
       self.sleep_pose()
       t = Bool()
       t.data = self.touch_value
+      print("touch value : ",self.touch_value)
       self.pub_touch.publish(t)
-      print("touch : ",self.touch_value)
-      print("touch value : ",self.l_touch)
       print("ACTION DONE")
       self.l_touch = 0
       self.last_time = rospy.get_time()
@@ -643,6 +646,7 @@ class Motion(object):
       self.ready_depth = False
       self.ready_outcome = False
       self.touch_value = False
+      self.count_touch = 0
       b = Bool()
       b.data = True
       self.pub_activate_perception.publish(b)
@@ -700,6 +704,13 @@ class Motion(object):
     rospy.sleep(2.0)
     self.bot.gripper.open()
 
+  def test_position(self):
+    self.init_position()
+    self.bot.arm.set_ee_pose_components(x=0.25, y=0, z=0.06, roll=1.4, pitch=1.1)
+    self.bot.arm.set_ee_pose_components(x=0.33, y=0, z=0.06, roll=1.4, pitch=1.1)
+    self.init_position()
+    self.sleep_pose()
+
   def init_position(self):
     #self.bot.arm.go_to_home_pose()
     self.bot.arm.set_ee_pose_components(x=0.15, y=0, z=0.25, roll=0, pitch=0.0)
@@ -723,6 +734,8 @@ if __name__ == '__main__':
   first = True
   sent_inh = False
   rospy.sleep(3.0)
+  #motion_pincher.test_position()
+
   #motion_pincher.init_position()
   while not rospy.is_shutdown():
     if motion_pincher.get_rnd_explore() and motion_pincher.get_number_pose() == 2 and motion_pincher.get_go():
