@@ -209,8 +209,8 @@ class Motion(object):
         self.init_exploitation()
 
   def callback_first_pose(self,msg):
-    #print("got pose : ",msg)
-    self.send_init(0.0)
+    print("got pose : ",msg)
+    """self.send_init(0.0)
     tmp = GripperOrientation()
     tmp.x = msg.x
     tmp.y = msg.y
@@ -229,7 +229,7 @@ class Motion(object):
       self.go = True
     if self.exploit and len(self.poses) == 0:
       self.poses.append(tmp)
-      self.go = True
+      self.go = True"""
     #print("poses cb : ",self.poses)
 
   def callback_joint_states(self,msg):

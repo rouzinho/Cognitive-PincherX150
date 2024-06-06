@@ -258,9 +258,10 @@ class Skill(object):
         out = self.inverse_model(inputs)
         mse_loss = nn.MSELoss()
         error = mse_loss(out, targets)
+        fin_error = math.erf(error.item())
         #error = self.getErrorPrediction(out,targets)
 
-        return error
+        return fin_error
 
     def predictForwardModel(self,inputs,targets):
         self.forward_model.eval()
@@ -269,9 +270,12 @@ class Skill(object):
         out = self.forward_model(inputs)
         mse_loss = nn.MSELoss()
         error = mse_loss(out, targets)
+        fin_error = math.erf(error.item())
+        print("Error before erf : ",error.item())
+        print("Error after : ",fin_error)
         #error = self.getErrorPrediction(out,targets)
 
-        return error
+        return fin_error
     
     def forward_r_predictor(self,inputs):
         self.r_predictor.eval()
