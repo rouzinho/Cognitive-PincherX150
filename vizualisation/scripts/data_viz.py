@@ -353,8 +353,9 @@ class VisualDatas(App):
         self.cv2_lp = None
         self.cv2_inhib = None
         self.bridge = CvBridge()
-        self.coded_skills = [[67, 79], [38, 72], [42, 85], [67, 51], [56, 73]] 
-        self.explicit_skills = ["up","down","left","right","grasp"]
+        #self.coded_skills = [[67, 79], [38, 72], [42, 85], [67, 51], [56, 73]] 
+        #self.explicit_skills = ["up","down","left","right","grasp"]
+        self.explicit_skills = ["up","right","grasp"]
         rospy.Subscriber("/cog_learning/mt_error", Image, self.error_callback)
         rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)
         rospy.Subscriber("/cog_learning/mt_lp", Image, self.lp_callback)

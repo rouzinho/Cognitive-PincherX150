@@ -694,7 +694,7 @@ class Habituation(object):
       rospy.Subscriber("/habituation/action/mt", Image, self.field_action_callback)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
       rospy.Subscriber("/cluster_msg/sample_explore", SampleExplore, self.callback_sample_explore)
-      rospy.Subscriber("/habituation/input_latent", LatentGoalDnf, self.callback_input_latent)
+      rospy.Subscriber("/habituation/input_latent", Goal, self.callback_input_latent)
       rospy.Subscriber("/habituation/existing_perception", Outcome, self.callback_eval)
       rospy.Subscriber("/habituation/new_perception", Outcome, self.callback_perception)
       rospy.Subscriber("/cog_learning/outcome/not_learning", Float64, self.callback_same_perception)
@@ -1000,8 +1000,8 @@ class Habituation(object):
 
    def callback_input_latent(self, msg):
       print("got latent value for direct exploration : ",msg)
-      x_dnf = msg.latent_x
-      y_dnf = msg.latent_y      
+      x_dnf = msg.x
+      y_dnf = msg.y      
       latent_value = self.vae_action[self.index_vae].set_dnf_to_latent([x_dnf,y_dnf],self.exploration_mode)
       print("latent : ",latent_value)
       t_latent = torch.tensor(latent_value,dtype=torch.float)

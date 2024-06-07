@@ -192,12 +192,15 @@ if __name__ == "__main__":
    sim5_out = [0.8,0.6,0.1,0.0]
    sim5_dmp = [0.5,0.15,0.9,0.1,0.0]
    data.append([outcome1,dmp1])
+   data.append([outcome4,dmp4])
+   data.append([outcome5,dmp5])
+   
+
    data.append([outcome2,dmp2])
    #data.append([sim1_out,sim1_dmp])
    data.append([outcome3,dmp3])
-   data.append([outcome4,dmp4])
    
-   data.append([outcome5,dmp5])
+   
    data.append([outcome6,dmp6])
    data.append([outcome3_1,dmp3_1])
    #data.append([outcome3_2,dmp3_2])
@@ -208,19 +211,24 @@ if __name__ == "__main__":
    #data.append([sim4_out,sim4_dmp])
    #data.append([sim5_out,sim5_dmp])
    actions.append(action1)
-   actions.append(action2)
-   actions.append(action3)
    actions.append(action4)
    actions.append(action5)
+   
+   actions.append(action2)
+   actions.append(action3)
+   
+   
    actions.append(action6)
    actions.append(action3_1)
    actions.append(action3_2)
    actions.append(action3_3)
    states.append(state1)
-   states.append(state2)
-   states.append(state3)
    states.append(state4)
    states.append(state5)
+   states.append(state2)
+   states.append(state3)
+   
+   
    states.append(state6)
    states.append(state3_1)
    states.append(state3_2)
@@ -243,7 +251,7 @@ if __name__ == "__main__":
       #test.pub_exploration()
       #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and i < 5):
+         if(test.get_ready() and i < 3):
             print(i)
             #if i == 2:
             #   print("change object")
