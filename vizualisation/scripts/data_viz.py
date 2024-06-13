@@ -55,13 +55,14 @@ Window.clearcolor = (255/255, 245/255, 231/255, 0)
 Window.size = (1400, 800)
 
 class DataRecorder(object):
-    def __init__(self, name_topic_error, name_data, rec_inv):
+    def __init__(self, name_topic_error, name_data, rec_inv,time_step):
         super(DataRecorder, self).__init__()
         #rospy.init_node('DataRecorder')   
         self.bridge = CvBridge()
         self.cv2_img = None
         self.name_data = name_data
         self.rec_inv = rec_inv
+        self.time_step = time_step
         self.current_field = np.zeros((100,100))
         self.dim_field = [0,0]
         self.init_size = True
@@ -115,10 +116,15 @@ class DataRecorder(object):
         self.id_defined = True
 
     def callback_time(self,msg):
-        self.getValuePeaks()
-        self.writeDatas(msg.data)
-        if self.rec_inv:
-            self.write_inverse_datas(msg.data)
+        time = round(msg.data)
+        if not self.time_step:
+            self.getValuePeaks()
+            self.writeDatas(time)
+            if self.rec_inv:
+                self.write_inverse_datas(time)
+        else:
+            if time % 12 == 0:
+                print(time)
 
     def getValuePeaks(self):
         for i in range(0,len(self.list_peaks)):
@@ -316,8 +322,9 @@ class VisualDatas(App):
         rospy.init_node('DataRecorder')
         rate = rospy.Rate(50)
         self.data_folder = rospy.get_param("data_folder")
-        self.error = DataRecorder("/cog_learning/mt_error","ERROR",True)
-        self.lp = DataRecorder("/cog_learning/mt_lp","LP",False)
+        self.error = DataRecorder("/cog_learning/mt_error","ERROR",True,False)
+        self.lp = DataRecorder("/cog_learning/mt_lp","LP",False,False)
+        self.persist = DataRecorder("/cog_learning/persistence","persist",False,True)
         self.node_rnd_explore = DataNodeRecorder("/data_recorder/node_rnd_explore","rnd_exploration")
         self.node_direct_explore = DataNodeRecorder("/data_recorder/node_direct_explore","direct_exploration")
         self.node_exploit = DataNodeRecorder("/data_recorder/node_exploit","exploit")
@@ -354,7 +361,7 @@ class VisualDatas(App):
         self.cv2_inhib = None
         self.bridge = CvBridge()
         #self.coded_skills = [[67, 79], [38, 72], [42, 85], [67, 51], [56, 73]] 
-        #self.explicit_skills = ["up","down","left","right","grasp"]
+        #self.explicit_skills = ["up","right","grasp","down","left"]
         self.explicit_skills = ["up","right","grasp"]
         rospy.Subscriber("/cog_learning/mt_error", Image, self.error_callback)
         rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)

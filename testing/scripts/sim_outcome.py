@@ -11,12 +11,13 @@ from som.msg import GripperOrientation
 from cog_learning.msg import LatentGoalDnf
 from cog_learning.msg import Goal
 from csv import writer
+import math
 import csv
 
 class Testing(object):
    def __init__(self):
       rospy.init_node('test_vae', anonymous=True)
-      self.pub_perception = rospy.Publisher("/habituation/perception_new_goal", Outcome, queue_size=1, latch=True)
+      self.pub_perception = rospy.Publisher("/habituation/new_perception", Outcome, queue_size=1, latch=True)
       self.tot_learning = 0
       self.tot_not_learning = 0
       self.tot_signal = 0
@@ -53,9 +54,10 @@ class Testing(object):
          self.new_sample = True
       if self.tot_learning == 0 and self.tot_not_learning == 0:
          self.tot_signal += 1
-         if self.tot_signal > 100:
-            self.new_sample = False
+         if self.tot_signal > 200:
+            self.new_sample = True
             self.tot_signal = 0
+            print("No signal")
 
    def wait_for_ready(self):
       while not self.new_sample:
@@ -68,23 +70,39 @@ class Testing(object):
       self.outcome.x = out.x
       self.outcome.y = out.y
       self.outcome.angle = out.angle
-      self.outcome.touch = out.touch
+      self.outcome.touch = 0
       self.pub_perception.publish(self.outcome)
 
    def add_sample(self):
-      name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/attention_outcome/23.csv"
+      name = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/attention_outcome/100.csv"
       with open(name, 'a', newline='') as f_object:
          writer_object = writer(f_object)
-         new_row = [self.outcome.x,self.outcome.y,self.outcome.angle]
+         rad = (self.outcome.angle * math.pi / 180)/10
+         new_row = [self.outcome.x,self.outcome.y,rad]
          writer_object.writerow(new_row)
+
+   def wait_startup(self):
+      while self.tot_learning != 0 or self.tot_not_learning != 0:
+         pass
+
+   def get_tot_learning(self):
+      return self.tot_learning
+   
+   def get_tot_not_learning(self):
+      return self.tot_not_learning
 
 
 if __name__ == "__main__":
    test = Testing()
    rospy.sleep(0.5)
-   for x in range(0,15,1):
-      for y in range(-10,10,1):
-         for angle in range(-180,180,5):
+   for i in range(0,25):
+      res = i % 12
+      print(res)
+      print(i)
+   """for x in range(7,9,1):
+      for y in range(-3,3,1):
+         for angle in range(-180,180,10):
+            test.wait_startup()
             msg = f"sending : x {x/100}, y {y/100}, angle {angle}"
             print(msg)
             o = Outcome()
@@ -92,8 +110,10 @@ if __name__ == "__main__":
             o.y = y/100
             o.angle = angle
             test.send_outcome(o)
+            rospy.sleep(1.0)
             test.wait_for_ready()
             test.set_ready(False)
+            #rospy.sleep(1.5)"""
          
 
    rospy.spin()

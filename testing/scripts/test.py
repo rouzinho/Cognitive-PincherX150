@@ -251,7 +251,7 @@ if __name__ == "__main__":
       #test.pub_exploration()
       #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and i < 3):
+         if(test.get_ready() and i < 5):
             print(i)
             #if i == 2:
             #   print("change object")
