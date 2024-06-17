@@ -244,7 +244,7 @@ class Motion(object):
       self.count_touch = 0
     if(self.count_touch > 450):
       self.l_touch = self.count_touch
-      self.touch_value = True
+      #self.touch_value = True
     #self.count_touch = 0
     #self.pub_touch.publish(t)
     #print(self.touch_value)
@@ -613,7 +613,6 @@ class Motion(object):
       z_ = 0.05
     else:
       self.bot.gripper.close()
-      pass
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
     p_first, found_1 = self.find_best_pose(self.poses[0].x,self.poses[0].y,z_,self.dmp_exploit.roll,self.dmp_exploit.v_pitch)
@@ -634,6 +633,8 @@ class Motion(object):
       t.data = self.touch_value
       print("touch value : ",self.touch_value)
       self.pub_touch.publish(t)
+      if self.dmp_exploit.grasp > 0.5:
+        self.bot.gripper.open()
       print("ACTION DONE")
       self.l_touch = 0
       self.last_time = rospy.get_time()
@@ -650,11 +651,11 @@ class Motion(object):
       b = Bool()
       b.data = True
       self.pub_activate_perception.publish(b)
-      self.bot.gripper.open()
+      #self.bot.gripper.open()
     else:
       print("no valid pose found !")
       self.poses.pop()
-      self.bot.gripper.open()
+      #self.bot.gripper.open()
       self.init_exploitation()
     #send touch value
     
@@ -697,12 +698,12 @@ class Motion(object):
               f.close()
 
   def test_interface(self):
-    self.bot.gripper.open()
+    #self.bot.gripper.open()
     self.bot.gripper.set_pressure(1.0)
     self.bot.gripper.close()
     #self.close_gripper()
-    rospy.sleep(2.0)
-    self.bot.gripper.open()
+    #rospy.sleep(2.0)
+    #self.bot.gripper.open()
 
   def test_position(self):
     self.init_position()
@@ -734,6 +735,7 @@ if __name__ == '__main__':
   first = True
   sent_inh = False
   rospy.sleep(3.0)
+  #motion_pincher.test_interface()
   #motion_pincher.test_position()
 
   #motion_pincher.init_position()

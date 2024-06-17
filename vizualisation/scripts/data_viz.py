@@ -118,13 +118,15 @@ class DataRecorder(object):
     def callback_time(self,msg):
         time = round(msg.data)
         if not self.time_step:
-            self.getValuePeaks()
-            self.writeDatas(time)
-            if self.rec_inv:
-                self.write_inverse_datas(time)
+            if time % 10 == 0:
+                self.getValuePeaks()
+                self.writeDatas(time)
+                if self.rec_inv:
+                    self.write_inverse_datas(time)
         else:
             if time % 12 == 0:
-                print(time)
+                self.getValuePeaks()
+                self.writeDatas(time)
 
     def getValuePeaks(self):
         for i in range(0,len(self.list_peaks)):
@@ -569,6 +571,7 @@ class VisualDatas(App):
         self.error.load_values(self.name_peaks)
         self.error.load_inverse_values(self.name_inv_peaks)
         self.lp.load_values(self.name_peaks)
+        self.persist.load_values(self.name_peaks)
 
     def update_image(self,dt):
         self.mt_error = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/error.jpg"

@@ -590,7 +590,9 @@ class DepthImage
                   std_msgs::Bool msg;
                   msg.data = true;
                   pub_new_state.publish(msg);
-                  //ros::Duration(4.5).sleep();
+                  ros::Duration(0.5).sleep();
+                  //pub_reset_detector.publish(msg);
+                  //ros::Duration(0.5).sleep();
                   pub_activate_detector.publish(msg);
                 }
                 else
