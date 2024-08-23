@@ -436,7 +436,7 @@ class NNGoalAction(object):
         new_dmp.grasp = self.scale_data(sample.grasp, self.min_grasp, self.max_grasp)
         new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
         new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
-        #new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+        new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
         """print("state x before ", sample.state_x, " after : ", new_state.state_x)
         print("state y before ", sample.state_y, " after : ", new_state.state_y)
         print("state angle before ", sample.state_angle, " after : ", new_state.state_angle)

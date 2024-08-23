@@ -5,6 +5,7 @@ import copy
 
 class Skill(object):
     def __init__(self):
+        torch.manual_seed(32)
         #7 3
         #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: fposx, fposy, ind x, ind y
         self.inverse_model = MultiLayerP(7,6,4)
@@ -13,13 +14,13 @@ class Skill(object):
         #F: x_object, y_object, angle_object, fposx, fposy, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(7,6,4)
         self.forward_model.to(device)
+        #I: state x_object, y_object, angle_object, ind x, ind y O: probability
         self.r_predictor = MultiLayerPredictor(5,7,1)
         self.r_predictor.to(device)
         self.memory_size = 30
         self.memory = []
         self.memory_pred = []
         self.name_skill = ""
-        torch.manual_seed(58)
 
     def set_name(self, data):
         self.name_skill = str(data[0]) + "_" + str(data[1]) 

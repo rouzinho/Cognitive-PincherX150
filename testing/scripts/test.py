@@ -134,10 +134,10 @@ if __name__ == "__main__":
    actions = []
    states = []
    dnf = []
-   #up
+   #up - modified fpos
    outcome1 = [0.08,0.0,-14.0,0.0]
-   dmp1 = [0.08,0.0,1.1,1.5,0.0,0.26,0.0]
-   action1 = [0.34,0.0,1.2]
+   dmp1 = [0.08,0.0,1.0,1.5,0.0,0.26,0.0]
+   action1 = [0.26,0.0,1.0]
    state1 = [0.29,0.0,94.9]
    #down
    outcome2 = [-0.08,0.00,13.0,0.0]
@@ -152,12 +152,12 @@ if __name__ == "__main__":
    #right
    outcome4 = [0.01,-0.08,-20.0,0.0]
    dmp4 = [-0.015,-0.09,1.0,0.0,0.0,0.29,0.05]
-   action4 = [0.29,-0.04,1.0]
+   action4 = [0.29,0.06,1.0]
    state4 = [0.29,0.0,95.5]
    #grasp
    outcome5 = [0.0,0.0,0.0,1.0]
-   dmp5 = [0.08,0.0,0.15,0.0,1.0,0.26,0.0]
-   action5 = [0.3,0.0,0.5]
+   dmp5 = [0.08,0.0,0.15,0.0,1.0,0.34,0.0]
+   action5 = [0.26,0.0,0.5]
    state5 = [0.29,0.0,95.7]
    
    outcome6 = [0.0,0.0,0.0,1.0]
@@ -245,13 +245,14 @@ if __name__ == "__main__":
    seconds = 0
    explore = True
    first = True
-   skills = ["up","down","left","right","grasp"]
+   #skills = ["up","down","left","right","grasp"]
+   skills = ["up","right","grasp"]
    #[67, 79, 0.9], [38, 72, 0.9], [42, 85, 0.9], [67, 51, 0.9], [56, 73, 0.9] order of skills
    while not rospy.is_shutdown():
       #test.pub_exploration()
       #test.pub_exploitation()
       if explore:
-         if(test.get_ready() and i < 5):
+         if(test.get_ready() and i < 3):
             print(i)
             #if i == 2:
             #   print("change object")
