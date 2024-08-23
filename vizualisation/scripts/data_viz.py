@@ -104,8 +104,8 @@ class DataRecorder(object):
     def callback_inv(self,msg):
         if self.rec_inv:
             p = [int(msg.x),int(msg.y),msg.value]
-            if not self.isIn_inv_list(p):
-                self.list_inv.append(p)
+            self.isIn_inv_list(p)
+            self.list_inv.append(p)
 
     def callback_object(self,msg):
         self.id = msg.data
@@ -149,13 +149,10 @@ class DataRecorder(object):
         return inList
     
     def isIn_inv_list(self,peak):
-        inList = False
         for i in range(0,len(self.list_inv)):
             if self.list_inv[i][0] <= peak[0] + 2 and self.list_inv[i][0] >= peak[0] - 2:
                 if self.list_inv[i][1] <= peak[1] + 2 and self.list_inv[i][1] >= peak[1] - 2:
-                    inList = True
-
-        return inList
+                    self.list_inv.pop(i)
 
     def setList(self, list_p):
         self.list_tmp_peaks = []
@@ -363,8 +360,8 @@ class VisualDatas(App):
         self.cv2_inhib = None
         self.bridge = CvBridge()
         #self.coded_skills = [[67, 79], [38, 72], [42, 85], [67, 51], [56, 73]] 
-        #self.explicit_skills = ["up","right","grasp","down","left"]
-        self.explicit_skills = ["up","right","grasp"]
+        self.explicit_skills = ["up","right","grasp","down","left"]
+        #self.explicit_skills = ["up","right","grasp"]
         rospy.Subscriber("/cog_learning/mt_error", Image, self.error_callback)
         rospy.Subscriber("/habituation/outcome/mt", Image, self.vae_callback)
         rospy.Subscriber("/cog_learning/mt_lp", Image, self.lp_callback)
@@ -429,8 +426,8 @@ class VisualDatas(App):
         #print("KIVY got action !")
         self.v_x = "v_x : " + str(round(msg.v_x,2))
         self.v_y = "v_y : " + str(round(msg.v_y,2))
-        self.v_pitch = "v_pitch : " + str(msg.v_pitch)
-        self.roll = "roll : " + str(msg.roll)
+        self.v_pitch = "v_pitch : " + str(round(msg.v_pitch,2))
+        self.roll = "roll : " + str(round(msg.roll,2))
         self.grasp = "grasp : " + str(msg.grasp)
 
     def outcome_callback(self,msg):

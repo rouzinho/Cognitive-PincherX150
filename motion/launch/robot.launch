@@ -1,4 +1,4 @@
 <launch>
-    <include file="$(find proprioception_pincher)/launch/robot_proprioception.launch" />  
+    <!-- <include file="$(find proprioception_pincher)/launch/robot_proprioception.launch" />   -->
     <node name="motion" pkg="motion" type="motion_px.py" output="screen"/>
 </launch>

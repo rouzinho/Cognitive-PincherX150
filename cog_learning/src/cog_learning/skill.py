@@ -6,12 +6,12 @@ import copy
 class Skill(object):
     def __init__(self):
         #7 3
-        #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: lposx, lposy, lpospitch, ind x, ind y
-        self.inverse_model = MultiLayerP(7,6,5)
+        #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: fposx, fposy, ind x, ind y
+        self.inverse_model = MultiLayerP(7,6,4)
         self.inverse_model.to(device)
         #6 4
-        #F: x_object, y_object, angle_object, lposx, lposy, lpospitch, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
-        self.forward_model = MultiLayerP(8,6,4)
+        #F: x_object, y_object, angle_object, fposx, fposy, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
+        self.forward_model = MultiLayerP(7,6,4)
         self.forward_model.to(device)
         self.r_predictor = MultiLayerPredictor(5,7,1)
         self.r_predictor.to(device)
@@ -271,8 +271,8 @@ class Skill(object):
         mse_loss = nn.MSELoss()
         error = mse_loss(out, targets)
         fin_error = math.erf(error.item())
-        print("Error before erf : ",error.item())
-        print("Error after : ",fin_error)
+        #print("Error before erf : ",error.item())
+        #print("Error after : ",fin_error)
         #error = self.getErrorPrediction(out,targets)
 
         return fin_error

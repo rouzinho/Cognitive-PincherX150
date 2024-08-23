@@ -446,12 +446,15 @@ class ClusterMessage
          {
             pub_init_action.publish(b);
             ros::Duration(1.0).sleep();
-            f.data = 0.0;
-            //pub_end_action.publish(f);
             b.data = false;
             pub_init_action.publish(b);
          }
          touch = false;
+         f.data = 1.0;
+         pub_end_action.publish(f);
+         ros::Duration(1.0).sleep();
+         f.data = 0.0;
+         pub_end_action.publish(f);
       }
       if(exploit > 0.5 && retry)
       {

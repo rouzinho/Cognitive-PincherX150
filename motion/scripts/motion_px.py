@@ -113,6 +113,7 @@ class Motion(object):
     self.b_end = False
     self.state_object = State()
     self.new_state = False
+    self.emer_pose = GripperOrientation()
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
@@ -488,8 +489,12 @@ class Motion(object):
     print("ACTION DONE")
     self.last_time = rospy.get_time()
     sample = Action()
-    sample.lpos_x = self.poses[1].x
-    sample.lpos_y = self.poses[1].y
+    #old 
+    #sample.lpos_x = self.poses[1].x
+    #sample.lpos_y = self.poses[1].y
+    #sample.lpos_pitch = self.poses[1].pitch
+    sample.lpos_x = self.poses[0].x
+    sample.lpos_y = self.poses[0].y
     sample.lpos_pitch = self.poses[1].pitch
     self.pub_action_sample.publish(sample)
     self.poses.pop()
@@ -602,9 +607,13 @@ class Motion(object):
     self.dmp_exploit.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_exploit)
     lat_action = LatentGoalDnf()
+    print("choice : ",self.choice)
+    print("possible action : ",self.possible_action)
     lat_action.latent_x = self.possible_action[self.choice][5]
     lat_action.latent_y = self.possible_action[self.choice][6]
     self.pub_dnf_action.publish(lat_action)
+    self.emer_pose.x = self.poses[0].x
+    self.emer_pose.y = self.poses[0].y
     self.bot.gripper.set_pressure(1.0)
     z_ = 0.06
     self.init_position()     
@@ -613,8 +622,12 @@ class Motion(object):
       z_ = 0.05
     else:
       self.bot.gripper.close()
-    lpos_x = self.poses[0].x + msg.v_x
-    lpos_y = self.poses[0].y + msg.v_y
+    if len(self.poses) == 0:
+      self.poses.append(self.emer_pose)
+    fpos_x = self.poses[0].x
+    fpos_y = self.poses[0].y
+    lpos_x = fpos_x + msg.v_x
+    lpos_y = fpos_y + msg.v_y
     p_first, found_1 = self.find_best_pose(self.poses[0].x,self.poses[0].y,z_,self.dmp_exploit.roll,self.dmp_exploit.v_pitch)
     if found_1:
       p_last, found_2 = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,p_first)
@@ -639,9 +652,9 @@ class Motion(object):
       self.l_touch = 0
       self.last_time = rospy.get_time()
       sample = Action()
-      sample.lpos_x = lpos_x
-      sample.lpos_y = lpos_y
-      sample.lpos_pitch = p_last
+      sample.lpos_x = fpos_x
+      sample.lpos_y = fpos_y
+      sample.lpos_pitch = p_first
       self.pub_action_sample.publish(sample)
       self.poses.pop()
       self.ready_depth = False
@@ -657,6 +670,7 @@ class Motion(object):
       self.poses.pop()
       #self.bot.gripper.open()
       self.init_exploitation()
+    
     #send touch value
     
 

@@ -376,10 +376,10 @@ class NNGoalAction(object):
         return res
     
     def create_skill_sample(self, state, outcome, sample_action, ind_action):
-        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch,ind_action[0],ind_action[1]]
+        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.lpos_x,sample_action.lpos_y,ind_action[0],ind_action[1]]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
         sample_inp_inv = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
-        sample_out_inv = [sample_action.lpos_x,sample_action.lpos_y,sample_action.lpos_pitch,ind_action[0],ind_action[1]]
+        sample_out_inv = [sample_action.lpos_x,sample_action.lpos_y,ind_action[0],ind_action[1]]
         t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
         t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
         t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
@@ -436,7 +436,7 @@ class NNGoalAction(object):
         new_dmp.grasp = self.scale_data(sample.grasp, self.min_grasp, self.max_grasp)
         new_action.lpos_x = self.scale_data(sample.lpos_x, self.min_x, self.max_x)
         new_action.lpos_y = self.scale_data(sample.lpos_y, self.min_y, self.max_y)
-        new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
+        #new_action.lpos_pitch = self.scale_data(sample.lpos_pitch, self.min_pitch, self.max_pitch)
         """print("state x before ", sample.state_x, " after : ", new_state.state_x)
         print("state y before ", sample.state_y, " after : ", new_state.state_y)
         print("state angle before ", sample.state_angle, " after : ", new_state.state_angle)

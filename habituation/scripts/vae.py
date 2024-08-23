@@ -1051,7 +1051,7 @@ class Habituation(object):
       self.new_perception.x = peak[0]
       self.new_perception.y = peak[1]
       msg = self.habit[self.index_vae].get_eval(peak)
-      print("got perception : ",msg)
+      #print("got perception : ",msg)
       self.send_distance()
       self.send_perception(msg)
       rospy.sleep(2.0)
