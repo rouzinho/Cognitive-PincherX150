@@ -66,6 +66,7 @@ add_message_files(
 add_service_files(
   FILES
   PredAction.srv
+  PredInverse.srv
 )
 
 ## Generate actions in the 'action' folder

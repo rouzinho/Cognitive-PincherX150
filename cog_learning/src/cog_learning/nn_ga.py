@@ -414,7 +414,9 @@ class NNGoalAction(object):
         t = torch.tensor(s,dtype=torch.float)
 
         return t
-
+    
+    def sample_inverse_model(self, sample):
+        
 
     def scale_samples_skill(self, sample):
         #scale sample betwen [-1,1] for learning
@@ -977,3 +979,5 @@ class NNGoalAction(object):
         out = self.skills[self.index_skill].forward_r_predictor(t_sample)
 
         return out
+    
+    def predict_inverse(self, sample):
