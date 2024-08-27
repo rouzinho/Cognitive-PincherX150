@@ -6,11 +6,11 @@ import copy
 class Skill(object):
     def __init__(self):
         torch.manual_seed(32)
-        #7 3
+        #7 4
         #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: fposx, fposy, ind x, ind y
         self.inverse_model = MultiLayerP(7,6,4)
         self.inverse_model.to(device)
-        #6 4
+        #7 4
         #F: x_object, y_object, angle_object, fposx, fposy, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
         self.forward_model = MultiLayerP(7,6,4)
         self.forward_model.to(device)
@@ -263,6 +263,14 @@ class Skill(object):
         #error = self.getErrorPrediction(out,targets)
 
         return fin_error
+    
+    def predict_inverse(self,inputs):
+        self.inverse_model.eval()
+        inputs = inputs.to(device)
+        out = self.inverse_model(inputs)
+        res = out.detach().numpy()
+
+        return res
 
     def predictForwardModel(self,inputs,targets):
         self.forward_model.eval()
