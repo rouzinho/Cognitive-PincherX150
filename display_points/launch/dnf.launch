@@ -1,0 +1,5 @@
+<launch>
+    <param name="size_gauss1" type="int" value="50" />
+    <param name="size_gauss2" type="int" value="50" />
+    <node name="display_dnf" pkg="display_points" type="display_dnf.py" output="screen"/>
+</launch>

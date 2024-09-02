@@ -8,6 +8,7 @@ project(display_points)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  message_generation
   geometry_msgs
   rospy
   std_msgs
@@ -47,11 +48,11 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  Activations.msg
+  DnfInput.msg
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -68,10 +69,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   geometry_msgs#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -105,7 +106,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES display_points
-#  CATKIN_DEPENDS geometry_msgs rospy std_msgs
+    CATKIN_DEPENDS message_runtime rospy std_msgs
 #  DEPENDS system_lib
 )
 
@@ -158,6 +159,7 @@ include_directories(
 # See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
 catkin_install_python(PROGRAMS
    scripts/display_pts.py
+   scripts/display_dnf.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 ## Mark executable scripts (Python etc.) for installation
