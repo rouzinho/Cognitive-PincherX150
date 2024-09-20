@@ -1,3 +1,4 @@
 float32[] inputs
 ---
 float32[] outputs
+float32 error_inv

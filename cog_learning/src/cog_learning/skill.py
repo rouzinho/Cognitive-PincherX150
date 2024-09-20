@@ -17,6 +17,8 @@ class Skill(object):
         #I: state x_object, y_object, angle_object, ind x, ind y O: probability
         self.r_predictor = MultiLayerPredictor(5,7,1)
         self.r_predictor.to(device)
+        self.error_fwd = 1.0
+        self.error_inv = 1.0
         self.memory_size = 30
         self.memory = []
         self.memory_pred = []
@@ -260,6 +262,7 @@ class Skill(object):
         mse_loss = nn.MSELoss()
         error = mse_loss(out, targets)
         fin_error = math.erf(error.item())
+        self.error_inv = fin_error
         #error = self.getErrorPrediction(out,targets)
 
         return fin_error
@@ -280,6 +283,7 @@ class Skill(object):
         mse_loss = nn.MSELoss()
         error = mse_loss(out, targets)
         fin_error = math.erf(error.item())
+        self.error_fwd = fin_error
         #print("Error before erf : ",error.item())
         #print("Error after : ",fin_error)
         #error = self.getErrorPrediction(out,targets)
