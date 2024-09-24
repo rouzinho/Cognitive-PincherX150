@@ -101,6 +101,9 @@ class Skill(object):
     def get_memory(self):
         return self.memory
     
+    def get_error_inverse(self):
+        return self.error_inv
+    
     def print_memory(self):
         print("size memory : ",len(self.memory))
         print("memory skills : ",self.memory)
