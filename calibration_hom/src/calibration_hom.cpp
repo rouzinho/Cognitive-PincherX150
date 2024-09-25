@@ -285,7 +285,7 @@ class DepthImage
 
     void writePoint(cv::Point p)
     {
-      ofstream myfile ("/home/altair/interbotix_ws/depth_points.txt");
+      ofstream myfile ("/home/altair/interbotix_ws/depth_points.txt",std::ios_base::app);
       string x = to_string(p.x);
       string y = to_string(p.y);
       myfile<<x<<" "<<y<<"\n";

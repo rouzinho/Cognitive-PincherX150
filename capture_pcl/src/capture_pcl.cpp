@@ -90,6 +90,9 @@ class DepthImage
     std::vector<double> hom;
     cv::Mat homography;
     bool use_hom;
+    int projection_width;
+    int projection_height;
+    cv::Size size_projection;
 
 
   public:
@@ -109,6 +112,12 @@ class DepthImage
       if(homography)
       {
         ros::param::get("hom_depth_to_dvs", hom);
+        homography = getMatrix(hom);
+        ros::param::get("width", projection_width);
+        ros::param::get("height", projection_height);
+        size_projection.height = projection_height
+        size_projection.width = projection_width
+        //img_dvs = cv::Mat(projection_height,projection_width,CV_8U,cv::Scalar(0,0,0));
       }
       ros::param::get("init_params", init_params);
       ros::param::get("crop_min_x", crop_min_x);
@@ -123,9 +132,8 @@ class DepthImage
       ros::param::get("by", by);
       ros::param::get("az", az);
       ros::param::get("bz", bz);
-      homography = getMatrix(hom);
+      
       cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
-      img_dvs = cv::Mat(1080,1920,CV_8UC3,cv::Scalar(0,0,0));
       init_values = false;
     }
     ~DepthImage()
@@ -353,19 +361,19 @@ class DepthImage
       cv::Mat fil_b;
       if(hom)
       {
-
+        cv::warpPerspective(cv_image, resized, homography, size_projection);
       }
-      cv::resize(cv_image, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
-      cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
-      res.convertTo(res, CV_8U, 255.0);
-      cv::medianBlur(res,fil,(5,5));
-      fil_b = enhanceDepth(fil,0.001);
+      //cv::resize(cv_image, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
+      //cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
+      //res.convertTo(res, CV_8U, 255.0);
+      //cv::medianBlur(res,fil,(5,5));
+      //fil_b = enhanceDepth(fil,0.001);
 
-      sensor_msgs::ImagePtr d_object = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, fil_b).toImageMsg();
-      pub_depth.publish(d_object);
+      //sensor_msgs::ImagePtr d_object = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, fil_b).toImageMsg();
+      //pub_depth.publish(d_object);
 
-      //cv::imshow(OPENCV_WINDOW,fil_b);
-      //cv::waitKey(1);
+      cv::imshow(OPENCV_WINDOW,fil_b);
+      cv::waitKey(1);
     }
 
     cv::Mat enhanceDepth(cv::Mat img, float thr)
