@@ -1,0 +1,16 @@
+<launch>
+    <param name="init_params" type="bool" value="true" />
+    <rosparam param="crop_min_x">-600.919</rosparam>
+    <rosparam param="crop_max_x">-140.916</rosparam>
+    <rosparam param="crop_min_y">-358.34</rosparam>
+    <rosparam param="crop_max_y">402.577</rosparam>
+    <rosparam param="crop_min_z">-600.919</rosparam>
+    <rosparam param="crop_max_z">26.9382</rosparam>
+    <rosparam param="ax">1.34782</rosparam>
+    <rosparam param="bx">809.928</rosparam>
+    <rosparam param="ay">1.10393</rosparam>
+    <rosparam param="by">395.583</rosparam>
+    <rosparam param="az">1.59272</rosparam>
+    <rosparam param="bz">957.095</rosparam>
+    <node name="visualize_depth" pkg="visualize_depth" type="visualize_depth_node" output="screen"/>
+</launch>
