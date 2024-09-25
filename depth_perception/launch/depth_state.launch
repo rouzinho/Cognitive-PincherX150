@@ -7,7 +7,7 @@
     <rosparam param="crop_min_z">-600.919</rosparam>
     <rosparam param="crop_max_z">26.9382</rosparam>
     <rosparam param="ax">1.34782</rosparam>
-    <rosparam param="bx">809.928</rosparam>
+    <rosparam param="bx">809.929</rosparam>
     <rosparam param="ay">1.10393</rosparam>
     <rosparam param="by">395.583</rosparam>
     <rosparam param="az">1.59272</rosparam>

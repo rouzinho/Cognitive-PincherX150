@@ -87,6 +87,10 @@ class DepthImage
     int s_y;
     bool init_params;
     cv::Mat display;
+    std::vector<double> hom;
+    cv::Mat homography;
+    bool use_hom;
+
 
   public:
     DepthImage():
@@ -101,6 +105,11 @@ class DepthImage
       s_x = 620;  //620
       s_y = 840;  //840
       display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      ros::param::get("homography", use_hom);
+      if(homography)
+      {
+        ros::param::get("hom_depth_to_dvs", hom);
+      }
       ros::param::get("init_params", init_params);
       ros::param::get("crop_min_x", crop_min_x);
       ros::param::get("crop_max_x", crop_max_x);
@@ -114,7 +123,9 @@ class DepthImage
       ros::param::get("by", by);
       ros::param::get("az", az);
       ros::param::get("bz", bz);
+      homography = getMatrix(hom);
       cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      img_dvs = cv::Mat(1080,1920,CV_8UC3,cv::Scalar(0,0,0));
       init_values = false;
     }
     ~DepthImage()
@@ -179,6 +190,22 @@ class DepthImage
       pcl::transformPointCloud(*temp_cloud,*cloud_transformed,robot_frame);
 
       genDepthFromPcl(cloud_transformed);
+    }
+
+    cv::Mat getMatrix(const std::vector<double> mat)
+    {
+      cv::Mat cv_transform = cv::Mat(3,3,CV_32FC1);
+      int k = 0;
+      for(int i = 0; i < 3; i++)
+      {
+        for(int j = 0; j < 3; j++)
+        {
+          cv_transform.at<float>(i,j) = mat[k];
+          k++;
+        }
+      }
+      
+      return cv_transform;
     }
 
     void listenTransform()
@@ -324,6 +351,10 @@ class DepthImage
       cv::Mat resized;
       cv::Mat fil;
       cv::Mat fil_b;
+      if(hom)
+      {
+
+      }
       cv::resize(cv_image, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
       cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
       res.convertTo(res, CV_8U, 255.0);

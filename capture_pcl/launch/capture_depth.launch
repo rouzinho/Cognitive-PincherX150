@@ -1,4 +1,9 @@
 <launch>
+    <arg name="hom" default="true"/>
+    <param name="homography" value="$(arg hom)" />
+    <group if="$(arg hom)">
+        <rosparam file="$(find capture_pcl)/config/homography.yaml" />
+    </group>
     <param name="init_params" type="bool" value="true" />
     <rosparam param="crop_min_x">-600.919</rosparam>
     <rosparam param="crop_max_x">-140.916</rosparam>
