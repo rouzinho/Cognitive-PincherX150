@@ -317,14 +317,14 @@ class DepthImage
           }
         }
       }
-      display = cv::Mat(s_x, s_y, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
-      display = cv_image(crop_img); 
+      //display = cv::Mat(s_x, s_y, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
+      //display = cv_image(crop_img); 
       
       cv::Mat res;
       cv::Mat resized;
       cv::Mat fil;
       cv::Mat fil_b;
-      cv::resize(display, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
+      cv::resize(cv_image, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
       cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
       res.convertTo(res, CV_8U, 255.0);
       cv::medianBlur(res,fil,(5,5));

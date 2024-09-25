@@ -294,7 +294,7 @@ class DepthImage
 
     void genDepthFromPcl(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud)
     {
-      //cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
+      cv_image = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       //crop image to fit robot space to DNF
       //IMPORTANT for calibration
       //dim cv_image
@@ -316,7 +316,7 @@ class DepthImage
         az = (static_cast<double>(1000))/(crop_max_z-crop_min_z);
         bz = 0 - (az*crop_min_z);
       }
-      if(count < 60)
+      //if(count < 60)
       {
         for (int i=0; i< cloud->points.size();i++)
         {
@@ -341,9 +341,9 @@ class DepthImage
         }
         //display = cv::Mat(s_x, s_y, CV_32FC1,cv::Scalar(std::numeric_limits<float>::min()));
         //display = cv_image(crop_img); 
-        count++;
+        //count++;
       }
-      else
+      //else
       {
         cv::Mat res;
         cv::Mat resized;
@@ -351,16 +351,16 @@ class DepthImage
         cv::Point p;
         cv::Point m;
         //cv::resize(display, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
-        cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
-        res.convertTo(res, CV_8U, 255.0);
-        cv::medianBlur(res,fil,(5,5));
-        m = findCenter(fil);
+        //cv::cvtColor(cv_image,res,cv::COLOR_GRAY2RGB);
+        //res.convertTo(res, CV_8U, 255.0);
+        //cv::medianBlur(res,fil,(5,5));
+        //m = findCenter(fil);
         //sensor_msgs::ImagePtr d_object = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, fil_b).toImageMsg();
         //pub_depth.publish(d_object);
-        cv::circle(fil, m, 3, cv::Scalar(0,0,255  ), -1);
+        //cv::circle(fil, m, 3, cv::Scalar(0,0,255  ), -1);
       }
 
-      cv::imshow(OPENCV_WINDOW,fil);
+      cv::imshow(OPENCV_WINDOW,cv_image);
       cv::waitKey(1);
     }
 
