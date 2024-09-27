@@ -109,14 +109,14 @@ class DepthImage
       s_y = 840;  //840
       display = cv::Mat(s_x, s_y, CV_32F,cv::Scalar(std::numeric_limits<float>::min()));
       ros::param::get("homography", use_hom);
-      if(homography)
+      if(use_hom)
       {
         ros::param::get("hom_depth_to_dvs", hom);
         homography = getMatrix(hom);
         ros::param::get("width", projection_width);
         ros::param::get("height", projection_height);
-        size_projection.height = projection_height
-        size_projection.width = projection_width
+        size_projection.height = projection_height;
+        size_projection.width = projection_width;
         //img_dvs = cv::Mat(projection_height,projection_width,CV_8U,cv::Scalar(0,0,0));
       }
       ros::param::get("init_params", init_params);
@@ -359,21 +359,25 @@ class DepthImage
       cv::Mat resized;
       cv::Mat fil;
       cv::Mat fil_b;
-      if(hom)
+      if(use_hom)
       {
         cv::warpPerspective(cv_image, resized, homography, size_projection);
+      }
+      else
+      {
+        resized = cv_image;
       }
       //cv::resize(cv_image, resized, cv::Size(180, 100), cv::INTER_LANCZOS4);
       //cv::cvtColor(resized,res,cv::COLOR_GRAY2RGB);
       //res.convertTo(res, CV_8U, 255.0);
       //cv::medianBlur(res,fil,(5,5));
-      //fil_b = enhanceDepth(fil,0.001);
+      fil_b = enhanceDepth(resized,0.001);
 
-      //sensor_msgs::ImagePtr d_object = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, fil_b).toImageMsg();
-      //pub_depth.publish(d_object);
+      sensor_msgs::ImagePtr d_object = cv_bridge::CvImage(header, sensor_msgs::image_encodings::TYPE_32FC1, fil_b).toImageMsg();
+      pub_depth.publish(d_object);
 
-      cv::imshow(OPENCV_WINDOW,fil_b);
-      cv::waitKey(1);
+      //cv::imshow(OPENCV_WINDOW,fil_b);
+      //cv::waitKey(1);
     }
 
     cv::Mat enhanceDepth(cv::Mat img, float thr)
@@ -381,20 +385,20 @@ class DepthImage
       cv::Mat tmp;
       cv::Mat d;
       cv::Mat color_img;
-      cv::cvtColor(img,tmp,cv::COLOR_RGB2GRAY);
-      tmp.convertTo(d, CV_32FC1, 1/255.0);
-      for(int i = 0; i < d.rows; i++)
+      //cv::cvtColor(img,tmp,cv::COLOR_RGB2GRAY);
+      //tmp.convertTo(d, CV_32FC1, 1/255.0);
+      for(int i = 0; i < img.rows; i++)
       {
-          for(int j = 0; j < d.cols; j++)
+          for(int j = 0; j < img.cols; j++)
           {
-            float pix = d.at<float>(i,j);
+            float pix = img.at<float>(i,j);
             if(pix > thr)
             {
-                d.at<float>(i,j) = 1.0;//pix * 100;
+                img.at<float>(i,j) = 100.0;//pix * 100;
             }
             else
             {
-                d.at<float>(i,j) = 0.0;
+                img.at<float>(i,j) = 0.0;
             }
             //std::cout<<d.at<float>(i,j);
           }
@@ -403,7 +407,7 @@ class DepthImage
       //cv::cvtColor(d,color_img,cv::COLOR_GRAY2RGB);
       //color_img.convertTo(color_img, CV_8U, 255.0);
       
-      return d;
+      return img;
     }
 
 };
