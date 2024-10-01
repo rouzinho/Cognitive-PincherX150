@@ -308,10 +308,10 @@ class Detector
         {
             listenTransform();
         }
-        state_object.state_x = pose_object.pose.position.x;
-        state_object.state_y = pose_object.pose.position.y;
-        state_object.state_angle = object_state_angle;
-        pub_state_object.publish(state_object);
+        //state_object.state_x = pose_object.pose.position.x;
+        //state_object.state_y = pose_object.pose.position.y;
+        //state_object.state_angle = object_state_angle;
+        //pub_state_object.publish(state_object);
         tf2::Quaternion q_orig(0,0,0,1);
         tf2::Quaternion q_rot;
         geometry_msgs::Point new_vec;
