@@ -996,7 +996,7 @@ class NNGoalAction(object):
         inp = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
         input_t = torch.tensor(inp,dtype=torch.float)
         out = self.skills[self.index_skill].predict_inverse(input_t)
-        err = self.skills[self.index_skill].get_error_inverse()
+        #err = self.skills[self.index_skill].get_error_inverse()
         #fposx fposy indx indy
         fposx = self.scale_inp_out(out[0],-1,1,self.min_x,self.max_x)
         fposy = self.scale_inp_out(out[1],-1,1,self.min_y,self.max_y)
@@ -1005,4 +1005,9 @@ class NNGoalAction(object):
         indy = self.scale_inp_out(out[3],-1,1,0,100)
         indy = round(indy)
 
-        return [fposx,fposy,indx,indy], err
+        return [fposx,fposy,indx,indy]
+    
+    def get_inverse_error(self):
+        err = self.skills[self.index_skill].get_inverse_error()
+
+        return err

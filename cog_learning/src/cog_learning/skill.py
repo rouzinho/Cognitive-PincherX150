@@ -101,7 +101,7 @@ class Skill(object):
     def get_memory(self):
         return self.memory
     
-    def get_error_inverse(self):
+    def get_inverse_error(self):
         return self.error_inv
     
     def print_memory(self):

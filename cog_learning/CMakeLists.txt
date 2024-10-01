@@ -67,6 +67,7 @@ add_service_files(
   FILES
   PredAction.srv
   PredInverse.srv
+  GetInvError.srv
 )
 
 ## Generate actions in the 'action' folder
