@@ -54,9 +54,9 @@ class Testing(object):
 
    def publish_action(self,data):
       tmp = Action()
-      tmp.lpos_x = data[0]
-      tmp.lpos_y = data[1]
-      tmp.lpos_pitch = data[2]
+      tmp.fpos_x = data[0]
+      tmp.fpos_y = data[1]
+      tmp.fpos_pitch = data[2]
       self.pub_action_sample.publish(tmp)
 
    def publish_state(self,data):
