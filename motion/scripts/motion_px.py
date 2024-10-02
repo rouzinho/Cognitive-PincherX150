@@ -117,6 +117,8 @@ class Motion(object):
     self.new_state = False
     self.emer_pose = GripperOrientation()
     self.outcome = Outcome()
+    self.choose_pred = True
+    self.pause_process = False
     self.bot = InterbotixManipulatorXS("px150", "arm", "gripper")
     self.pub_gripper = rospy.Publisher("/px150/commands/joint_single", JointSingleCommand, queue_size=1, latch=True)
     self.pub_touch = rospy.Publisher("/motion_pincher/touch", Bool, queue_size=1, latch=True)
@@ -150,6 +152,8 @@ class Motion(object):
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
     rospy.Subscriber("/motion_pincher/bool_init", Bool, self.callback_bool_init)
     rospy.Subscriber("/habituation/existing_perception", Outcome, self.callback_outcome)
+    rospy.Subscriber("/motion_pincher/good_action", Bool, self.callback_reward)
+    rospy.Subscriber("/cluster_msg/pause_dft", Bool, self.callback_pause_process)
     #remove thiss one
     rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
 
@@ -171,11 +175,11 @@ class Motion(object):
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
-  def get_object_state(self):
+  def get_object_state(self,req):
     rospy.wait_for_service('get_object_state')
     try:
         action_predictions = rospy.ServiceProxy('get_object_state', GetState)
-        resp1 = action_predictions()
+        resp1 = action_predictions(req)
         return resp1.state
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
@@ -337,6 +341,13 @@ class Motion(object):
     self.state_object.state_angle = msg.state_angle
     self.new_state = True
 
+  def callback_reward(self,msg):
+    if msg.data == True:
+      self.choose_pred = False
+
+  def callback_pause_process(self,msg):
+    self.pause_process = msg.data
+
   def get_ready(self):
     return self.ready
   
@@ -414,6 +425,10 @@ class Motion(object):
   #if it's exploiting ->learning a skill
   def get_exploit(self):
     return self.exploit
+  
+  def apply_pause(self):
+    while self.pause_process:
+      pass
 
   #convert 3D EE position to JS through IK
   def pose_to_joints(self,x,y,z,r,p):
@@ -520,9 +535,9 @@ class Motion(object):
     #sample.lpos_x = self.poses[1].x
     #sample.lpos_y = self.poses[1].y
     #sample.lpos_pitch = self.poses[1].pitch
-    sample.lpos_x = self.poses[0].x
-    sample.lpos_y = self.poses[0].y
-    sample.lpos_pitch = self.poses[1].pitch
+    sample.fpos_x = self.poses[0].x
+    sample.fpos_y = self.poses[0].y
+    sample.fpos_pitch = self.poses[1].pitch
     self.pub_action_sample.publish(sample)
     self.poses.pop()
     self.bool_last_p = False
@@ -572,9 +587,9 @@ class Motion(object):
     print("ACTION DONE")
     self.last_time = rospy.get_time()
     sample = Action()
-    sample.lpos_x = lpos_x
-    sample.lpos_y = lpos_y
-    sample.lpos_pitch = lpos_p
+    sample.fpos_x = lpos_x
+    sample.fpos_y = lpos_y
+    sample.fpos_pitch = lpos_p
     self.pub_action_sample.publish(sample)
     self.poses.pop()
     self.ready_depth = False
@@ -587,16 +602,36 @@ class Motion(object):
 
 
   def init_exploitation(self):
+    self.apply_pause()
     #getting error
     req = GetInvErrorRequest()
     err_inv = self.get_inverse_error(req)
     r = random.uniform(0, 1)
-    if r < err_inv:
+    dmp_choice = self.possible_action[self.choice]
+    self.dmp_exploit = Dmp()
+    self.dmp_exploit.v_x = dmp_choice[0]
+    self.dmp_exploit.v_y = dmp_choice[1]
+    self.dmp_exploit.v_pitch = dmp_choice[2]
+    self.dmp_exploit.roll = dmp_choice[3]
+    self.dmp_exploit.grasp = dmp_choice[4]
+    print("error : ",2*err_inv)
+    print("rnd : ",r)
+    if r < 2*err_inv or self.choose_pred:
       #random
-      pass
+      #suc = self.get_correct_pose(dmp_choice[2])
+      print("Init ACTION Random !")
+      self.send_init(1.0)
     else:
       #predict
-      pass
+      self.choose_pred = True
+      req_inv = PredInverseRequest()
+      req_st = GetStateRequest()
+      curr_state = self.get_object_state(req_st)
+      req_inv.inputs = [curr_state.state_x,curr_state.state_y,curr_state.state_angle]
+      out = self.get_inverse_prediction(req_inv)
+      self.dmp_exploit.fpos_x = out[0]
+      self.dmp_exploit.fpos_y = out[1]
+      self.execute_inverse_exploitation()
 
   #init old
   def old_init_exploitation(self):
@@ -651,8 +686,8 @@ class Motion(object):
     lat_action.latent_x = self.possible_action[self.choice][5]
     lat_action.latent_y = self.possible_action[self.choice][6]
     self.pub_dnf_action.publish(lat_action)
-    self.emer_pose.x = self.poses[0].x
-    self.emer_pose.y = self.poses[0].y
+    self.emer_pose.x = self.dmp_exploit.fpos_x
+    self.emer_pose.y = self.dmp_exploit.fpos_y
     self.bot.gripper.set_pressure(1.0)
     z_ = 0.06
     self.init_position()     
@@ -661,23 +696,20 @@ class Motion(object):
       z_ = 0.05
     else:
       self.bot.gripper.close()
-    if len(self.poses) == 0:
-      self.poses.append(self.emer_pose)
-    fpos_x = self.poses[0].x
-    fpos_y = self.poses[0].y
+    fpos_x = self.dmp_exploit.fpos_x
+    fpos_y = self.dmp_exploit.fpos_y
     lpos_x = fpos_x + msg.v_x
     lpos_y = fpos_y + msg.v_y
-    p_first, found_1 = self.find_best_pose(self.poses[0].x,self.poses[0].y,z_,self.dmp_exploit.roll,self.dmp_exploit.v_pitch)
+    p_first, found_1 = self.find_best_pose(fpos_x,fpos_y,z_,self.dmp_exploit.roll,self.dmp_exploit.v_pitch)
     if found_1:
       p_last, found_2 = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,p_first)
     if found_1 and found_2:
-      m_first = f"first pose : x {self.poses[0].x}, y {self.poses[0].y}, pitch {p_first}, roll {self.dmp_exploit.roll}"
-      message = f"Second pose : x {lpos_x}, y {lpos_y}, pitch {p_last}"
+      m_first = f"first pose INVERSE : x {fpos_x}, y {fpos_y}, pitch {p_first}, roll {self.dmp_exploit.roll}"
+      message = f"Second pose INVERSE : x {lpos_x}, y {lpos_y}, pitch {p_last}"
       print(m_first)
       print(message)
-      self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_exploit.roll, pitch=p_first)
+      self.bot.arm.set_ee_pose_components(x=fpos_x, y=fpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=p_first)
       self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=p_last)
-      self.record = False
       self.bot.gripper.close()
       self.init_position()  
       self.sleep_pose()
@@ -691,11 +723,11 @@ class Motion(object):
       self.l_touch = 0
       self.last_time = rospy.get_time()
       sample = Action()
-      sample.lpos_x = fpos_x
-      sample.lpos_y = fpos_y
-      sample.lpos_pitch = p_first
+      sample.fpos_x = fpos_x
+      sample.fpos_y = fpos_y
+      sample.fpos_pitch = p_first
       self.pub_action_sample.publish(sample)
-      self.poses.pop()
+      #self.poses.pop()
       self.ready_depth = False
       self.ready_outcome = False
       self.touch_value = False
@@ -766,9 +798,9 @@ class Motion(object):
       self.l_touch = 0
       self.last_time = rospy.get_time()
       sample = Action()
-      sample.lpos_x = fpos_x
-      sample.lpos_y = fpos_y
-      sample.lpos_pitch = p_first
+      sample.fpos_x = fpos_x
+      sample.fpos_y = fpos_y
+      sample.fpos_pitch = p_first
       self.pub_action_sample.publish(sample)
       self.poses.pop()
       self.ready_depth = False
