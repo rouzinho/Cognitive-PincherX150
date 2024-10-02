@@ -7,12 +7,12 @@ class Skill(object):
     def __init__(self):
         torch.manual_seed(32)
         #7 4
-        #I:state x_object, y_object, angle_object, outcome vx_object, vy_object, vangle_object, touch_object O: fposx, fposy, ind x, ind y
-        self.inverse_model = MultiLayerP(7,6,4)
+        #I:state x_object, y_object, angle_object O: fposx, fposy, ind x, ind y
+        self.inverse_model = MultiLayerP(3,5,4)
         self.inverse_model.to(device)
         #7 4
-        #F: x_object, y_object, angle_object, fposx, fposy, ind x, ind y O: vx_object, vy_object, vangle_object, touch_object
-        self.forward_model = MultiLayerP(7,6,4)
+        #F: state x_object, y_object, angle_object O: vx_object, vy_object, vangle_object, touch_object
+        self.forward_model = MultiLayerP(3,5,4)
         self.forward_model.to(device)
         #I: state x_object, y_object, angle_object, ind x, ind y O: probability
         self.r_predictor = MultiLayerPredictor(5,7,1)
