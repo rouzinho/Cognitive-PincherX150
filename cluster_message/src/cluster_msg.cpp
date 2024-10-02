@@ -254,9 +254,9 @@ class ClusterMessage
 
    void CallbackSample(const motion::Action::ConstPtr& msg)
    {
-      sample.lpos_x = msg->lpos_x;
-      sample.lpos_y = msg->lpos_y;
-      sample.lpos_pitch = msg->lpos_pitch;
+      sample.fpos_x = msg->fpos_x;
+      sample.fpos_y = msg->fpos_y;
+      sample.fpos_pitch = msg->fpos_pitch;
       sample_b = true;
       std::cout<<"cluster : got sample\n";
    }
@@ -277,9 +277,9 @@ class ClusterMessage
          s.v_pitch = dmp.v_pitch;
          s.roll = dmp.roll;
          s.grasp = dmp.grasp;
-         s.lpos_x = sample.lpos_x;
-         s.lpos_y = sample.lpos_y;
-         s.lpos_pitch = sample.lpos_pitch;
+         s.fpos_x = sample.fpos_x;
+         s.fpos_y = sample.fpos_y;
+         s.fpos_pitch = sample.fpos_pitch;
          s.outcome_x = outcome.x;
          s.outcome_y = outcome.y;
          s.outcome_angle = outcome.angle;
@@ -350,9 +350,9 @@ class ClusterMessage
          s.v_pitch = dmp.v_pitch;
          s.roll = dmp.roll;
          s.grasp = dmp.grasp;
-         s.lpos_x = sample.lpos_x;
-         s.lpos_y = sample.lpos_y;
-         s.lpos_pitch = sample.lpos_pitch;
+         s.fpos_x = sample.fpos_x;
+         s.fpos_y = sample.fpos_y;
+         s.fpos_pitch = sample.fpos_pitch;
          s.outcome_x = outcome.x;
          s.outcome_y = outcome.y;
          s.outcome_angle = outcome.angle;
@@ -419,9 +419,9 @@ class ClusterMessage
          s.state_x = state.state_x;
          s.state_y = state.state_y;
          s.state_angle = state.state_angle;
-         s.lpos_x = sample.lpos_x;
-         s.lpos_y = sample.lpos_y;
-         s.lpos_pitch = sample.lpos_pitch;
+         s.fpos_x = sample.fpos_x;
+         s.fpos_y = sample.fpos_y;
+         s.fpos_pitch = sample.fpos_pitch;
          s.dnf_x = latent_action.latent_x;
          s.dnf_y = latent_action.latent_y;
          pub_datas_exploit.publish(s);
