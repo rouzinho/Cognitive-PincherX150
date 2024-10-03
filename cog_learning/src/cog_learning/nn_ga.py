@@ -486,16 +486,11 @@ class NNGoalAction(object):
     def sample_inverse_model(self, sample):
         #scale sample betwen [-1,1] for learning
         new_state = State()
-        new_outcome = Outcome()
         new_state.state_x = self.scale_data(sample[0], self.min_x, self.max_x)
         new_state.state_y = self.scale_data(sample[1], self.min_y, self.max_y)
         new_state.state_angle = self.scale_data(sample[2], self.min_angle, self.max_angle)
-        new_outcome.x = self.scale_data(sample[3], self.min_vx, self.max_vx)
-        new_outcome.y = self.scale_data(sample[4], self.min_vy, self.max_vy)
-        new_outcome.angle = self.scale_data(sample[5], self.min_angle, self.max_angle)
-        new_outcome.touch = self.scale_data(sample[6], self.min_grasp, self.max_grasp)
 
-        return new_state, new_outcome
+        return new_state
 
     #search for value in DNF latent space    
     def search_dnf_value(self, value, list_):
@@ -1000,8 +995,8 @@ class NNGoalAction(object):
         return out
     
     def predict_inverse(self, sample):
-        state, outcome = self.sample_inverse_model(sample)
-        inp = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
+        state = self.sample_inverse_model(sample)
+        inp = [state.state_x,state.state_y,state.state_angle]
         input_t = torch.tensor(inp,dtype=torch.float)
         out = self.skills[self.index_skill].predict_inverse(input_t)
         #err = self.skills[self.index_skill].get_error_inverse()

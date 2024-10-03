@@ -249,7 +249,7 @@ class ClusterMessage
       state.state_x = msg->state_x;
       state.state_y = msg->state_y;
       state_b = true;
-      std::cout<<"cluster : got state\n";
+      std::cout<<"cluster state : x "<<state.state_x<<" y "<<state.state_y<<" ang "<<state.state_angle<<"\n";
    }
 
    void CallbackSample(const motion::Action::ConstPtr& msg)

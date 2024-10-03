@@ -151,8 +151,6 @@ class Motion(object):
     rospy.Subscriber("/motion_pincher/list_candidates", ListPose, self.callback_list_pose)
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
     rospy.Subscriber("/motion_pincher/bool_init", Bool, self.callback_bool_init)
-    rospy.Subscriber("/habituation/existing_perception", Outcome, self.callback_outcome)
-    rospy.Subscriber("/motion_pincher/good_action", Bool, self.callback_reward)
     rospy.Subscriber("/cluster_msg/pause_dft", Bool, self.callback_pause_process)
     #remove thiss one
     rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
@@ -190,24 +188,6 @@ class Motion(object):
         action_predictions = rospy.ServiceProxy('predict_action', PredAction)
         resp1 = action_predictions(act)
         return resp1.outputs
-    except rospy.ServiceException as e:
-        print("Service call failed: %s"%e)
-
-  def get_inverse_prediction(self, inp):
-    rospy.wait_for_service('predict_action')
-    try:
-        inverse_predictions = rospy.ServiceProxy('predict_inverse', PredInverse)
-        res = inverse_predictions(inp)
-        return res.outputs
-    except rospy.ServiceException as e:
-        print("Service call failed: %s"%e)
-
-  def get_inverse_error(self, inp):
-    rospy.wait_for_service('get_inverse_error')
-    try:
-        inverse_error = rospy.ServiceProxy('get_inverse_error', GetInvError)
-        res = inverse_error(inp)
-        return res.error_inv
     except rospy.ServiceException as e:
         print("Service call failed: %s"%e)
 
@@ -329,22 +309,6 @@ class Motion(object):
     if msg.data == True:
       self.change_action = True
 
-  def callback_outcome(self,msg):
-      self.outcome.x = msg.x
-      self.outcome.y = msg.y
-      self.outcome.angle = msg.angle
-      self.outcome.touch = msg.touch
-
-  def callback_state(self,msg):
-    self.state_object.state_x = msg.state_x
-    self.state_object.state_y = msg.state_y
-    self.state_object.state_angle = msg.state_angle
-    self.new_state = True
-
-  def callback_reward(self,msg):
-    if msg.data == True:
-      self.choose_pred = False
-
   def callback_pause_process(self,msg):
     self.pause_process = msg.data
 
@@ -465,7 +429,7 @@ class Motion(object):
         p_i = i
       else:
         p_i = -i
-      #print("trying pitch : ",p+p_i)
+      print("trying pitch : ",p+p_i)
       j, found = self.pose_to_joints(x,y,z,r,p+p_i)
       if found:
         pose = True
@@ -600,41 +564,8 @@ class Motion(object):
     self.pub_activate_perception.publish(b)
     self.bot.gripper.open()
 
-
-  def init_exploitation(self):
-    self.apply_pause()
-    #getting error
-    req = GetInvErrorRequest()
-    err_inv = self.get_inverse_error(req)
-    r = random.uniform(0, 1)
-    dmp_choice = self.possible_action[self.choice]
-    self.dmp_exploit = Dmp()
-    self.dmp_exploit.v_x = dmp_choice[0]
-    self.dmp_exploit.v_y = dmp_choice[1]
-    self.dmp_exploit.v_pitch = dmp_choice[2]
-    self.dmp_exploit.roll = dmp_choice[3]
-    self.dmp_exploit.grasp = dmp_choice[4]
-    print("error : ",2*err_inv)
-    print("rnd : ",r)
-    if r < 2*err_inv or self.choose_pred:
-      #random
-      #suc = self.get_correct_pose(dmp_choice[2])
-      print("Init ACTION Random !")
-      self.send_init(1.0)
-    else:
-      #predict
-      self.choose_pred = True
-      req_inv = PredInverseRequest()
-      req_st = GetStateRequest()
-      curr_state = self.get_object_state(req_st)
-      req_inv.inputs = [curr_state.state_x,curr_state.state_y,curr_state.state_angle]
-      out = self.get_inverse_prediction(req_inv)
-      self.dmp_exploit.fpos_x = out[0]
-      self.dmp_exploit.fpos_y = out[1]
-      self.execute_inverse_exploitation()
-
   #init old
-  def old_init_exploitation(self):
+  def init_exploitation(self):
     if self.change_action:
       s = len(self.possible_action)
       if s > 1:
@@ -671,76 +602,6 @@ class Motion(object):
     #rospy.sleep(3.0)
     print("Init ACTION !")
     self.send_init(1.0)
-
-  def execute_inverse_exploitation(self):
-    self.go = False
-    self.send_state(True)
-    print("INVERSE EXPLOITATION")
-    #display on the interface
-    self.pub_display_action.publish(self.dmp_exploit)
-    #include first pose
-    msg = self.transform_dmp_rob_cam(self.dmp_exploit)
-    lat_action = LatentGoalDnf()
-    #print("choice : ",self.choice)
-    #print("possible action : ",self.possible_action)
-    lat_action.latent_x = self.possible_action[self.choice][5]
-    lat_action.latent_y = self.possible_action[self.choice][6]
-    self.pub_dnf_action.publish(lat_action)
-    self.emer_pose.x = self.dmp_exploit.fpos_x
-    self.emer_pose.y = self.dmp_exploit.fpos_y
-    self.bot.gripper.set_pressure(1.0)
-    z_ = 0.06
-    self.init_position()     
-    if self.dmp_exploit.grasp > 0.5:
-      self.bot.gripper.open()
-      z_ = 0.05
-    else:
-      self.bot.gripper.close()
-    fpos_x = self.dmp_exploit.fpos_x
-    fpos_y = self.dmp_exploit.fpos_y
-    lpos_x = fpos_x + msg.v_x
-    lpos_y = fpos_y + msg.v_y
-    p_first, found_1 = self.find_best_pose(fpos_x,fpos_y,z_,self.dmp_exploit.roll,self.dmp_exploit.v_pitch)
-    if found_1:
-      p_last, found_2 = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,p_first)
-    if found_1 and found_2:
-      m_first = f"first pose INVERSE : x {fpos_x}, y {fpos_y}, pitch {p_first}, roll {self.dmp_exploit.roll}"
-      message = f"Second pose INVERSE : x {lpos_x}, y {lpos_y}, pitch {p_last}"
-      print(m_first)
-      print(message)
-      self.bot.arm.set_ee_pose_components(x=fpos_x, y=fpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=p_first)
-      self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_exploit.roll, pitch=p_last)
-      self.bot.gripper.close()
-      self.init_position()  
-      self.sleep_pose()
-      t = Bool()
-      t.data = self.touch_value
-      #print("touch value : ",self.touch_value)
-      self.pub_touch.publish(t)
-      if self.dmp_exploit.grasp > 0.5:
-        self.bot.gripper.open()
-      print("ACTION DONE")
-      self.l_touch = 0
-      self.last_time = rospy.get_time()
-      sample = Action()
-      sample.fpos_x = fpos_x
-      sample.fpos_y = fpos_y
-      sample.fpos_pitch = p_first
-      self.pub_action_sample.publish(sample)
-      #self.poses.pop()
-      self.ready_depth = False
-      self.ready_outcome = False
-      self.touch_value = False
-      self.count_touch = 0
-      b = Bool()
-      b.data = True
-      self.pub_activate_perception.publish(b)
-      #self.bot.gripper.open()
-    else:
-      print("no valid pose found !")
-      self.poses.pop()
-      #self.bot.gripper.open()
-      self.init_exploitation()
 
   def execute_exploitation(self):
     self.go = False
