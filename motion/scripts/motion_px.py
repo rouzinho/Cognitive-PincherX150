@@ -152,8 +152,6 @@ class Motion(object):
     rospy.Subscriber("/motion_pincher/ready_init", Float64, self.callback_ready_init)
     rospy.Subscriber("/motion_pincher/bool_init", Bool, self.callback_bool_init)
     rospy.Subscriber("/cluster_msg/pause_dft", Bool, self.callback_pause_process)
-    #remove thiss one
-    rospy.Subscriber("/outcome_detector/state", State, self.callback_state)
 
   def transform_dmp_cam_rob(self, dmp_):
     rospy.wait_for_service('transform_dmp_cam_rob')
@@ -429,7 +427,6 @@ class Motion(object):
         p_i = i
       else:
         p_i = -i
-      print("trying pitch : ",p+p_i)
       j, found = self.pose_to_joints(x,y,z,r,p+p_i)
       if found:
         pose = True

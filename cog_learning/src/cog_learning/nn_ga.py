@@ -376,21 +376,13 @@ class NNGoalAction(object):
         return res
     
     def create_skill_sample(self, state, outcome, sample_action, ind_action):
-        #sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.fpos_x,sample_action.fpos_y,ind_action[0],ind_action[1]]
-        #sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
-        #sample_inp_inv = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
-        #sample_out_inv = [sample_action.fpos_x,sample_action.fpos_y,ind_action[0],ind_action[1]]
-        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle]
+        sample_inp_fwd = [state.state_x,state.state_y,state.state_angle,sample_action.fpos_x,sample_action.fpos_y,ind_action[0],ind_action[1]]
         sample_out_fwd = [outcome.x,outcome.y,outcome.angle,outcome.touch]
-        sample_inp_inv = [state.state_x,state.state_y,state.state_angle,outcome.x,outcome.y,outcome.angle,outcome.touch]
+        sample_inp_inv = [state.state_x,state.state_y,state.state_angle]
         sample_out_inv = [sample_action.fpos_x,sample_action.fpos_y,ind_action[0],ind_action[1]]
-        #t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
-        #t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
-        #t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
-        #t_out_inv = torch.tensor(sample_out_inv,dtype=torch.float)
         t_inp_fwd = torch.tensor(sample_inp_fwd,dtype=torch.float)
         t_out_fwd = torch.tensor(sample_out_fwd,dtype=torch.float)
-        t_inp_inv = torch.tensor(sample_inp_fwd,dtype=torch.float)
+        t_inp_inv = torch.tensor(sample_inp_inv,dtype=torch.float)
         t_out_inv = torch.tensor(sample_out_inv,dtype=torch.float)
         sample = []
         sample.append(t_out_fwd)
