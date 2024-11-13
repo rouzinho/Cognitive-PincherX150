@@ -19,6 +19,7 @@ from habituation.msg import LatentPos
 from sklearn.preprocessing import MinMaxScaler
 import copy
 import random
+import csv
 
 class NNGoalAction(object):
     def __init__(self, id_obj):
@@ -558,6 +559,7 @@ class NNGoalAction(object):
         outcome_dnf = self.full_scale_latent_to_dnf(output_l)
         if out_b and act_b:
             print("new outcome and new action")
+            self.write_exploration_data(sample,outcome_dnf)
             self.memory.append(tensor_sample_outcome)
             self.memory_action.append(tensor_sample_action)
             action_dnf.append(1.0)
@@ -602,6 +604,7 @@ class NNGoalAction(object):
             self.train_decoder_outcome()
         if out_b and not act_b:
             print("new outcome and old action")
+            self.write_exploration_data(sample,outcome_dnf)
             self.memory.append(tensor_sample_outcome)
             outcome_dnf.append(0.9)
             self.latent_space.append(output_l)
@@ -852,6 +855,14 @@ class NNGoalAction(object):
             print("reconstruction : ",out)
         print("latent space : ",self.latent_space_action)
         print("latent space scaled : ",self.latent_space_action_scaled)
+
+    def write_exploration_data(self, sample, peak):
+        name_f = self.folder_nnga + str(self.id_nnga) + "/exploration_data.csv"
+        data_exp = [sample.outcome_x,sample.outcome_y,sample.outcome_angle,sample.outcome_touch,sample.v_x,sample.v_y,sample.v_pitch,sample.roll,sample.grasp,peak[0],peak[1]]
+        with open(name_f, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(data_exp)
+
 
     def reset_models(self):
         #torch.manual_seed(8)
