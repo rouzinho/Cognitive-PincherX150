@@ -71,6 +71,7 @@ class Motion(object):
     self.poses = []
     self.possible_grasp = [0.0,1.0]
     self.possible_roll = [-1.5,-0.7,0,0,0.7,1.5]
+    self.possible_pitch = [0.2,0.4,0.6,0.8,1.0,1.2,1.4,1.6]
     self.possible_action = []
     self.move = False
     self.l_touch = 0
@@ -432,7 +433,7 @@ class Motion(object):
         pose = True
       if not pair:
         pair = True
-        i += 0.05
+        i += 0.1
       else:
         pair = False
       if i > 1.6:
@@ -447,78 +448,97 @@ class Motion(object):
     self.go = False
     self.send_state(True)
     print("RANDOM EXPLORATION")
-    #r = random.choice(self.possible_roll)
-    #g = random.choice(self.possible_grasp)
-    r = 0
-    g = 0
+    correct_motion = False
+    attempts = 0
+    p_first = 0
+    p_last = 0
+    r_ = 0
+    g_ = 0
+    p_ = 0
     z_ = 0.06
-    print(self.poses)
-    self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
-    self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
-    self.dmp_explore.v_pitch = self.poses[1].pitch - self.poses[0].pitch
-    self.dmp_explore.roll = r
-    self.dmp_explore.grasp = g
-    self.dmp_explore.fpos_x = self.poses[0].x
-    self.dmp_explore.fpos_y = self.poses[0].y
-    msg = self.transform_dmp_cam_rob(self.dmp_explore)
-    print("DMP : ",msg)
-    #display on interface
-    self.pub_display_action.publish(msg)
-    self.pub_dmp_action.publish(msg)
-    self.bot.gripper.set_pressure(1.0)
-    #rospy.sleep(3.0)
-    self.init_position()     
-    if g > 0.5:
-      self.bot.gripper.open()
-      print("OPEN GRIPPER")
-      z_ = 0.05
-    else:
+    while not correct_motion and attempts < 3:
+      r_ = random.choice(self.possible_roll)
+      g_ = random.choice(self.possible_grasp)
+      p_ = random.choice(self.possible_pitch)
+      #r = 0
+      #g = 0
+      z_ = 0.06
+      p_first, found_1 = self.find_best_pose(self.poses[0].x,self.poses[0].y,z_,r_,p_)
+      if found_1:
+        p_last, found_2 = self.find_best_pose(self.poses[1].x,self.poses[1].y,z_,r_,p_first)
+      if found_1 and found_2:
+        m_first = f"first pose : x {self.poses[0].x}, y {self.poses[0].y}, pitch {p_first}, roll {r_}"
+        message = f"Second pose : x {self.poses[1].x}, y {self.poses[1].y}, pitch {p_last}"
+        print(m_first)
+        print(message)
+        correct_motion = True
+      attempts += 1
+    if correct_motion:
+      self.dmp_explore.v_x = self.poses[1].x - self.poses[0].x
+      self.dmp_explore.v_y = self.poses[1].y - self.poses[0].y
+      self.dmp_explore.v_pitch = p_first
+      self.dmp_explore.roll = r_
+      self.dmp_explore.grasp = g_
+      self.dmp_explore.fpos_x = self.poses[0].x
+      self.dmp_explore.fpos_y = self.poses[0].y
+      msg = self.transform_dmp_cam_rob(self.dmp_explore)
+      print("DMP : ",msg)
+      #display on interface
+      self.pub_display_action.publish(msg)
+      self.pub_dmp_action.publish(msg)
+      self.bot.gripper.set_pressure(1.0)
+      #rospy.sleep(3.0)
+      self.init_position()     
+      if g_ > 0.5:
+        self.bot.gripper.open()
+        print("OPEN GRIPPER")
+        z_ = 0.05
+      else:
+        self.bot.gripper.close()
+        print("CLOSE GRIPPER")
+      self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=r_, pitch=p_first)
+      self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=z_, roll=r_, pitch=p_last)
+      self.record = False
       self.bot.gripper.close()
-      print("CLOSE GRIPPER")
-    rospy.sleep(2.0)
-    print("nb pose : ",len(self.poses))
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=r, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=self.poses[1].x, y=self.poses[1].y, z=z_, roll=r, pitch=self.poses[1].pitch)
-    self.record = False
-    self.bot.gripper.close()
-    #rospy.sleep(3.0)
-    self.init_position()  
-    self.sleep_pose()
-    #send touch value
-    t = Bool()
-    t.data = self.touch_value
-    print("touch value : ",self.touch_value)
-    self.pub_touch.publish(t)
-    print("ACTION DONE")
-    self.last_time = rospy.get_time()
-    sample = Action()
-    #old 
-    #sample.lpos_x = self.poses[1].x
-    #sample.lpos_y = self.poses[1].y
-    #sample.lpos_pitch = self.poses[1].pitch
-    sample.fpos_x = self.poses[0].x
-    sample.fpos_y = self.poses[0].y
-    sample.fpos_pitch = self.poses[1].pitch
-    self.pub_action_sample.publish(sample)
-    self.poses.pop()
-    self.bool_last_p = False
-    self.ready_depth = False
-    self.ready_outcome = False
-    self.touch_value = False
-    b = Bool()
-    b.data = True
-    self.pub_activate_perception.publish(b)
-    self.bot.gripper.open()
+      #rospy.sleep(3.0)
+      self.init_position()  
+      self.sleep_pose()
+      #send touch value
+      t = Bool()
+      t.data = self.touch_value
+      print("touch value : ",self.touch_value)
+      self.pub_touch.publish(t)
+      print("ACTION DONE")
+      self.last_time = rospy.get_time()
+      sample = Action()
+      sample.fpos_x = self.poses[0].x
+      sample.fpos_y = self.poses[0].y
+      sample.fpos_pitch = p_first
+      self.pub_action_sample.publish(sample)
+      self.poses.pop()
+      self.bool_last_p = False
+      self.ready_depth = False
+      self.ready_outcome = False
+      self.touch_value = False
+      b = Bool()
+      b.data = True
+      self.pub_activate_perception.publish(b)
+      self.bot.gripper.open()
+    else:
+      print("no valid motion found")
+      self.poses.pop()
+      self.send_init(1.0)
 
   def execute_direct_exploration(self):
     self.go = False
     self.send_state(True)
     print("DIRECT EXPLORATION")
-    print(self.poses)
-    self.dmp_direct_explore.fpos_x = self.poses[0].x
-    self.dmp_direct_explore.fpos_y = self.poses[0].y
+    #print(self.poses)
     #display on interface
     self.pub_display_action.publish(self.dmp_direct_explore)
+
+    self.dmp_direct_explore.fpos_x = self.poses[0].x
+    self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
     #print(msg)
     self.pub_dmp_action.publish(msg)
@@ -533,33 +553,46 @@ class Motion(object):
       self.bot.gripper.close()
     lpos_x = self.poses[0].x + msg.v_x
     lpos_y = self.poses[0].y + msg.v_y
-    lpos_p = self.poses[0].pitch + self.dmp_direct_explore.v_pitch
-    self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_direct_explore.roll, pitch=self.poses[0].pitch)
-    self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_direct_explore.roll, pitch=lpos_p)
-    self.record = False
-    self.bot.gripper.close()
-    #rospy.sleep(2.0)
-    self.init_position()  
-    self.sleep_pose()
-    #send touch value
-    t = Bool()
-    t.data = self.touch_value
-    self.pub_touch.publish(t)
-    print("ACTION DONE")
-    self.last_time = rospy.get_time()
-    sample = Action()
-    sample.fpos_x = lpos_x
-    sample.fpos_y = lpos_y
-    sample.fpos_pitch = lpos_p
-    self.pub_action_sample.publish(sample)
-    self.poses.pop()
-    self.ready_depth = False
-    self.ready_outcome = False
-    self.touch_value = False
-    b = Bool()
-    b.data = True
-    self.pub_activate_perception.publish(b)
-    self.bot.gripper.open()
+    p_first, found_1 = self.find_best_pose(self.poses[0].x,self.poses[0].y,z_,self.dmp_direct_explore.roll,self.dmp_direct_explore.v_pitch)
+    if found_1:
+      p_last, found_2 = self.find_best_pose(lpos_x,lpos_y,z_,self.dmp_exploit.roll,p_first)
+    if found_1 and found_2:
+      m_first = f"first pose : x {self.poses[0].x}, y {self.poses[0].y}, pitch {p_first}, roll {self.dmp_direct_explore.roll}"
+      message = f"Second pose : x {lpos_x}, y {lpos_y}, pitch {p_last}"
+      print(m_first)
+      print(message)
+      self.bot.arm.set_ee_pose_components(x=self.poses[0].x, y=self.poses[0].y, z=z_, roll=self.dmp_direct_explore.roll, pitch=p_first)
+      self.bot.arm.set_ee_pose_components(x=lpos_x, y=lpos_y, z=z_, roll=self.dmp_direct_explore.roll, pitch=p_last)
+      self.record = False
+      self.bot.gripper.close()
+      #rospy.sleep(2.0)
+      self.init_position()  
+      self.sleep_pose()
+      self.bot.gripper.open()
+      #send touch value
+      t = Bool()
+      t.data = self.touch_value
+      self.pub_touch.publish(t)
+      print("ACTION DONE")
+      self.last_time = rospy.get_time()
+      sample = Action()
+      sample.fpos_x = self.poses[0].x
+      sample.fpos_y = self.poses[0].y
+      sample.fpos_pitch = p_first
+      self.pub_action_sample.publish(sample)
+      self.poses.pop()
+      self.ready_depth = False
+      self.ready_outcome = False
+      self.touch_value = False
+      b = Bool()
+      b.data = True
+      self.pub_activate_perception.publish(b)
+    else:
+      print("no valid pose found !")
+      self.poses.pop()
+      #self.bot.gripper.open()
+      self.send_init(1.0)
+      
 
   #init old
   def init_exploitation(self):

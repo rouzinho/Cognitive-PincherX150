@@ -559,7 +559,7 @@ class NNGoalAction(object):
         outcome_dnf = self.full_scale_latent_to_dnf(output_l)
         if out_b and act_b:
             print("new outcome and new action")
-            self.write_exploration_data(sample,outcome_dnf)
+            #self.write_exploration_data(sample,outcome_dnf)
             self.memory.append(tensor_sample_outcome)
             self.memory_action.append(tensor_sample_action)
             action_dnf.append(1.0)
@@ -604,7 +604,7 @@ class NNGoalAction(object):
             self.train_decoder_outcome()
         if out_b and not act_b:
             print("new outcome and old action")
-            self.write_exploration_data(sample,outcome_dnf)
+            #self.write_exploration_data(sample,outcome_dnf)
             self.memory.append(tensor_sample_outcome)
             outcome_dnf.append(0.9)
             self.latent_space.append(output_l)
