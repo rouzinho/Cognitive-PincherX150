@@ -860,7 +860,8 @@ class Habituation(object):
         name_f = self.folder_habituation + "exploration_data.csv"
         data_exp = [self.current_exploration.outcome_x,self.current_exploration.outcome_y,self.current_exploration.outcome_angle,
                     self.current_exploration.outcome_touch,self.current_exploration.v_x,self.current_exploration.v_y,
-                    self.current_exploration.v_pitch,self.current_exploration.roll,self.current_exploration.grasp,self.rnd_exploration,self.direct_exploration]
+                    self.current_exploration.v_pitch,self.current_exploration.roll,self.current_exploration.grasp,
+                    self.current_exploration.rnd_exploration,self.current_exploration.direct_exploration]
         with open(name_f, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(data_exp)
@@ -1032,6 +1033,8 @@ class Habituation(object):
       self.current_exploration.v_pitch = msg.v_pitch
       self.current_exploration.roll = msg.roll
       self.current_exploration.grasp = msg.grasp
+      self.current_exploration.rnd_exploration = msg.rnd_exploration
+      self.current_exploration.direct_exploration = msg.direct_exploration
 
    def callback_input_latent(self, msg):
       print("got latent value for direct exploration : ",msg)

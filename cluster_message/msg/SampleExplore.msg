@@ -18,3 +18,5 @@ float32 outcome_x
 float32 outcome_y
 float32 outcome_angle
 float32 outcome_touch
+float32 rnd_exploration
+float32 direct_exploration

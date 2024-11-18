@@ -284,6 +284,8 @@ class ClusterMessage
          s.outcome_y = outcome.y;
          s.outcome_angle = outcome.angle;
          s.outcome_touch = outcome.touch;
+         s.rnd_exploration = 1.0;
+         s.direct_exploration = 0.0;
          pub_datas_explore.publish(s);
          send_sample = true;
          outcome_b = false;
@@ -365,6 +367,8 @@ class ClusterMessage
          s.outcome_y = outcome.y;
          s.outcome_angle = outcome.angle;
          s.outcome_touch = outcome.touch;
+         s.rnd_exploration = 0.0;
+         s.direct_exploration = 1.0;
          pub_datas_explore.publish(s);
          outcome_b = false;
          dmp_b = false;
