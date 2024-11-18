@@ -31,6 +31,7 @@ from cluster_message.msg import SampleExplore
 import copy
 from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import Image
+import csv
 
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
@@ -664,6 +665,7 @@ class Habituation(object):
       self.rnd_exploration = False
       self.direct_exploration = False
       self.exploitation = False
+      self.current_exploration = SampleExplore()
       self.img_outcome = np.zeros((100,100,1), np.float32)
       self.img_action = np.zeros((100,100,1), np.float32)
       self.time = 0
@@ -702,11 +704,13 @@ class Habituation(object):
       rospy.Subscriber("/cog_learning/rnd_exploration", Float64, self.callback_rnd_exploration)
       rospy.Subscriber("/cog_learning/direct_exploration", Float64, self.callback_direct_exploration)
       rospy.Subscriber("/cog_learning/exploitation", Float64, self.callback_exploitation)
+      rospy.Subscriber("/recording/exploration", Bool, self.callback_recording)
       self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
       else:
          self.rm_samples()
+         self.create_exploration_data()
 
    def field_callback(self,msg):
       try:
@@ -847,6 +851,26 @@ class Habituation(object):
          #rospy.sleep(10.0)
          b.data = False
          self.pub_busy_act.publish(b)
+
+   def callback_recording(self, msg):
+      if msg.data:
+         self.write_exploration_data()
+
+   def write_exploration_data(self):
+        name_f = self.folder_habituation + "exploration_data.csv"
+        data_exp = [self.current_exploration.outcome_x,self.current_exploration.outcome_y,self.current_exploration.outcome_angle,
+                    self.current_exploration.outcome_touch,self.current_exploration.v_x,self.current_exploration.v_y,
+                    self.current_exploration.v_pitch,self.current_exploration.roll,self.current_exploration.grasp,self.rnd_exploration,self.direct_exploration]
+        with open(name_f, 'a', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(data_exp)
+
+   def create_exploration_data(self):
+      name_f = self.folder_habituation + "exploration_data.csv"
+      line = ["out_x","out_y","out_angle","out_touch","vx","vy","vpitch","roll","grasp","rnd","direct"]
+      with open(name_f, 'w', newline='') as csvfile:
+         writer = csv.writer(csvfile)
+         writer.writerow(line)
    
    def send_latent_space_outcome(self):
       ls = self.habit[self.index_vae].get_latent_space_dnf()
@@ -912,6 +936,7 @@ class Habituation(object):
       if self.first:
          self.time = rospy.get_time()
          self.first = False
+      self.fill_current_exploration_data(msg)
       self.dmp.v_x = self.scale_data(msg.v_x,self.min_vx,self.max_vx)
       self.dmp.v_y = self.scale_data(msg.v_y,self.min_vy,self.max_vy)
       self.dmp.v_pitch = self.scale_data(msg.v_pitch,self.min_vpitch,self.max_vpitch)
@@ -996,7 +1021,17 @@ class Habituation(object):
       t = self.time - rospy.get_time()
       #rospy.sleep(5.0)
       #print("Time elapsed : ",t)
-      
+
+   def fill_current_exploration_data(self,msg):
+      self.current_exploration.outcome_x = msg.outcome_x
+      self.current_exploration.outcome_y = msg.outcome_y
+      self.current_exploration.outcome_angle = msg.outcome_angle
+      self.current_exploration.outcome_touch = msg.outcome_touch
+      self.current_exploration.v_x = msg.v_x
+      self.current_exploration.v_y = msg.v_y
+      self.current_exploration.v_pitch = msg.v_pitch
+      self.current_exploration.roll = msg.roll
+      self.current_exploration.grasp = msg.grasp
 
    def callback_input_latent(self, msg):
       print("got latent value for direct exploration : ",msg)

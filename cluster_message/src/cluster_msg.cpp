@@ -222,7 +222,7 @@ class ClusterMessage
       dmp.grasp = msg->grasp;
       dmp.roll = msg->roll;
       dmp_b = true;
-      std::cout<<"cluster : got DMP\n";
+      //std::cout<<"cluster : got DMP\n";
    }
 
    void CallbackDMPdnf(const cog_learning::LatentGoalDnf::ConstPtr& msg)
@@ -230,7 +230,7 @@ class ClusterMessage
       latent_action.latent_x = msg->latent_x;
       latent_action.latent_y = msg->latent_y;
       dmp_dnf_b = true;
-      std::cout<<"cluster : got DMP DNF\n";
+      //std::cout<<"cluster : got DMP DNF\n";
    }
 
    void CallbackOutcome(const detector::Outcome::ConstPtr& msg)
@@ -240,7 +240,7 @@ class ClusterMessage
       outcome.angle = msg->angle;
       outcome.touch = msg->touch;
       outcome_b = true;
-      std::cout<<"cluster : got outcome\n";
+      //std::cout<<"cluster : got outcome\n";
    }
 
    void CallbackState(const detector::State::ConstPtr& msg)
@@ -249,7 +249,7 @@ class ClusterMessage
       state.state_x = msg->state_x;
       state.state_y = msg->state_y;
       state_b = true;
-      std::cout<<"cluster state : x "<<state.state_x<<" y "<<state.state_y<<" ang "<<state.state_angle<<"\n";
+      //std::cout<<"cluster state : x "<<state.state_x<<" y "<<state.state_y<<" ang "<<state.state_angle<<"\n";
    }
 
    void CallbackSample(const motion::Action::ConstPtr& msg)
@@ -258,7 +258,7 @@ class ClusterMessage
       sample.fpos_y = msg->fpos_y;
       sample.fpos_pitch = msg->fpos_pitch;
       sample_b = true;
-      std::cout<<"cluster : got sample\n";
+      //std::cout<<"cluster : got sample\n";
    }
 
    void CallbackRndExplore(const std_msgs::Float64::ConstPtr& msg)
@@ -301,17 +301,20 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
-         
+         std_msgs::Float64 f;
          if(!touch)
          {
-            std_msgs::Float64 f;
-            f.data = 1.0;
-            pub_signal.publish(f);
+            pub_init_action.publish(b);
             ros::Duration(1.0).sleep();
-            f.data = 0.0;
-            pub_signal.publish(f);
+            b.data = false;
+            pub_init_action.publish(b);
          } 
-         pub_sim_ready.publish(b);
+         touch = false;
+         f.data = 1.0;
+         pub_end_action.publish(f);
+         ros::Duration(1.0).sleep();
+         f.data = 0.0;
+         pub_end_action.publish(f);
       }
       if(rnd_explore > 0.5 && retry)
       {
@@ -328,10 +331,15 @@ class ClusterMessage
          retry = false;
          std_msgs::Float64 f;
          f.data = 1.0;
-         pub_signal.publish(f);
+         pub_end_action.publish(f);
          ros::Duration(1.0).sleep();
          f.data = 0.0;
-         pub_signal.publish(f);
+         pub_end_action.publish(f);
+         b.data = true;
+         pub_init_action.publish(b);
+         ros::Duration(0.4).sleep();
+         b.data = false;
+         pub_init_action.publish(b);
       }
    }
 
@@ -372,18 +380,26 @@ class ClusterMessage
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
+         std_msgs::Float64 f;
          if(!touch)
          {
-            std_msgs::Float64 f;
-            f.data = 1.0;
-            pub_signal.publish(f);
+            pub_init_action.publish(b);
             ros::Duration(1.0).sleep();
-            f.data = 0.0;
-            pub_signal.publish(f);
+            b.data = false;
+            pub_init_action.publish(b);
          }
+         touch = false;
+         f.data = 1.0;
+         pub_end_action.publish(f);
+         ros::Duration(1.0).sleep();
+         f.data = 0.0;
+         pub_end_action.publish(f);
       }
       if(direct_explore > 0.5 && retry)
       {
+         std::cout<<"Cluster_msg : DIRECT exploration Retry\n";
+         std_msgs::Bool b;
+         b.data = true;
          new_state = false;
          ready_habbit = false;
          ready_nn = false;
@@ -394,10 +410,15 @@ class ClusterMessage
          retry = false;
          std_msgs::Float64 f;
          f.data = 1.0;
-         pub_signal.publish(f);
+         pub_end_action.publish(f);
          ros::Duration(1.0).sleep();
          f.data = 0.0;
-         pub_signal.publish(f);
+         pub_end_action.publish(f);
+         b.data = true;
+         pub_init_action.publish(b);
+         ros::Duration(0.4).sleep();
+         b.data = false;
+         pub_init_action.publish(b);
       }
    }
 

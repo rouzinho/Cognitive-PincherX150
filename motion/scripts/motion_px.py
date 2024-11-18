@@ -200,6 +200,7 @@ class Motion(object):
       self.b_init = True
       self.count_init = 0
       if self.rnd_explore or self.direct_explore:
+        print("LAUNCHING EXPLORATION")
         self.send_init(1.0)
       if self.exploit:
         print("LAUNCHING EXPLOITATION")
@@ -299,6 +300,7 @@ class Motion(object):
       self.b_end = True
       self.count_end = 0
       if self.rnd_explore or self.direct_explore:
+        print("Init new action...")
         self.send_init(1.0)
       if self.exploit:
         self.init_exploitation()
@@ -527,16 +529,15 @@ class Motion(object):
     else:
       print("no valid motion found")
       self.poses.pop()
-      self.send_init(1.0)
 
   def execute_direct_exploration(self):
     self.go = False
     self.send_state(True)
+    self.bound_exploration()
     print("DIRECT EXPLORATION")
     #print(self.poses)
     #display on interface
     self.pub_display_action.publish(self.dmp_direct_explore)
-
     self.dmp_direct_explore.fpos_x = self.poses[0].x
     self.dmp_direct_explore.fpos_y = self.poses[0].y
     msg = self.transform_dmp_rob_cam(self.dmp_direct_explore)
@@ -591,8 +592,16 @@ class Motion(object):
       print("no valid pose found !")
       self.poses.pop()
       #self.bot.gripper.open()
-      self.send_init(1.0)
       
+  def bound_exploration(self):
+    if self.dmp_direct_explore.roll > 1.5:
+      self.dmp_direct_explore.roll = 1.5
+    if self.dmp_direct_explore.roll < -1.5:
+      self.dmp_direct_explore.roll = -1.5
+    if self.dmp_direct_explore.v_pitch > 1.6:
+      self.dmp_direct_explore.v_pitch = 1.6
+    if self.dmp_direct_explore.v_pitch < 0.2:
+      self.dmp_direct_explore.v_pitch = 0.2
 
   #init old
   def init_exploitation(self):

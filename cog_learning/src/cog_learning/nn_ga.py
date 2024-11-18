@@ -34,6 +34,7 @@ class NNGoalAction(object):
         self.pub_latent_space_dnf = rospy.Publisher("/intrinsic/latent_space_dnf", LatentNNDNF, queue_size=1, latch=True)
         self.pub_ready = rospy.Publisher("/cog_learning/ready", Bool, queue_size=1, latch=True)
         self.pub_habituation = rospy.Publisher("/habituation/existing_perception", Outcome, queue_size=1, latch=True)
+        self.pub_rec_exploration = rospy.Publisher("/recording/exploration", Bool, queue_size=1, latch=True)
         self.folder_nnga = rospy.get_param("nnga_folder")
         self.mt_field = np.zeros((100,100,1), np.float32)
         self.mt_error = np.zeros((100,100,1), np.float32)
@@ -84,6 +85,9 @@ class NNGoalAction(object):
         self.min_scale = -1.7
         self.max_scale = 1.7
         self.reward_predictor = 0
+        self.load = rospy.get_param("load_vae")
+        if(not self.load):
+            self.create_exploration_data()
         
     def update_learning_progress(self, data, error):
         update_lp = Goal()
@@ -126,6 +130,11 @@ class NNGoalAction(object):
         self.skills.append(new_skill)
         ind = len(self.skills) - 1
         return ind
+    
+    def send_recording(self, data):
+        d = Bool()
+        d.data = data
+        self.pub_rec_exploration.publish(d)
     
     def set_mt_field(self, img):
       self.mt_field = img
@@ -323,7 +332,7 @@ class NNGoalAction(object):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
         scaler_x = MinMaxScaler(feature_range=(0,100))
-        x_minmax = np.array([-1, 1])
+        x_minmax = np.array([self.min_scale, self.max_scale])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
         n_x = n_x.reshape(1,-1)
@@ -334,7 +343,7 @@ class NNGoalAction(object):
     def scale_dnf_to_latent(self, data):
         n_x = np.array(data)
         n_x = n_x.reshape(-1,1)
-        scaler_x = MinMaxScaler(feature_range=(-1,1))
+        scaler_x = MinMaxScaler(feature_range=(self.min_scale,self.max_scale))
         x_minmax = np.array([0, 100])
         scaler_x.fit(x_minmax[:, np.newaxis])
         n_x = scaler_x.transform(n_x)
@@ -559,7 +568,8 @@ class NNGoalAction(object):
         outcome_dnf = self.full_scale_latent_to_dnf(output_l)
         if out_b and act_b:
             print("new outcome and new action")
-            #self.write_exploration_data(sample,outcome_dnf)
+            #self.write_exploration_data(sample)
+            self.send_recording(True)
             self.memory.append(tensor_sample_outcome)
             self.memory_action.append(tensor_sample_action)
             action_dnf.append(1.0)
@@ -604,7 +614,8 @@ class NNGoalAction(object):
             self.train_decoder_outcome()
         if out_b and not act_b:
             print("new outcome and old action")
-            #self.write_exploration_data(sample,outcome_dnf)
+            #self.write_exploration_data(sample)
+            self.send_recording(True)
             self.memory.append(tensor_sample_outcome)
             outcome_dnf.append(0.9)
             self.latent_space.append(output_l)
@@ -856,13 +867,19 @@ class NNGoalAction(object):
         print("latent space : ",self.latent_space_action)
         print("latent space scaled : ",self.latent_space_action_scaled)
 
-    def write_exploration_data(self, sample, peak):
-        name_f = self.folder_nnga + str(self.id_nnga) + "/exploration_data.csv"
-        data_exp = [sample.outcome_x,sample.outcome_y,sample.outcome_angle,sample.outcome_touch,sample.v_x,sample.v_y,sample.v_pitch,sample.roll,sample.grasp,peak[0],peak[1]]
+    def write_exploration_data(self, sample):
+        name_f = self.folder_nnga + "exploration_data.csv"
+        data_exp = [sample.outcome_x,sample.outcome_y,sample.outcome_angle,sample.outcome_touch,sample.v_x,sample.v_y,sample.v_pitch,sample.roll,sample.grasp]
         with open(name_f, 'a', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(data_exp)
 
+    def create_exploration_data(self):
+        name_f = self.folder_nnga + "exploration_data.csv"
+        line = ["out_x","out_y","out_angle","out_touch","vx","vy","vpitch","roll","grasp"]
+        with open(name_f, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(line)
 
     def reset_models(self):
         #torch.manual_seed(8)

@@ -639,8 +639,8 @@ class VisualDatas(App):
             self.root.children[0].children[i].value_normalized = lp
             self.root.children[0].children[i].value_error_string = str(round(err*100))
             self.root.children[0].children[i].value_lp = str(round(lp*100))
-            #self.root.children[0].children[i].value_normalized_goal = str(int(list_error_fwd[i][0])) + "_" + str(int(list_error_fwd[i][1]))
-            self.root.children[0].children[i].value_normalized_goal = self.explicit_skills[i]
+            self.root.children[0].children[i].value_normalized_goal = str(int(list_error_fwd[i][0])) + "_" + str(int(list_error_fwd[i][1]))
+            #self.root.children[0].children[i].value_normalized_goal = self.explicit_skills[i]
             if list_error_fwd[i][0] < 30:
                 self.root.children[0].children[i].value_object = 0
             if list_error_fwd[i][0] > 30 and list_error_fwd[i][0] < 60:
