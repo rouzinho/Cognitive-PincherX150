@@ -169,7 +169,7 @@ class VariationalAE(object):
          z, z_log, recon = self.vae.encoder(sample)
          z = z.to('cpu').detach().numpy()
          self.list_latent.append(z)
-      print("latent space : ",len(self.list_latent))
+      #print("latent space : ",len(self.list_latent))
 
    def set_latent_dnf(self, exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
@@ -473,14 +473,19 @@ class VariationalAE(object):
             #print("loss total : ",loss)
             loss.backward()
             opt.step()
-            i += 1
             if err_rec < min_err:
                min_err = err_rec
                #print("min reconstructed : ",min_err)
                #print("loss KL : ",self.kld_loss.item())
-            if self.kld_loss < 0.04 and self.recon_loss < 0.0005:
+            if self.kld_loss < 0.05 and self.recon_loss < 0.0005:
+               print("training... i : ",i)
                stop = True
                break
+         i += 1
+         if i > 20000:
+            stop = True
+         if i % 10000 == 0:
+            print("Step training...")
 
    def get_sample_latent(self, sample):
       self.vae.eval()
@@ -632,10 +637,10 @@ class Habituation(object):
       self.habit = []
       self.vae_action = []
       self.max_pitch = 1.5
-      self.min_vx = -0.12
-      self.max_vx = 0.12
-      self.min_vy = -0.12
-      self.max_vy = 0.12
+      self.min_vx = -0.18
+      self.max_vx = 0.18
+      self.min_vy = -0.18
+      self.max_vy = 0.18
       self.min_vpitch = 0.1
       self.max_vpitch = 1.5
       self.min_roll = -1.5
@@ -692,6 +697,7 @@ class Habituation(object):
       self.pub_reward = rospy.Publisher("/cog_learning/action_reward",Float64, queue_size=1, latch=True)
       self.exploration_mode = rospy.get_param("exploration")
       self.folder_habituation = rospy.get_param("habituation_folder")
+      self.folder_exploration = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/"
       rospy.Subscriber("/habituation/outcome/mt", Image, self.field_callback)
       rospy.Subscriber("/habituation/action/mt", Image, self.field_action_callback)
       rospy.Subscriber("/cog_learning/id_object", Int16, self.callback_id)
@@ -699,12 +705,14 @@ class Habituation(object):
       rospy.Subscriber("/habituation/input_latent", Goal, self.callback_input_latent)
       rospy.Subscriber("/habituation/existing_perception", Outcome, self.callback_eval)
       rospy.Subscriber("/habituation/new_perception", Outcome, self.callback_perception)
-      rospy.Subscriber("/cog_learning/outcome/not_learning", Float64, self.callback_same_perception)
-      rospy.Subscriber("/cog_learning/action/not_learning", Float64, self.callback_same_action)
+      #rospy.Subscriber("/cog_learning/outcome/not_learning", Float64, self.callback_same_perception)
+      #rospy.Subscriber("/cog_learning/action/not_learning", Float64, self.callback_same_action)
       rospy.Subscriber("/cog_learning/rnd_exploration", Float64, self.callback_rnd_exploration)
       rospy.Subscriber("/cog_learning/direct_exploration", Float64, self.callback_direct_exploration)
       rospy.Subscriber("/cog_learning/exploitation", Float64, self.callback_exploitation)
       rospy.Subscriber("/recording/exploration", Bool, self.callback_recording)
+      rospy.Subscriber("/habituation/save_vae_out", Bool, self.callback_save_outcome)
+      rospy.Subscriber("/habituation/save_vae_action", Bool, self.callback_save_action)
       self.load = rospy.get_param("load_vae")
       if(self.load):
          self.load_nn()
@@ -767,6 +775,7 @@ class Habituation(object):
       n_rec = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/records/"
       n_hab = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/habituation/0/"
       n_nnga = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/production/nn_ga/0/"
+      n_exp = self.folder_exploration + "exploration_data.csv"
       if os.path.isfile(n_rec+"peaks.pkl"):
          os.remove(n_rec+"peaks.pkl")
       if os.path.isfile(n_rec+"time.pkl"):
@@ -781,6 +790,8 @@ class Habituation(object):
          shutil.rmtree(n_hab)
       if os.path.isdir(n_nnga):
          shutil.rmtree(n_nnga)
+      if os.path.isfile(n_exp):
+         os.remove(n_exp)
 
    #scale inputs from real values to [-1,1]
    def scale_data(self, data, min_, max_):
@@ -830,6 +841,25 @@ class Habituation(object):
          b.data = False
          self.pub_busy_out.publish(b)
 
+   def callback_save_outcome(self, msg):
+      if msg.data:
+         print("SAVING VAE OUT...")
+         self.save_nn_outcome()
+         self.save_memory_outcome()
+      else:
+         print("KNOWN PERCEPTION, RELOADING VAE OUT...")
+         self.busy_out = True
+         b = Bool()
+         b.data = True
+         self.pub_busy_out.publish(b)
+         self.load_nn_outcome()
+         self.habit[self.index_vae].fill_latent()
+         self.habit[self.index_vae].set_latent_dnf(self.exploration_mode)
+         self.send_latent_space_outcome()
+         b.data = False
+         self.pub_busy_out.publish(b)
+         self.busy_out = False
+
    def callback_same_action(self, msg):
       #receiving high value once in a while from cedar even if it's 0
       if msg.data > 0.9 and (self.rnd_exploration or self.direct_exploration):
@@ -852,12 +882,31 @@ class Habituation(object):
          b.data = False
          self.pub_busy_act.publish(b)
 
+   def callback_save_action(self, msg):
+      if msg.data:
+         print("SAVING VAE ACTION...")
+         self.save_nn_action()
+         self.save_memory_action()
+      else:
+         print("KNOWN ACTION, RELOADING VAE ACTION...")
+         self.busy_act = True
+         b = Bool()
+         b.data = True
+         self.pub_busy_act.publish(b)
+         self.load_nn_action()
+         self.vae_action[self.index_vae].fill_latent()
+         self.vae_action[self.index_vae].set_latent_dnf(self.exploration_mode)
+         self.send_latent_space_action()
+         b.data = False
+         self.pub_busy_act.publish(b)
+         self.busy_act = False
+
    def callback_recording(self, msg):
       if msg.data:
          self.write_exploration_data()
 
    def write_exploration_data(self):
-        name_f = self.folder_habituation + "exploration_data.csv"
+        name_f = self.folder_exploration + "exploration_data.csv"
         data_exp = [self.current_exploration.outcome_x,self.current_exploration.outcome_y,self.current_exploration.outcome_angle,
                     self.current_exploration.outcome_touch,self.current_exploration.v_x,self.current_exploration.v_y,
                     self.current_exploration.v_pitch,self.current_exploration.roll,self.current_exploration.grasp,
@@ -867,7 +916,7 @@ class Habituation(object):
             writer.writerow(data_exp)
 
    def create_exploration_data(self):
-      name_f = self.folder_habituation + "exploration_data.csv"
+      name_f = self.folder_exploration + "exploration_data.csv"
       line = ["out_x","out_y","out_angle","out_touch","vx","vy","vpitch","roll","grasp","rnd","direct"]
       with open(name_f, 'w', newline='') as csvfile:
          writer = csv.writer(csvfile)
@@ -884,7 +933,7 @@ class Habituation(object):
          lg.y = i[1]
          lg.value = 1.0
          msg_latent.list_latent.append(lg)
-      print("Latent space outcome : ",msg_latent.list_latent)
+      #print("Latent space outcome : ",msg_latent.list_latent)
       self.pub_latent_space_dnf_out.publish(msg_latent)
 
    def send_latent_space_outcome_minus(self,msg):
@@ -982,8 +1031,8 @@ class Habituation(object):
          if not self.busy_act:
             self.send_latent_space_action()
          rospy.sleep(1.0) 
-         self.save_nn()
-         self.save_memory()
+         #self.save_nn()
+         #self.save_memory()
          #for display
          msg_out = self.habit[self.index_vae].plot_latent()
          self.pub_latent_space_display_out.publish(msg_out)
@@ -1012,12 +1061,16 @@ class Habituation(object):
          rospy.sleep(0.5)
          if not self.busy_out:
             self.send_latent_space_outcome()
-            self.save_nn()
-            self.save_memory()
+            self.save_nn_outcome()
+            self.save_nn_action()
+            self.save_memory_outcome()
+            self.save_memory_action()
          if not self.busy_act:
             self.send_latent_space_action()
-            self.save_nn()
-            self.save_memory()
+            self.save_nn_outcome()
+            self.save_nn_action()
+            self.save_memory_outcome()
+            self.save_memory_action()
       self.pub_ready.publish(True)
       t = self.time - rospy.get_time()
       #rospy.sleep(5.0)
@@ -1139,8 +1192,8 @@ class Habituation(object):
       print("finished training VAE OUT")
       self.habit[self.index_vae].fill_latent()
       self.habit[self.index_vae].set_latent_dnf(self.exploration_mode)
-      self.save_nn()
-      self.save_memory()
+      #self.save_nn()
+      #self.save_memory()
       self.incoming_dmp = False
       self.incoming_outcome = False
       
@@ -1156,8 +1209,8 @@ class Habituation(object):
       print("finished training VAE ACTION")
       self.vae_action[self.index_vae].fill_latent()
       self.vae_action[self.index_vae].set_latent_dnf(self.exploration_mode)
-      self.save_nn()
-      self.save_memory()
+      #self.save_nn()
+      #self.save_memory()
       self.incoming_dmp = False
       self.incoming_outcome = False
       
@@ -1172,33 +1225,57 @@ class Habituation(object):
    def test_reconstruct(self):
       self.habit[self.index_vae].test_reconstruct()
 
-   def save_nn(self):
+   def save_nn_outcome(self):
       self.habit[self.index_vae].saveNN(self.folder_habituation, self.id_object,"outcome")
+
+   def save_nn_action(self):
       self.vae_action[self.index_vae].saveNN(self.folder_habituation, self.id_object,"action")
 
-   def save_memory(self):
+   def save_memory_outcome(self):
       self.habit[self.index_vae].set_mt_field(self.img_outcome)
-      self.vae_action[self.index_vae].set_mt_field(self.img_action)
       self.habit[self.index_vae].save_memory(self.folder_habituation, self.id_object, "outcome")
+
+   def save_memory_action(self):
+      self.vae_action[self.index_vae].set_mt_field(self.img_action)
       self.vae_action[self.index_vae].save_memory(self.folder_habituation, self.id_object, "action")
 
-   def load_nn(self):
+   def load_nn_outcome(self):
       list_dir = os.listdir(self.folder_habituation)
+      self.habit = []
       for i in range(0,len(list_dir)):
          tmp_habit = VariationalAE(i,4,3,2)
-         tmp_act = VariationalAE(i,5,4,2)
+         #tmp_act = VariationalAE(i,5,4,2)
          n_f = self.folder_habituation + str(i) + "/"
          tmp_habit.load_nn(self.folder_habituation,i,"outcome")
          tmp_habit.load_memory(n_f,"outcome")
+         #tmp_act.load_nn(self.folder_habituation,i,"action")
+         #tmp_act.load_memory(n_f,"action")
+         self.habit.append(tmp_habit)
+         #self.vae_action.append(tmp_act)
+      #for i in self.habit:
+      #   print("VAE : ",i.get_id())
+      #   print("memory : ",len(i.memory))
+      #   print("latent space : ",i.get_latent_space())
+      #   print("latent space scaled : ",i.get_latent_space_dnf())
+
+   def load_nn_action(self):
+      list_dir = os.listdir(self.folder_habituation)
+      self.vae_action = []
+      for i in range(0,len(list_dir)):
+         #tmp_habit = VariationalAE(i,4,3,2)
+         tmp_act = VariationalAE(i,5,4,2)
+         n_f = self.folder_habituation + str(i) + "/"
+         #tmp_habit.load_nn(self.folder_habituation,i,"outcome")
+         #tmp_habit.load_memory(n_f,"outcome")
          tmp_act.load_nn(self.folder_habituation,i,"action")
          tmp_act.load_memory(n_f,"action")
-         self.habit.append(tmp_habit)
+         #self.habit.append(tmp_habit)
          self.vae_action.append(tmp_act)
-      for i in self.habit:
-         print("VAE : ",i.get_id())
-         print("memory : ",len(i.memory))
-         print("latent space : ",i.get_latent_space())
-         print("latent space scaled : ",i.get_latent_space_dnf())
+      #for i in self.habit:
+      #   print("VAE : ",i.get_id())
+      #   print("memory : ",len(i.memory))
+      #   print("latent space : ",i.get_latent_space())
+      #   print("latent space scaled : ",i.get_latent_space_dnf())
 
 
 if __name__ == "__main__":

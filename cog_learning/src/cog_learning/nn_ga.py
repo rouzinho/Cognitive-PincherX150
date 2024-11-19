@@ -70,10 +70,10 @@ class NNGoalAction(object):
         self.max_y = 0.32
         self.min_pitch = 0.1
         self.max_pitch = 1.5
-        self.min_vx = -0.12
-        self.max_vx = 0.12
-        self.min_vy = -0.12
-        self.max_vy = 0.12
+        self.min_vx = -0.18
+        self.max_vx = 0.18
+        self.min_vy = -0.18
+        self.max_vy = 0.18
         self.min_vpitch = 0.1
         self.max_vpitch = 1.5
         self.min_roll = -1.5
@@ -845,8 +845,8 @@ class NNGoalAction(object):
             out  = outputs.detach().numpy()
             print("sample : ",sample)
             print("reconstruction : ",out)
-        print("latent space : ",self.latent_space)
-        print("latent space scaled : ",self.latent_space_scaled)
+        #print("latent space : ",self.latent_space)
+        #print("latent space scaled : ",self.latent_space_scaled)
 
     def test_training_action(self):
         print("EVALUATION ACTION")
@@ -864,8 +864,8 @@ class NNGoalAction(object):
             out  = outputs.detach().numpy()
             print("sample : ",sample)
             print("reconstruction : ",out)
-        print("latent space : ",self.latent_space_action)
-        print("latent space scaled : ",self.latent_space_action_scaled)
+        #print("latent space : ",self.latent_space_action)
+        #print("latent space scaled : ",self.latent_space_action_scaled)
 
     def write_exploration_data(self, sample):
         name_f = self.folder_nnga + "exploration_data.csv"
