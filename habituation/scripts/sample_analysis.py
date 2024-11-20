@@ -74,9 +74,56 @@ def open_sample(name):
    
    return mem
 
+def get_sum_exploration_rnd(folder,run,number):
+   rnd_tot = None
+   direct_tot = None
+   rnd = None
+   direct = None
+   for i in range(0,number):
+      name = folder + run + "/" + str(i) + "/exploration_data.csv"
+      name_rnd_act = folder + run + "/direct_act.csv"
+      name_rnd_out = folder + run + "/direct_out.csv"
+      with open(name, "r") as file:
+         j = 0
+         rnd = None
+         direct = None
+         csvreader = csv.reader(file)
+         for row in csvreader:
+            if j == 1:
+               rnd = np.array([float(row[9])])
+               direct = np.array([float(row[10])])
+            if j > 1:
+               rnd = np.append(rnd,[float(row[9])])
+               direct = np.append(direct,[float(row[10])])
+            j+=1
+      if i == 0:
+         rnd_tot = rnd
+         direct_tot = direct
+      else:
+         rnd_tot = np.vstack((rnd_tot,rnd))
+         direct_tot = np.vstack((direct_tot,direct))
+   
+   return rnd_tot, direct_tot
+
+def display_exploration(folder,run,number):
+   random, direct = get_sum_exploration_rnd(folder,run,number)
+   r = random.mean(axis=0)
+   d = direct.mean(axis=0)
+   fig, ax = plt.subplots(figsize=(12, 8))
+   x = np.arange(8)
+   ax.plot(x, r, label="random exploration")
+   ax.plot(x, d, label="direct exploration")
+   ax.set_xlabel('Number of stimuli')  # Add an x-label to the axes.
+   ax.set_ylabel('Exploration level')  # Add a y-label to the axes.
+   #ax.set_title("Learning Progress")  # Add a title to the axes.
+   ax.legend();  # Add a legend.
+   plt.ylim(0, None)
+   plt.show()
+
 if __name__ == '__main__':
    folder = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/cube/exploration/"
    run = "100"
    number = 15
-   generate_rnd_samples(folder,run,number)
-   generate_direct_samples(folder,run,number)
+   display_exploration(folder,run,number)
+   #generate_rnd_samples(folder,run,number)
+   #generate_direct_samples(folder,run,number)
