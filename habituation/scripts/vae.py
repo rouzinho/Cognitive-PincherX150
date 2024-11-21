@@ -150,8 +150,8 @@ class VariationalAE(object):
       self.id = id_object
       self.list_latent = []
       self.list_latent_scaled = []
-      self.scale_factor = rospy.get_param("scale_factor")
-      #self.scale_factor = 40
+      #self.scale_factor = rospy.get_param("scale_factor")
+      self.scale_factor = 35
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
@@ -434,6 +434,11 @@ class VariationalAE(object):
    def add_to_memory(self, data):
       self.memory.append(data)
 
+   #for data analysis
+   def merge_samples(self,data1, data2):
+      self.memory = copy.deepcopy(data1) + copy.deepcopy(data2)
+      print(self.memory)
+
    def vae_gaussian_kl_loss(self, mu, logvar):
       KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
       return KLD.mean()
@@ -452,47 +457,72 @@ class VariationalAE(object):
    def train(self):
       self.vae.train()
       kl_weight = 0.8
-      opt = torch.optim.Adam(self.vae.parameters(), lr=0.01)
+      opt = torch.optim.Adam(self.vae.parameters(), lr=0.001) #0.01
       train_loss = 0.0
       last_loss = 10
       stop = False
       i = 0
       min_err = 1.0
       err_rec = 1.0
+      err_kld = 5.0
+      min_kld = 5.0
+      total_rec = 0
+      total_kld = 0
       mem = copy.deepcopy(self.memory)
       while not stop:
-         random.shuffle(mem)
+         #random.shuffle(mem)
          for sample in mem:
             s = sample.to(device) # GPU
             opt.zero_grad()
             pred = self.vae(s)
             loss = self.vae_loss(pred, s)
+            err_kld = self.kld_loss.item()
             err_rec = self.recon_loss.item()
+            total_rec += self.recon_loss.item()
+            total_kld += self.kld_loss.item()
             #print("loss reconstruct : ",self.recon_loss.item())
             #print("loss KL : ",self.kld_loss.item())
             #print("loss total : ",loss)
             loss.backward()
             opt.step()
-            if err_rec < min_err:
+            if err_rec < min_err and err_kld < min_kld:
                min_err = err_rec
-               #print("min reconstructed : ",min_err)
-               #print("loss KL : ",self.kld_loss.item())
-            if self.kld_loss < 0.05 and self.recon_loss < 0.0005:
+               min_kld = err_kld
+               print("min reconstructed : ",min_err)
+               print("loss KL : ",min_kld)
+            if min_kld < 0.04 and min_err < 0.001: #0.0005
                print("training... i : ",i)
-               stop = True
-               break
+               print("min reconstructed : ",min_err)
+               print("loss KL : ",self.kld_loss.item())
          i += 1
-         if i > 20000:
+         print("loss rec : ",total_rec)
+         print("loss kld : ",total_kld)
+         if total_kld < 7: #and total_rec < 5.7:
             stop = True
+         total_rec = 0
+         total_kld = 0
+         #if i > 20000:
+         #   stop = True
          if i % 10000 == 0:
             print("Step training...")
 
-   def get_sample_latent(self, sample):
+   def get_list_latent(self, list_sample):
       self.vae.eval()
-      z, z_log, recon = self.vae.encoder(sample)
-      z = z.to('cpu').detach().numpy()
+      x = None
+      y = None
+      j = 0
+      for i in list_sample:
+         z, z_log, recon = self.vae.encoder(i)
+         z = z.to('cpu').detach().numpy()
+         if j == 0:
+            x = np.array([z[0]])
+            y = np.array([z[1]])
+         else:
+            x = np.append(x,[z[0]])
+            y = np.append(y,[z[1]])
+         j+=1
 
-      return z
+      return x, y
    
    def reconstruct_latent(self, sample):
       self.vae.eval()
@@ -715,7 +745,9 @@ class Habituation(object):
       rospy.Subscriber("/habituation/save_vae_action", Bool, self.callback_save_action)
       self.load = rospy.get_param("load_vae")
       if(self.load):
-         self.load_nn()
+         self.load_nn_action()
+         self.load_nn_outcome()
+         
       else:
          self.rm_samples()
          self.create_exploration_data()
