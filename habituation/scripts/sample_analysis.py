@@ -190,7 +190,65 @@ def get_samples_tensor(data):
 
    return tensors
 
+def get_actions(folder,run):
+   n_rnd = folder + run + "/rnd_act.pkl"
+   n_direct = folder + run + "/direct_act.pkl"
+   rnd = open_sample(n_rnd)
+   direct = open_sample(n_direct)
+   x_dir = None
+   y_dir = None
+   x_rnd = None
+   y_rnd = None
+   j = 0
+   for i in rnd:
+      if j == 0:
+         x_rnd = np.array([i[0]])
+         y_rnd = np.array([i[1]])
+      else:
+         x_rnd = np.append(x_rnd,[i[0]])
+         y_rnd = np.append(y_rnd,[i[1]])
+      j+=1
+   j = 0
+   for i in direct:
+      if j == 0:
+         x_dir = np.array([i[0]])
+         y_dir = np.array([i[1]])
+      else:
+         x_dir = np.append(x_dir,[i[0]])
+         y_dir = np.append(y_dir,[i[1]])
+      j += 1
+   
+   return x_rnd, y_rnd, x_dir, y_dir
 
+def get_outcomes(folder,run):
+   n_rnd = folder + run + "/rnd_out.pkl"
+   n_direct = folder + run + "/direct_out.pkl"
+   rnd = open_sample(n_rnd)
+   direct = open_sample(n_direct)
+   x_dir = None
+   y_dir = None
+   x_rnd = None
+   y_rnd = None
+   j = 0
+   for i in rnd:
+      if j == 0:
+         x_rnd = np.array([i[0]])
+         y_rnd = np.array([i[1]])
+      else:
+         x_rnd = np.append(x_rnd,[i[0]])
+         y_rnd = np.append(y_rnd,[i[1]])
+      j+=1
+   j = 0
+   for i in direct:
+      if j == 0:
+         x_dir = np.array([i[0]])
+         y_dir = np.array([i[1]])
+      else:
+         x_dir = np.append(x_dir,[i[0]])
+         y_dir = np.append(y_dir,[i[1]])
+      j += 1
+   
+   return x_rnd, y_rnd, x_dir, y_dir
 
 def generate_latent_action(folder,run):
    vae_action = VariationalAE(0,5,4,2)
@@ -239,25 +297,72 @@ def open_latent_action(folder,run):
 
    return x_rnd, y_rnd, x_dir, y_dir
 
-def plot_latent_space(folder,run):
+def plot_action_space(folder,run):
    fig, ax = plt.subplots()
    colors_dir = ["red"]
    colors_rnd = ["blue"]
-   x_rnd, y_rnd, x_dir, y_dir = open_latent_action(folder,run)
+   x_rnd, y_rnd, x_dir, y_dir = get_actions(folder,run)
    ax.scatter(x_rnd, y_rnd, c='red', label="random")
    ax.scatter(x_dir, y_dir , c='blue', label="direct")
    ax.legend()
-   ax.set_xlim((-1.5,1.5))
-   ax.set_ylim((-1.5,1.5))
+   ax.set_xlim((-0.3,0.3))
+   ax.set_ylim((-0.3,0.3))
+   plt.show()
+
+def plot_outcome_space(folder,run):
+   fig, ax = plt.subplots()
+   colors_dir = ["red"]
+   colors_rnd = ["blue"]
+   x_rnd, y_rnd, x_dir, y_dir = get_outcomes(folder,run)
+   ax.scatter(x_rnd, y_rnd, c='red', label="random")
+   ax.scatter(x_dir, y_dir , c='blue', label="direct")
+   ax.legend()
+   ax.set_xlim((-0.3,0.3))
+   ax.set_ylim((-0.3,0.3))
+   plt.show()
+
+def plot_outcome_space(folder,run1,run2):
+   fig, ax = plt.subplots(1,4)
+   colors_dir = ["red"]
+   colors_rnd = ["blue"]
+   x_rnd1, y_rnd1, x_dir1, y_dir1 = get_actions(folder,run1)
+   x_rnd2, y_rnd2, x_dir2, y_dir2 = get_actions(folder,run2)
+   x_rnd_out1, y_rnd_out1, x_dir_out1, y_dir_out1 = get_outcomes(folder,run1)
+   x_rnd_out2, y_rnd_out2, x_dir_out2, y_dir_out2 = get_outcomes(folder,run2)
+   ax[0].scatter(x_rnd1, y_rnd1, c='firebrick', label="random")
+   ax[0].scatter(x_dir1, y_dir1 , c='royalblue', label="direct")
+   ax[1].scatter(x_rnd2, y_rnd2, c='firebrick', label="random")
+   ax[1].scatter(x_dir2, y_dir2 , c='royalblue', label="direct")
+   ax[2].scatter(x_rnd_out1, y_rnd_out1, c='firebrick', label="random")
+   ax[2].scatter(x_dir_out1, y_dir_out1 , c='royalblue', label="direct")
+   ax[3].scatter(x_rnd_out2, y_rnd_out2, c='firebrick', label="random")
+   ax[3].scatter(x_dir_out2, y_dir_out2 , c='royalblue', label="direct")
+   ax[0].legend()
+   ax[0].set_xlim((-0.3,0.3))
+   ax[0].set_ylim((-0.3,0.3))
+   ax[1].legend()
+   ax[1].set_xlim((-0.3,0.3))
+   ax[1].set_ylim((-0.3,0.3))
+   ax[2].legend()
+   ax[2].set_xlim((-0.3,0.3))
+   ax[2].set_ylim((-0.3,0.3))
+   ax[3].legend()
+   ax[3].set_xlim((-0.3,0.3))
+   ax[3].set_ylim((-0.3,0.3))
+   ax[0].set_title("Actions SF=35")
+   ax[1].set_title("Action SF=150")
+   ax[2].set_title("Outcomes SF=35")
+   ax[3].set_title("Outcomes SF=150")
    plt.show()
 
 
 if __name__ == '__main__':
    folder = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/cube/exploration/"
    run = "35"
+   run2 = "100"
    number = 14
    #display_exploration(folder,run,number)
    #generate_rnd_samples(folder,run,number)
    #generate_direct_samples(folder,run,number)
    #generate_latent_action(folder,run)
-   plot_latent_space(folder,run)
+   plot_outcome_space(folder,run,run2)
