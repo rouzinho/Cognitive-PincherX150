@@ -202,20 +202,20 @@ def get_actions(folder,run):
    j = 0
    for i in rnd:
       if j == 0:
-         x_rnd = np.array([i[0]])
-         y_rnd = np.array([i[1]])
+         x_rnd = np.array([i[0]*100])
+         y_rnd = np.array([i[1]*100])
       else:
-         x_rnd = np.append(x_rnd,[i[0]])
-         y_rnd = np.append(y_rnd,[i[1]])
+         x_rnd = np.append(x_rnd,[i[0]*100])
+         y_rnd = np.append(y_rnd,[i[1]*100])
       j+=1
    j = 0
    for i in direct:
       if j == 0:
-         x_dir = np.array([i[0]])
-         y_dir = np.array([i[1]])
+         x_dir = np.array([i[0]*100])
+         y_dir = np.array([i[1]*100])
       else:
-         x_dir = np.append(x_dir,[i[0]])
-         y_dir = np.append(y_dir,[i[1]])
+         x_dir = np.append(x_dir,[i[0]*100])
+         y_dir = np.append(y_dir,[i[1]*100])
       j += 1
    
    return x_rnd, y_rnd, x_dir, y_dir
@@ -232,20 +232,20 @@ def get_outcomes(folder,run):
    j = 0
    for i in rnd:
       if j == 0:
-         x_rnd = np.array([i[0]])
-         y_rnd = np.array([i[1]])
+         x_rnd = np.array([i[0]*100])
+         y_rnd = np.array([i[1]*100])
       else:
-         x_rnd = np.append(x_rnd,[i[0]])
-         y_rnd = np.append(y_rnd,[i[1]])
+         x_rnd = np.append(x_rnd,[i[0]*100])
+         y_rnd = np.append(y_rnd,[i[1]*100])
       j+=1
    j = 0
    for i in direct:
       if j == 0:
-         x_dir = np.array([i[0]])
-         y_dir = np.array([i[1]])
+         x_dir = np.array([i[0]*100])
+         y_dir = np.array([i[1]*100])
       else:
-         x_dir = np.append(x_dir,[i[0]])
-         y_dir = np.append(y_dir,[i[1]])
+         x_dir = np.append(x_dir,[i[0]*100])
+         y_dir = np.append(y_dir,[i[1]*100])
       j += 1
    
    return x_rnd, y_rnd, x_dir, y_dir
@@ -338,21 +338,39 @@ def plot_outcome_space(folder,run1,run2):
    ax[3].scatter(x_rnd_out2, y_rnd_out2, c='firebrick', label="random")
    ax[3].scatter(x_dir_out2, y_dir_out2 , c='royalblue', label="direct")
    ax[0].legend()
-   ax[0].set_xlim((-0.3,0.3))
-   ax[0].set_ylim((-0.3,0.3))
+   ax[0].set_xlim((-30,30))
+   ax[0].set_ylim((-30,30))
    ax[1].legend()
-   ax[1].set_xlim((-0.3,0.3))
-   ax[1].set_ylim((-0.3,0.3))
+   ax[1].set_xlim((-30,30))
+   ax[1].set_ylim((-30,30))
    ax[2].legend()
-   ax[2].set_xlim((-0.3,0.3))
-   ax[2].set_ylim((-0.3,0.3))
+   ax[2].set_xlim((-30,30))
+   ax[2].set_ylim((-30,30))
    ax[3].legend()
-   ax[3].set_xlim((-0.3,0.3))
-   ax[3].set_ylim((-0.3,0.3))
+   ax[3].set_xlim((-30,30))
+   ax[3].set_ylim((-30,30))
    ax[0].set_title("Actions SF=35")
    ax[1].set_title("Action SF=150")
    ax[2].set_title("Outcomes SF=35")
    ax[3].set_title("Outcomes SF=150")
+   ax[0].set_xlabel('motion x in cm',fontsize=18)
+   ax[0].set_ylabel('motion y in cm',fontsize=18)
+   ax[1].set_xlabel('motion x in cm',fontsize=18)
+   ax[1].set_ylabel('motion y in cm',fontsize=18)
+   ax[2].set_xlabel('motion x in cm',fontsize=18)
+   ax[2].set_ylabel('motion y in cm',fontsize=18)
+   ax[3].set_xlabel('motion x in cm',fontsize=18)
+   ax[3].set_ylabel('motion y in cm',fontsize=18)
+   plt.show()
+
+def plot_latent_space():
+   fig, ax = plt.subplots()
+   #reversed
+   x = np.array([0.48,0.96,-1.02,0.09,-0.005])
+   y = np.array([-0.43,0.63,-0.35,1.0,-0.11])
+   ax.scatter(x, y, c='forestgreen')
+   ax.set_xlim((-1.1,1.1))
+   ax.set_ylim((-0.6,1.1))
    plt.show()
 
 
@@ -365,4 +383,5 @@ if __name__ == '__main__':
    #generate_rnd_samples(folder,run,number)
    #generate_direct_samples(folder,run,number)
    #generate_latent_action(folder,run)
-   plot_outcome_space(folder,run,run2)
+   #plot_outcome_space(folder,run,run2)
+   plot_latent_space()

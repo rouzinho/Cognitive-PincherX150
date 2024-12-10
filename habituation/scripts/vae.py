@@ -151,7 +151,7 @@ class VariationalAE(object):
       self.list_latent = []
       self.list_latent_scaled = []
       #self.scale_factor = rospy.get_param("scale_factor")
-      self.scale_factor = 35
+      self.scale_factor = 100
       self.tmp_list = []
       self.bound_x = 0
       self.bound_y = 0
@@ -318,6 +318,9 @@ class VariationalAE(object):
       l.list_latent.append(g)
 
       return l
+   
+   def set_scale_factor(self,val):
+      self.scale_factor = val
 
    def get_latent_space(self):
       cp_val = copy.deepcopy(self.list_latent)
@@ -466,8 +469,8 @@ class VariationalAE(object):
       err_rec = 1.0
       err_kld = 5.0
       min_kld = 5.0
-      total_rec = 0
-      total_kld = 0
+      total_rec = 50
+      total_kld = 50
       mem = copy.deepcopy(self.memory)
       while not stop:
          #random.shuffle(mem)
@@ -476,29 +479,35 @@ class VariationalAE(object):
             opt.zero_grad()
             pred = self.vae(s)
             loss = self.vae_loss(pred, s)
-            err_kld = self.kld_loss.item()
-            err_rec = self.recon_loss.item()
-            total_rec += self.recon_loss.item()
-            total_kld += self.kld_loss.item()
+            #err_kld = self.kld_loss.item()
+            #err_rec = self.recon_loss.item()
+            #total_rec += self.recon_loss.item()
+            #total_kld += self.kld_loss.item()
+            #self.kld_loss = self.kld_loss.item()
+            #self.recon_loss = self.recon_loss.item()
             #print("loss reconstruct : ",self.recon_loss.item())
             #print("loss KL : ",self.kld_loss.item())
             #print("loss total : ",loss)
             loss.backward()
             opt.step()
-            if err_rec < min_err and err_kld < min_kld:
-               min_err = err_rec
-               min_kld = err_kld
-               print("min reconstructed : ",min_err)
-               print("loss KL : ",min_kld)
-            if min_kld < 0.04 and min_err < 0.001: #0.0005
-               print("training... i : ",i)
-               print("min reconstructed : ",min_err)
-               print("loss KL : ",self.kld_loss.item())
+            #if err_rec < min_err and err_kld < min_kld:
+            #   min_err = err_rec
+            #   min_kld = err_kld
+            #   print("min reconstructed : ",min_err)
+            #   print("loss KL : ",min_kld)
+            #if min_kld < 0.04 and min_err < 0.001: #0.0005
+            #   print("training... i : ",i)
+            #   print("min reconstructed : ",min_err)
+            #   print("loss KL : ",self.kld_loss.item())
+            if self.kld_loss < 0.05 and self.recon_loss < 0.0005:
+               stop = True
          i += 1
-         print("loss rec : ",total_rec)
-         print("loss kld : ",total_kld)
-         if total_kld < 7: #and total_rec < 5.7:
-            stop = True
+         #print("loss rec : ",total_rec)
+         #print("loss kld : ",total_kld)
+         #if total_kld < 7 and total_rec < 5.7:
+         #   print("loss rec : ",total_rec)
+         #   print("loss kld : ",total_kld)
+         #   stop = True
          total_rec = 0
          total_kld = 0
          #if i > 20000:
@@ -744,6 +753,8 @@ class Habituation(object):
       rospy.Subscriber("/habituation/save_vae_out", Bool, self.callback_save_outcome)
       rospy.Subscriber("/habituation/save_vae_action", Bool, self.callback_save_action)
       self.load = rospy.get_param("load_vae")
+      self.sf = rospy.get_param("scale_factor")
+
       if(self.load):
          self.load_nn_action()
          self.load_nn_outcome()
@@ -1198,7 +1209,9 @@ class Habituation(object):
                   self.index_vae = i
                   found = True
                   print("found MT")
-                  self.send_mt_field()
+                  #self.send_mt_field()
+                  self.habit[self.index_vae].set_latent_dnf(self.exploration_mode)
+                  self.send_latent_space_outcome()
          if not found:
             tmp_habbit = VariationalAE(self.id_object,4,3,2)
             self.habit.append(tmp_habbit)
@@ -1209,6 +1222,8 @@ class Habituation(object):
             blank_mt = np.zeros((100,100,1), np.float32)
             self.habit[self.index_vae].set_mt_field(blank_mt)
             self.vae_action[self.index_vae].set_mt_field(blank_mt)
+            self.habit[self.index_vae].set_scale_factor(self.sf)
+            self.vae_action[self.index_vae].set_scale_factor(self.sf)
             self.send_mt_field()
          self.prev_id_object = self.id_object
          self.id_defined = True
@@ -1280,15 +1295,17 @@ class Habituation(object):
          n_f = self.folder_habituation + str(i) + "/"
          tmp_habit.load_nn(self.folder_habituation,i,"outcome")
          tmp_habit.load_memory(n_f,"outcome")
+         tmp_habit.set_scale_factor(self.sf)
          #tmp_act.load_nn(self.folder_habituation,i,"action")
          #tmp_act.load_memory(n_f,"action")
          self.habit.append(tmp_habit)
          #self.vae_action.append(tmp_act)
-      #for i in self.habit:
-      #   print("VAE : ",i.get_id())
-      #   print("memory : ",len(i.memory))
-      #   print("latent space : ",i.get_latent_space())
-      #   print("latent space scaled : ",i.get_latent_space_dnf())
+         
+      for i in self.habit:
+         print("VAE : ",i.get_id())
+         #print("memory : ",len(i.memory))
+         print("latent space : ",i.get_latent_space())
+         print("latent space scaled : ",i.get_latent_space_dnf())
 
    def load_nn_action(self):
       list_dir = os.listdir(self.folder_habituation)

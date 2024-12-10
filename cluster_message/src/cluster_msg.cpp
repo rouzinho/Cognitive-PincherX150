@@ -317,6 +317,8 @@ class ClusterMessage
          ros::Duration(1.0).sleep();
          f.data = 0.0;
          pub_end_action.publish(f);
+         b.data = true;
+         pub_sim_ready.publish(b);
       }
       if(rnd_explore > 0.5 && retry)
       {

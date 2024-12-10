@@ -139,6 +139,14 @@ if __name__ == "__main__":
    dmp1 = [0.08,0.0,1.0,1.5,0.0,0.26,0.0]
    action1 = [0.26,0.0,1.0]
    state1 = [0.29,0.0,94.9]
+   outcomeup1 = [0.06,0.02,-14.0,0.0]
+   dmpup1 = [0.06,0.02,1.0,1.5,0.0,0.26,0.0]
+   actionup1 = [0.26,0.0,1.0]
+   stateup1 = [0.29,0.0,94.9]
+   outcomeup2 = [0.06,-0.02,-14.0,0.0]
+   dmpup2 = [0.06,-0.02,1.0,1.5,0.0,0.26,0.0]
+   actionup2 = [0.26,0.0,1.0]
+   stateup2 = [0.29,0.0,94.9]
    #down
    outcome2 = [-0.08,0.00,13.0,0.0]
    dmp2 = [-0.08,0.0,1.1,1.5,0.0,0.34,0.0]
@@ -192,9 +200,11 @@ if __name__ == "__main__":
    sim5_out = [0.8,0.6,0.1,0.0]
    sim5_dmp = [0.5,0.15,0.9,0.1,0.0]
    data.append([outcome1,dmp1])
-   data.append([outcome4,dmp4])
-   data.append([outcome5,dmp5])
-   
+   #data.append([outcome4,dmp4])
+   #data.append([outcome5,dmp5])
+   #comment here simmilar
+   data.append([outcomeup1,dmpup1])
+   data.append([outcomeup2,dmpup2])
 
    data.append([outcome2,dmp2])
    #data.append([sim1_out,sim1_dmp])
@@ -249,7 +259,7 @@ if __name__ == "__main__":
    skills = ["up","right","grasp"]
    #[67, 79, 0.9], [38, 72, 0.9], [42, 85, 0.9], [67, 51, 0.9], [56, 73, 0.9] order of skills
    while not rospy.is_shutdown():
-      #test.pub_exploration()
+      test.pub_exploration()
       #test.pub_exploitation()
       if explore:
          if(test.get_ready() and i < 3):
