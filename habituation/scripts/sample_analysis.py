@@ -5,6 +5,7 @@ import torch;
 import torch.nn as nn
 import torch.utils
 import torch.distributions
+import ndtest
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
@@ -104,10 +105,13 @@ def get_sum_exploration_rnd(folder,run,number):
          direct = None
          csvreader = csv.reader(file)
          for row in csvreader:
-            if j == 1:
-               rnd = np.array([float(row[9])])
-               direct = np.array([float(row[10])])
-            if j > 1:
+            if j == 0:
+               rnd = np.array([0])
+               direct = np.array([0])
+            #if j == 1:
+            #   rnd = np.array([float(row[9])])
+            #   direct = np.array([float(row[10])])
+            if j > 0:
                rnd = np.append(rnd,[float(row[9])])
                direct = np.append(direct,[float(row[10])])
             j+=1
@@ -124,14 +128,16 @@ def display_exploration(folder,run,number):
    random, direct = get_sum_exploration_rnd(folder,run,number)
    r = random.mean(axis=0)
    d = direct.mean(axis=0)
-   fig, ax = plt.subplots(figsize=(12, 8))
-   x = np.arange(8)
+   fig, ax = plt.subplots(figsize=(12, 10))
+   x = np.arange(9)
    ax.plot(x, r, label="random exploration")
    ax.plot(x, d, label="direct exploration")
-   ax.set_xlabel('Number of stimuli')  # Add an x-label to the axes.
-   ax.set_ylabel('Exploration level')  # Add a y-label to the axes.
+   ax.set_xlabel('Number of goals',fontsize=24)  # Add an x-label to the axes.
+   ax.set_ylabel('Neural activation',fontsize=24)  # Add a y-label to the axes.
    #ax.set_title("Learning Progress")  # Add a title to the axes.
-   ax.legend();  # Add a legend.
+   ax.legend(fontsize=24);  # Add a legend.
+   plt.xticks(fontsize=18)
+   plt.yticks(fontsize=18)
    plt.ylim(0, None)
    plt.show()
 
@@ -298,30 +304,63 @@ def open_latent_action(folder,run):
    return x_rnd, y_rnd, x_dir, y_dir
 
 def plot_action_space(folder,run):
-   fig, ax = plt.subplots()
+   fig, ax = plt.subplots(figsize=(12, 10))
    colors_dir = ["red"]
    colors_rnd = ["blue"]
    x_rnd, y_rnd, x_dir, y_dir = get_actions(folder,run)
-   ax.scatter(x_rnd, y_rnd, c='red', label="random")
-   ax.scatter(x_dir, y_dir , c='blue', label="direct")
-   ax.legend()
-   ax.set_xlim((-0.3,0.3))
-   ax.set_ylim((-0.3,0.3))
+   ax.scatter(x_rnd, y_rnd, c='red', label="action random")
+   ax.scatter(x_dir, y_dir , c='blue', label="action direct")
+   ax.legend(fontsize=24)
+   ax.set_xlim((-25,20))
+   ax.set_ylim((-20,30))
+   ax.set_xlabel('vx in cm',fontsize=24)  # Add an x-label to the axes.
+   ax.set_ylabel('vy in cm',fontsize=24)  # Add a y-label to the axes.
+   plt.xticks(fontsize=18)
+   plt.yticks(fontsize=18)
    plt.show()
 
 def plot_outcome_space(folder,run):
-   fig, ax = plt.subplots()
+   fig, ax = plt.subplots(figsize=(12, 10))
    colors_dir = ["red"]
    colors_rnd = ["blue"]
    x_rnd, y_rnd, x_dir, y_dir = get_outcomes(folder,run)
-   ax.scatter(x_rnd, y_rnd, c='red', label="random")
-   ax.scatter(x_dir, y_dir , c='blue', label="direct")
-   ax.legend()
-   ax.set_xlim((-0.3,0.3))
-   ax.set_ylim((-0.3,0.3))
+   ax.scatter(x_rnd, y_rnd, c='red', label="outcome random")
+   ax.scatter(x_dir, y_dir , c='blue', label="outcome direct")
+   ax.set_xlabel('vx in cm',fontsize=24)  # Add an x-label to the axes.
+   ax.set_ylabel('vy in cm',fontsize=24)  # Add a y-label to the axes.
+   ax.legend(fontsize=24)
+   ax.set_xlim((-25,20))
+   ax.set_ylim((-20,30))
+   plt.xticks(fontsize=18)
+   plt.yticks(fontsize=18)
    plt.show()
 
-def plot_outcome_space(folder,run1,run2):
+def compare_distribution(folder,run,run2):
+   #x_rnd, y_rnd, x_dir, y_dir = get_outcomes(folder,run)
+   actx_rnd1, acty_rnd1, actx_dir1, acty_dir1 = get_actions(folder,run)
+   P, D = ndtest.ks2d2s(actx_rnd1, acty_rnd1, actx_dir1, acty_dir1, extra=True)
+   print("actions ",run)
+   print(f"{P=:.3g}, {D=:.3g}")
+   outx_rnd1, outy_rnd1, outx_dir1, outy_dir1 = get_outcomes(folder,run)
+   P, D = ndtest.ks2d2s(outx_rnd1, outy_rnd1, outx_dir1, outy_dir1, extra=True)
+   print("outcomes ",run)
+   print(f"{P=:.3g}, {D=:.3g}")
+   actx_rnd2, acty_rnd2, actx_dir2, acty_dir2 = get_actions(folder,run2)
+   P, D = ndtest.ks2d2s(actx_rnd2, acty_rnd2, actx_dir2, acty_dir2, extra=True)
+   print("actions ",run2)
+   print(f"{P=:.3g}, {D=:.3g}")
+   outx_rnd2, outy_rnd2, outx_dir2, outy_dir2 = get_outcomes(folder,run2)
+   P, D = ndtest.ks2d2s(outx_rnd2, outy_rnd2, outx_dir2, outy_dir2, extra=True)
+   print("outcomes ",run2)
+   print(f"{P=:.3g}, {D=:.3g}")
+   P, D = ndtest.ks2d2s(actx_dir2, acty_dir2, actx_dir1, acty_dir1, extra=True)
+   print("direct actions between 35 and 100")
+   print(f"{P=:.3g}, {D=:.3g}")
+   P, D = ndtest.ks2d2s(outx_dir2, outy_dir2, outx_dir1, outy_dir1, extra=True)
+   print("direct outcomes between 35 and 100")
+   print(f"{P=:.3g}, {D=:.3g}")
+
+def plot_total_outcome_space(folder,run1,run2):
    fig, ax = plt.subplots(1,4)
    colors_dir = ["red"]
    colors_rnd = ["blue"]
@@ -366,12 +405,80 @@ def plot_outcome_space(folder,run1,run2):
 def plot_latent_space():
    fig, ax = plt.subplots()
    #reversed
-   x = np.array([0.48,0.96,-1.02,0.09,-0.005])
-   y = np.array([-0.43,0.63,-0.35,1.0,-0.11])
+   x = np.array([0.33,-0.27,-0.01])
+   y = np.array([-0.05,-0.3,0.31])
    ax.scatter(x, y, c='forestgreen')
-   ax.set_xlim((-1.1,1.1))
-   ax.set_ylim((-0.6,1.1))
+   ax.set_xlim((-0.4,0.4))
+   ax.set_ylim((-0.4,0.4))
    plt.show()
+
+def display_order_goals(sf):
+   fig, ax = plt.subplots(figsize=(16, 9))
+   x = np.arange(7)
+   yc1 = None
+   yc2 = None
+   yc3 = None
+   yc4 = None
+   if sf == 35:
+      yc1 = np.array([0,100,210,506,980,980,980])
+      yc2 = np.array([0,100,210,210,210,506,980])
+      yc3 = np.array([0,100,210,210,506,980,980])
+      yc4 = np.array([0,100,228,460,460,576,576])
+      m1 = [5, 6]
+      m2 = [3, 4]
+      m3 = [3, 6]
+      m4 = [4, 6]
+      ax.plot(x, yc1,'-gD', markevery=m1, c='indianred', label="end")
+      ax.plot(x, yc2, '-gD', markevery=m2, c='orange', label="middle")
+      ax.plot(x, yc3, '-gD', markevery=m3, c='deepskyblue',label="first and spread")
+      ax.plot(x, yc4, '-gD', markevery=m4, c='royalblue',label="second and spread")
+      ax.set_xlabel('Number of goal',fontsize=24)  # Add an x-label to the axes.
+      ax.set_ylabel('Projection size',fontsize=24)  # Add a y-label to the axes.
+      ax.legend(fontsize=24);  # Add a legend.
+      plt.xticks(fontsize=18)
+      plt.yticks(fontsize=18)
+      plt.ylim(0, None)
+      plt.show()
+   if sf == 70:
+      yc1 = np.array([0,100,817,1978,3990,3990,3304])
+      yc2 = np.array([0,100,817,817,817,1978,3990])
+      yc3 = np.array([0,100,817,817,1978,3990,3304])
+      yc4 = np.array([0,100,925,1886,1886,2304,4095])
+      m1 = [5]
+      m2 = [3, 4]
+      m3 = [3]
+      m4 = [4]
+      ax.plot(x, yc1,'-gD', markevery=m1, c='indianred', label="end")
+      ax.plot(x, yc2, '-gD', markevery=m2, c='orange', label="middle")
+      ax.plot(x, yc3, '-gD', markevery=m3, c='deepskyblue',label="first and spread")
+      ax.plot(x, yc4, '-gD', markevery=m4, c='royalblue',label="second and spread")
+      ax.set_xlabel('Number of goal',fontsize=24)  # Add an x-label to the axes.
+      ax.set_ylabel('Projection size',fontsize=24)  # Add a y-label to the axes.
+      ax.legend(fontsize=24);  # Add a legend.
+      plt.xticks(fontsize=18)
+      plt.yticks(fontsize=18)
+      plt.ylim(0, None)
+      plt.show()
+   if sf == 250:
+      yc1 = np.array([0,100,10488,25730,50547,50547,42411])
+      yc2 = np.array([0,100,10488,375,375,25454,28372])
+      yc3 = np.array([0,100,10488,375,25454,28372,45200])
+      yc4 = np.array([0,100,11837,24236,19257,44622,41280])
+      m1 = [5]
+      m2 = [4]
+      m3 = []
+      m4 = []
+      ax.plot(x, yc1,'-gD', markevery=m1, c='indianred', label="end")
+      ax.plot(x, yc2, '-gD', markevery=m2, c='orange', label="middle")
+      ax.plot(x, yc3, '-gD', markevery=m3, c='deepskyblue',label="first and spread")
+      ax.plot(x, yc4, '-gD', markevery=m4, c='royalblue',label="second and spread")
+      ax.set_xlabel('Number of goal',fontsize=24)  # Add an x-label to the axes.
+      ax.set_ylabel('Projection size',fontsize=24)  # Add a y-label to the axes.
+      ax.legend(fontsize=24);  # Add a legend.
+      plt.xticks(fontsize=18)
+      plt.yticks(fontsize=18)
+      plt.ylim(0, None)
+      plt.show()
 
 
 if __name__ == '__main__':
@@ -384,4 +491,8 @@ if __name__ == '__main__':
    #generate_direct_samples(folder,run,number)
    #generate_latent_action(folder,run)
    #plot_outcome_space(folder,run,run2)
-   plot_latent_space()
+   #plot_latent_space()
+   #display_order_goals(250)
+   #plot_action_space(folder,run)
+   #plot_outcome_space(folder,run)
+   compare_distribution(folder,run,run2)

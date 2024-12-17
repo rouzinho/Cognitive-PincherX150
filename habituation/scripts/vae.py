@@ -194,8 +194,8 @@ class VariationalAE(object):
          else:
             self.list_latent_scaled.append([50,50])
       else:
-         dist_x = abs(ext_x[0]) + abs(ext_x[1])
-         dist_y = abs(ext_y[0]) + abs(ext_y[1])
+         dist_x = abs(ext_x[0] - ext_x[1])
+         dist_y = abs(ext_y[0] - ext_y[1])
          self.max_bound_x = (dist_x * self.scale_factor)
          self.max_bound_y = (dist_y * self.scale_factor)
          #control on bounding

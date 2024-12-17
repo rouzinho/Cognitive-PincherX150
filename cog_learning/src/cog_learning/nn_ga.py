@@ -86,6 +86,7 @@ class NNGoalAction(object):
         self.max_scale = 1.7
         self.reward_predictor = 0
         self.load = rospy.get_param("load_vae")
+        self.squeeze = rospy.get_param("squeeze_learning")
         if(not self.load):
             self.create_exploration_data()
         
@@ -602,16 +603,17 @@ class NNGoalAction(object):
             rospy.sleep(1.0)
             self.end_action(False)
             self.send_latent_space()
-            print("association between : ",outcome_dnf)
-            print("and : ",action_dnf)
-            self.hebbian.hebbianLearningAction(outcome_dnf,action_dnf)
-            self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
-            self.skills[ind_skill].train_forward_model()
-            self.skills[ind_skill].train_inverse_model()
-            self.skills[ind_skill].train_predictor()
-            self.reset_models()
-            self.train_decoder_action()
-            self.train_decoder_outcome()
+            if not self.squeeze:
+                print("association between : ",outcome_dnf)
+                print("and : ",action_dnf)
+                self.hebbian.hebbianLearningAction(outcome_dnf,action_dnf)
+                self.hebbian.hebbianLearning(outcome_dnf,ind_skill)
+                self.skills[ind_skill].train_forward_model()
+                self.skills[ind_skill].train_inverse_model()
+                self.skills[ind_skill].train_predictor()
+                self.reset_models()
+                self.train_decoder_action()
+                self.train_decoder_outcome()
         if out_b and not act_b:
             print("new outcome and old action")
             #self.write_exploration_data(sample)
@@ -737,97 +739,99 @@ class NNGoalAction(object):
         self.send_ready(True)
 
     def train_decoder_outcome(self):
-        current_cost = 0
-        last_cost = 15
-        learning_rate = 1e-3
-        epochs = 150
-        time_cost = 0
-        stop = False
-        i = 0
-        print("Train NNGA outcome")
-        #self.inverse_model.to(device)
-        criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.decoder_outcome.parameters(),lr=learning_rate)        
-        current_cost = 0
-        while last_cost > 0.001 and not stop:
-            #print("outcome")
-            mem = copy.deepcopy(self.memory)
-            for j in range(0,len(mem)):
-                self.encoder_outcome.eval()
-                self.decoder_outcome.train()
-                optimizer.zero_grad()
-                sample = mem[j]
-                sample = sample.to(device)
-                inputs = self.encoder_outcome(sample)
-                inputs = inputs.to(device)
-                targets = sample
-                targets = targets.to(device)
-                outputs = self.decoder_outcome(inputs)
-                cost = criterion(outputs,targets)
-                cost.backward()
-                optimizer.step()
-                current_cost = current_cost + cost.item()
-                last_cost = current_cost
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
-            if i == 0:
-                time_cost = last_cost
-            if i == 2000:
-                if abs(time_cost-last_cost) < 0.001:
-                    stop = True
-                    print("stopping training")
-                else:
-                    time_cost = last_cost
-                    i = 0
+        if not self.squeeze:
             current_cost = 0
-            i += 1
-        print("finish training NNGA outcome")
+            last_cost = 15
+            learning_rate = 1e-3
+            epochs = 150
+            time_cost = 0
+            stop = False
+            i = 0
+            print("Train NNGA outcome")
+            #self.inverse_model.to(device)
+            criterion = torch.nn.MSELoss()
+            optimizer = torch.optim.Adam(self.decoder_outcome.parameters(),lr=learning_rate)        
+            current_cost = 0
+            while last_cost > 0.001 and not stop:
+                #print("outcome")
+                mem = copy.deepcopy(self.memory)
+                for j in range(0,len(mem)):
+                    self.encoder_outcome.eval()
+                    self.decoder_outcome.train()
+                    optimizer.zero_grad()
+                    sample = mem[j]
+                    sample = sample.to(device)
+                    inputs = self.encoder_outcome(sample)
+                    inputs = inputs.to(device)
+                    targets = sample
+                    targets = targets.to(device)
+                    outputs = self.decoder_outcome(inputs)
+                    cost = criterion(outputs,targets)
+                    cost.backward()
+                    optimizer.step()
+                    current_cost = current_cost + cost.item()
+                    last_cost = current_cost
+                #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+                if i == 0:
+                    time_cost = last_cost
+                if i == 2000:
+                    if abs(time_cost-last_cost) < 0.001:
+                        stop = True
+                        print("stopping training")
+                    else:
+                        time_cost = last_cost
+                        i = 0
+                current_cost = 0
+                i += 1
+            print("finish training NNGA outcome")
 
     def train_decoder_action(self):
-        current_cost = 0
-        last_cost = 15
-        learning_rate = 1e-3
-        epochs = 150
-        i = 0
-        time_cost = 0
-        stop = False
-        print("Train NNGA action")
-        #self.inverse_model.to(device)
-        criterion = torch.nn.MSELoss()
-        optimizer = torch.optim.Adam(self.decoder_action.parameters(),lr=learning_rate)        
-        current_cost = 0
-        while last_cost > 0.001 and not stop:
-            mem = copy.deepcopy(self.memory_action)
-            random.shuffle(mem)
-            #print("action")
-            for j in range(0,len(mem)):
-                self.encoder_action.eval()
-                self.decoder_action.train()
-                optimizer.zero_grad()
-                sample = mem[j]
-                sample = sample.to(device)
-                inputs = self.encoder_action(sample)
-                inputs = inputs.to(device)
-                targets = sample
-                targets = targets.to(device)
-                outputs = self.decoder_action(inputs)
-                cost = criterion(outputs,targets)
-                cost.backward()
-                optimizer.step()
-                current_cost = current_cost + cost.item()
-                last_cost = current_cost
-            #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
-            if i == 0:
-                time_cost = last_cost
-            if i == 2000:
-                if abs(time_cost-last_cost) < 0.001:
-                    stop = True
-                    print("stopping training")
-                else:
-                    time_cost = last_cost
-                    i = 0
+        if not self.squeeze:
             current_cost = 0
-            i += 1
-        print("finish training NNGA action")
+            last_cost = 15
+            learning_rate = 1e-3
+            epochs = 150
+            i = 0
+            time_cost = 0
+            stop = False
+            print("Train NNGA action")
+            #self.inverse_model.to(device)
+            criterion = torch.nn.MSELoss()
+            optimizer = torch.optim.Adam(self.decoder_action.parameters(),lr=learning_rate)        
+            current_cost = 0
+            while last_cost > 0.001 and not stop:
+                mem = copy.deepcopy(self.memory_action)
+                random.shuffle(mem)
+                #print("action")
+                for j in range(0,len(mem)):
+                    self.encoder_action.eval()
+                    self.decoder_action.train()
+                    optimizer.zero_grad()
+                    sample = mem[j]
+                    sample = sample.to(device)
+                    inputs = self.encoder_action(sample)
+                    inputs = inputs.to(device)
+                    targets = sample
+                    targets = targets.to(device)
+                    outputs = self.decoder_action(inputs)
+                    cost = criterion(outputs,targets)
+                    cost.backward()
+                    optimizer.step()
+                    current_cost = current_cost + cost.item()
+                    last_cost = current_cost
+                #print("Epoch: {}/{}...".format(i, epochs),"MSE : ",current_cost)
+                if i == 0:
+                    time_cost = last_cost
+                if i == 2000:
+                    if abs(time_cost-last_cost) < 0.001:
+                        stop = True
+                        print("stopping training")
+                    else:
+                        time_cost = last_cost
+                        i = 0
+                current_cost = 0
+                i += 1
+            print("finish training NNGA action")
 
     def test_training_outcome(self):
         print("EVALUATION OUTCOME")
