@@ -5,7 +5,13 @@ import torch;
 import torch.nn as nn
 import torch.utils
 import torch.distributions
-import ndtest
+import pdb
+from scipy.stats import multivariate_normal
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
+from scipy.interpolate import griddata
+import lmfit
+from lmfit.lineshapes import gaussian2d, lorentzian
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
 try:
@@ -480,6 +486,38 @@ def display_order_goals(sf):
       plt.ylim(0, None)
       plt.show()
 
+def multivariate_gaussian(pos, mu, Sigma):
+    """Return the multivariate Gaussian distribution on array pos."""
+
+    n = mu.shape[0]
+    Sigma_det = np.linalg.det(Sigma)
+    Sigma_inv = np.linalg.inv(Sigma)
+    N = np.sqrt((2*np.pi)**n * Sigma_det)
+    # This einsum call calculates (x-mu)T.Sigma-1.(x-mu) in a vectorized
+    # way across all the input variables.
+    fac = np.einsum('...k,kl,...l->...', pos-mu, Sigma_inv, pos-mu)
+
+    return np.exp(-fac / 2) / N
+
+def gauss2d():
+   npoints = 10000
+   np.random.seed(2021)
+   x = np.random.rand(npoints)*100
+   y = np.random.rand(npoints)*100 
+   z = gaussian2d(x, y, amplitude=59, centerx=5, centery=5, sigmax=3.0, sigmay=3.0)
+   z_ = gaussian2d(x, y, amplitude=59, centerx=70, centery=70, sigmax=3.0, sigmay=3.0)
+   z += z_
+   error = np.sqrt(z+1)
+   X, Y = np.meshgrid(np.linspace(x.min(), x.max(), 100),
+                   np.linspace(y.min(), y.max(), 100))
+   Z = griddata((x, y), z, (X, Y), method='linear', fill_value=0)
+
+   fig, ax = plt.subplots()
+   art = ax.pcolor(X, Y, Z)
+   plt.colorbar(art, ax=ax, label='z')
+   ax.set_xlabel('x')
+   ax.set_ylabel('y')
+   plt.show()
 
 if __name__ == '__main__':
    folder = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/cube/exploration/"
@@ -495,4 +533,5 @@ if __name__ == '__main__':
    #display_order_goals(250)
    #plot_action_space(folder,run)
    #plot_outcome_space(folder,run)
-   compare_distribution(folder,run,run2)
+   #compare_distribution(folder,run,run2)
+   gauss2d()
