@@ -217,6 +217,8 @@ class VariationalAE(object):
             self.list_latent_scaled.append([5,5])
             self.bound_x = round(10)
             self.bound_y = round(10)
+      print("bound x : ",self.bound_x)
+      print("bound y : ",self.bound_y)
 
    def get_value_dnf(self,z,exploration):
       ext_x, ext_y = self.get_latent_extremes(self.list_latent)
@@ -1300,6 +1302,7 @@ class Habituation(object):
          #tmp_act.load_memory(n_f,"action")
          self.habit.append(tmp_habit)
          #self.vae_action.append(tmp_act)
+         self.habit[self.index_vae].set_latent_dnf(self.exploration_mode)
          
       for i in self.habit:
          print("VAE : ",i.get_id())

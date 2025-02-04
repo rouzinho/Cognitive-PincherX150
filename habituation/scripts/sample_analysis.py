@@ -13,12 +13,22 @@ from scipy.interpolate import griddata
 import lmfit
 from lmfit.lineshapes import gaussian2d, lorentzian
 from sklearn.preprocessing import MinMaxScaler
-import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 100
+import matplotlib.pyplot as plt; plt.rcParams['figure.dpi'] = 1200
+from matplotlib import rc
+import matplotlib
+import matplotlib.font_manager
 try:
     import cPickle as pickle
 except ModuleNotFoundError:
     import pickle
 from vae import Sampling,VariationalEncoder,Decoder,VariationalAutoencoder,VariationalAE
+
+
+rc('text', usetex=True)
+#rc('font',**{'family':'serif','serif':['Helvetica']})
+matplotlib.rcParams['font.family'] = "serif"
+matplotlib.rcParams['font.serif'] = "Arial"
+
 
 min_vx = -0.22
 max_vx = 0.22
@@ -413,10 +423,19 @@ def plot_latent_space():
    #reversed
    x = np.array([0.33,-0.27,-0.01])
    y = np.array([-0.05,-0.3,0.31])
+   n = ["up", "grasp", "down"]
    ax.scatter(x, y, c='forestgreen')
+   #for i, txt in enumerate(n):
+      #ax.annotate(txt, (x[i]-0.02, y[i]+0.05))
+   ax.annotate(n[0], (x[0]-0.014, y[0]-0.05))
+   ax.annotate(n[1], (x[1]-0.025, y[1]-0.05))
+   ax.annotate(n[2], (x[2]-0.025, y[2]-0.05))
    ax.set_xlim((-0.4,0.4))
    ax.set_ylim((-0.4,0.4))
-   plt.show()
+   ax.set_xlabel('Latent x')
+   ax.set_ylabel('Latent y')
+   plt.rcParams['pdf.fonttype'] = 42
+   plt.savefig('3_skills_latent.pdf', format='pdf',dpi=1200)
 
 def display_order_goals(sf):
    fig, ax = plt.subplots(figsize=(16, 9))
@@ -502,22 +521,27 @@ def multivariate_gaussian(pos, mu, Sigma):
 def gauss2d():
    npoints = 10000
    np.random.seed(2021)
-   x = np.random.rand(npoints)*100
-   y = np.random.rand(npoints)*100 
-   z = gaussian2d(x, y, amplitude=59, centerx=5, centery=5, sigmax=3.0, sigmay=3.0)
-   z_ = gaussian2d(x, y, amplitude=59, centerx=70, centery=70, sigmax=3.0, sigmay=3.0)
+   x = np.random.rand(npoints)*94
+   y = np.random.rand(npoints)*82 
+   z = gaussian2d(x, y, amplitude=59, centerx=85, centery=33, sigmax=3.0, sigmay=3.0)
+   z_ = gaussian2d(x, y, amplitude=59, centerx=51, centery=74, sigmax=3.0, sigmay=3.0)
+   z__ = gaussian2d(x, y, amplitude=59, centerx=9, centery=8, sigmax=3.0, sigmay=3.0)
    z += z_
+   z += z__
    error = np.sqrt(z+1)
    X, Y = np.meshgrid(np.linspace(x.min(), x.max(), 100),
                    np.linspace(y.min(), y.max(), 100))
    Z = griddata((x, y), z, (X, Y), method='linear', fill_value=0)
 
    fig, ax = plt.subplots()
-   art = ax.pcolor(X, Y, Z)
-   plt.colorbar(art, ax=ax, label='z')
-   ax.set_xlabel('x')
-   ax.set_ylabel('y')
-   plt.show()
+   art = ax.pcolor(X, Y, Z,cmap="bwr")
+   cbar = plt.colorbar(art, ax=ax)
+   cbar.set_label(label='Neural activation',size=12)
+   ax.set_xlabel('x',size=12)
+   ax.set_ylabel('y',size=12)
+   #plt.show()
+   plt.rcParams['pdf.fonttype'] = 42
+   plt.savefig('3_skills_150.pdf', format='pdf',dpi=1200)
 
 if __name__ == '__main__':
    folder = "/home/altair/PhD/Codes/Experiment-IMVAE/datas/analysis/cube/exploration/"
